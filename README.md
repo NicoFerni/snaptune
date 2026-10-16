@@ -1,5 +1,9 @@
 # SnapTune
 
+[![Build](https://github.com/NicoFerni/snaptune/actions/workflows/build.yml/badge.svg)](https://github.com/NicoFerni/snaptune/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/NicoFerni/snaptune)](https://github.com/NicoFerni/snaptune/releases/latest)
+[![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+
 **Open-source real-time pitch correction for your DAW.** From the robotic hard-tune snap to
 transparent correction, with a formant-preserving Studio mode and a 2.7 ms Live mode for tracking.
 VST3 + Audio Unit, macOS (Apple Silicon and Intel).
@@ -17,9 +21,21 @@ VST3 + Audio Unit, macOS (Apple Silicon and Intel).
 - **Factory presets:** Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop
 - Resizable window (70 % to 150 %), tooltips on every control, under 1 % CPU
 
-## Install
+## Download
 
-There are no prebuilt releases yet, so build it (about two minutes):
+Grab **SnapTune-…-macOS.zip** from the [latest release](https://github.com/NicoFerni/snaptune/releases/latest)
+(VST3, Audio Unit and a standalone app; universal for Apple Silicon and Intel, macOS 11+):
+
+1. Copy `SnapTune.vst3` to `~/Library/Audio/Plug-Ins/VST3/` and `SnapTune.component` to `~/Library/Audio/Plug-Ins/Components/`.
+2. The builds aren't notarized by Apple, so clear the download quarantine once:
+   ```sh
+   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3 ~/Library/Audio/Plug-Ins/Components/SnapTune.component
+   ```
+3. Restart your DAW and rescan plugins.
+
+## Build from source
+
+Takes about two minutes:
 
 ```sh
 brew install cmake ninja          # plus Xcode or the Xcode command-line tools
@@ -105,7 +121,15 @@ Source/dsp/     PitchDetector (YIN) and AutoTuneEngine (both modes); no UI code
 Source/ui/      LookAndFeel, tuner gauge, pitch graph, note pills, main view
 Source/         plugin processor, parameters, presets, editor shell
 tests/          offline test runner (DSP suite, plugin host test, file processing, UI snapshots)
+packaging/      install notes and release text shipped with each release
+.github/        CI: builds, tests and packages every push; tags publish a release
 ```
+
+## Releasing
+
+Bump `project(SnapTune VERSION x.y.z)` in `CMakeLists.txt` (and `versionText` in `Source/ui/MainView.cpp`),
+commit, then push a matching tag: `git tag vx.y.z && git push origin vx.y.z`. CI builds and tests it,
+then publishes the zip on the Releases page.
 
 ## Tests
 

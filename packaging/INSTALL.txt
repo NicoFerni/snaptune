@@ -1,0 +1,23 @@
+SnapTune - installation (macOS 11 or newer, Apple Silicon or Intel)
+
+1. Copy the plugins into your plugin folders
+   (in Finder: Go > Go to Folder..., then paste the path):
+
+     SnapTune.vst3       ->  ~/Library/Audio/Plug-Ins/VST3/
+     SnapTune.component  ->  ~/Library/Audio/Plug-Ins/Components/
+
+   SnapTune.app is a standalone version (use it with a microphone and
+   headphones); put it anywhere, e.g. Applications.
+
+2. These builds are not notarized by Apple, so macOS may block them the
+   first time. Open Terminal and run:
+
+     xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3 ~/Library/Audio/Plug-Ins/Components/SnapTune.component
+
+   For the standalone app, right-click SnapTune.app > Open the first time.
+
+3. Quit your DAW completely, open it again and rescan plugins
+   (FL Studio: Options > Manage plugins > Find installed plugins).
+
+Docs and source: https://github.com/NicoFerni/snaptune
+License: GNU AGPL v3 (see LICENSE). Built with JUCE.
