@@ -3,6 +3,7 @@
 [![Build](https://github.com/NicoFerni/snaptune/actions/workflows/build.yml/badge.svg)](https://github.com/NicoFerni/snaptune/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/NicoFerni/snaptune)](https://github.com/NicoFerni/snaptune/releases/latest)
 [![License: AGPL v3](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/nicofernandev)
 
 **Open-source real-time pitch correction for your DAW.** From the robotic hard-tune snap to
 transparent correction, with a formant-preserving Studio mode and a 2.7 ms Live mode for tracking.
@@ -19,7 +20,7 @@ VST3 + Audio Unit, macOS (Apple Silicon and Intel).
 - **MIDI target notes:** play or draw a melody and the voice follows it
 - **See what it's doing:** a tuner gauge (where you sang vs. where it lands) and a piano-roll pitch graph
 - **Factory presets:** Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop
-- Resizable window (70 % to 150 %), tooltips on every control, under 1 % CPU
+- Resizable window (91 % to 150 %), tooltips on every control, under 1 % CPU
 
 ## Download
 
@@ -32,6 +33,10 @@ Grab **SnapTune-…-macOS.zip** from the [latest release](https://github.com/Nic
    xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3 ~/Library/Audio/Plug-Ins/Components/SnapTune.component
    ```
 3. Restart your DAW and rescan plugins.
+
+Step 2 goes away once SnapTune is notarized, which needs the $99/year Apple Developer membership.
+If SnapTune is useful to you, you can [chip in on Ko-fi](https://ko-fi.com/nicofernandev); once
+the fee is covered, releases ship as a signed installer.
 
 ## Build from source
 
