@@ -4,20 +4,12 @@ import { ABPlayer } from "@/components/ABPlayer";
 import { CopyCommand } from "@/components/CopyCommand";
 import { DemoVideo } from "@/components/DemoVideo";
 import { LogoMark } from "@/components/Logo";
+import shots from "@/lib/shots.json";
 import { clips, hasPublicFile, kofi, links, midiDemo, quarantineCommand, version } from "@/lib/site";
 
 // Missing demo media is a visible to-do in `next dev` and simply absent from the built site.
 const isDev = process.env.NODE_ENV === "development";
 
-// Regions of the plugin screenshot (docs/screenshot.png, 1600 × 1024) as fractions of its size.
-type Region = { x: number; y: number; w: number; h: number };
-
-const regions = {
-  graph: { x: 0.3425, y: 0.223, w: 0.6375, h: 0.512 },
-  gauge: { x: 0.03, y: 0.234, w: 0.29, h: 0.254 },
-  retune: { x: 0.03, y: 0.522, w: 0.29, h: 0.205 },
-  notes: { x: 0.306, y: 0.139, w: 0.514, h: 0.056 },
-} satisfies Record<string, Region>;
 
 const quickStart: ReactNode[] = [
   <>Put SnapTune on the <b className="font-semibold text-ink">vocal&apos;s mixer track</b>, not the beat or the master.</>,
@@ -81,23 +73,12 @@ const faqs: { q: string; a: ReactNode }[] = [
 const githubIcon =
   "M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z";
 
-// A close-up of one part of the plugin window, cut from the same screenshot.
-function UiCrop({ region, alt, fadeTop = false, className = "" }: { region: Region; alt: string; fadeTop?: boolean; className?: string }) {
-  const { x, y, w, h } = region;
-  // A crop from inside a panel starts mid-gradient; fading its top edge hides the cut.
-  const fade = fadeTop ? { maskImage: "linear-gradient(to bottom, transparent, black 22%)" } : {};
-  return (
-    <div className={`relative overflow-hidden ${className}`} style={{ aspectRatio: `${w * 1600} / ${h * 1024}`, ...fade }}>
-      <Image
-        src="/screenshot.png"
-        alt={alt}
-        width={1600}
-        height={1024}
-        className="absolute h-auto max-w-none"
-        style={{ width: `${100 / w}%`, left: `${(-x / w) * 100}%`, top: `${(-y / h) * 100}%` }}
-      />
-    </div>
-  );
+// A render of the plugin window, or a close-up cut from it at 2x. `npm run shots` regenerates them.
+function Shot({ name, alt, fadeTop = false, priority = false, className = "" }: { name: keyof typeof shots; alt: string; fadeTop?: boolean; priority?: boolean; className?: string }) {
+  const { src, width, height } = shots[name];
+  // A close-up from inside a panel starts mid-gradient; fading its top edge hides the cut.
+  const fade = fadeTop ? { maskImage: "linear-gradient(to bottom, transparent, black 22%)" } : undefined;
+  return <Image src={src} alt={alt} width={width} height={height} priority={priority} className={`h-auto w-full ${className}`} style={fade} />;
 }
 
 // Apple's text links end in a chevron: "Learn more ›".
@@ -203,13 +184,11 @@ export default function Home() {
               aria-hidden="true"
               className="pointer-events-none absolute -inset-x-20 -top-24 bottom-0 bg-[radial-gradient(ellipse_at_center,rgba(60,240,191,0.16),transparent_62%)]"
             />
-            <Image
-              src="/screenshot.png"
+            <Shot
+              name="window"
               alt="The SnapTune window: tuner gauge, Retune Speed knob, scale note buttons and a pitch graph with the sung and output pitch"
-              width={1600}
-              height={1024}
               priority
-              className="relative h-auto w-full rounded-[18px] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/10 sm:rounded-[26px]"
+              className="relative rounded-[18px] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/10 sm:rounded-[26px]"
             />
           </div>
         </section>
@@ -239,7 +218,7 @@ export default function Home() {
                   double-click to follow the singer again.
                 </p>
               </div>
-              <UiCrop region={regions.graph} alt="The pitch graph, with the sung pitch dashed and the output pitch snapped to each note" className="mt-8 sm:mt-10" />
+              <Shot name="graph" alt="The pitch graph, with the sung pitch dashed and the output pitch snapped to each note" className="mt-8 sm:mt-10" />
             </article>
 
             <article className="flex flex-col overflow-hidden rounded-[28px] bg-panel">
@@ -250,7 +229,7 @@ export default function Home() {
                   across the room.
                 </p>
               </div>
-              <UiCrop region={regions.gauge} alt="The tuner gauge: G3, sung −40 cents, output 0 cents" fadeTop className="mt-auto" />
+              <Shot name="gauge" alt="The tuner gauge: G3, sung −40 cents, output 0 cents" fadeTop className="mt-auto" />
             </article>
 
             <article className="flex flex-col overflow-hidden rounded-[28px] bg-panel">
@@ -260,7 +239,7 @@ export default function Home() {
                   All the way to 0 ms is the robotic stair-step. Turn it up and your slides and vibrato come back.
                 </p>
               </div>
-              <UiCrop region={regions.retune} alt="The Retune Speed knob at 8 ms, from Fast to Slow" fadeTop className="mt-auto" />
+              <Shot name="retune" alt="The Retune Speed knob at 8 ms, from Fast to Slow" fadeTop className="mt-auto" />
             </article>
 
             <article className="overflow-hidden rounded-[28px] bg-panel md:col-span-2">
@@ -269,7 +248,7 @@ export default function Home() {
                   <h3 className="headline text-[28px] sm:text-[32px]">Scale notes.</h3>
                   <p className="mt-3 text-muted">Lit notes are allowed. Click one to switch it off and the voice will never land there.</p>
                 </div>
-                <UiCrop region={regions.notes} alt="The twelve scale note buttons, C major lit, G being tuned to" />
+                <Shot name="notes" alt="The twelve scale note buttons, C major lit, G being tuned to" />
               </div>
             </article>
           </div>

@@ -1,0 +1,27 @@
+{
+  "window": {
+    "src": "/shots/window.webp",
+    "width": 2200,
+    "height": 1408
+  },
+  "graph": {
+    "src": "/shots/graph.webp",
+    "width": 2200,
+    "height": 1131
+  },
+  "gauge": {
+    "src": "/shots/gauge.webp",
+    "width": 1080,
+    "height": 605
+  },
+  "retune": {
+    "src": "/shots/retune.webp",
+    "width": 1080,
+    "height": 489
+  },
+  "notes": {
+    "src": "/shots/notes.webp",
+    "width": 1280,
+    "height": 89
+  }
+}
