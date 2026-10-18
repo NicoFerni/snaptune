@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Installer layout for SnapTune.pkg, built by productbuild in .github/workflows/build.yml. -->
+<installer-gui-script minSpecVersion="2">
+    <title>SnapTune</title>
+    <!-- hostArchitectures: the plugins are universal, so Apple silicon Macs aren't asked to install Rosetta. -->
+    <options customize="allow" require-scripts="false" hostArchitectures="arm64,x86_64"/>
+    <domains enable_localSystem="true"/>
+    <allowed-os-versions>
+        <os-version min="11.0"/>
+    </allowed-os-versions>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+
+    <choices-outline>
+        <line choice="vst3"/>
+        <line choice="au"/>
+        <line choice="app"/>
+    </choices-outline>
+
+    <choice id="vst3" title="VST3 plugin" description="Installs SnapTune.vst3 in /Library/Audio/Plug-Ins/VST3.">
+        <pkg-ref id="com.nicofernandez.snaptune.vst3"/>
+    </choice>
+    <choice id="au" title="Audio Unit" description="Installs SnapTune.component in /Library/Audio/Plug-Ins/Components.">
+        <pkg-ref id="com.nicofernandez.snaptune.au"/>
+    </choice>
+    <choice id="app" title="Standalone app" description="Installs SnapTune.app in /Applications, for trying it with a microphone and headphones, no DAW needed.">
+        <pkg-ref id="com.nicofernandez.snaptune.app"/>
+    </choice>
+
+    <pkg-ref id="com.nicofernandez.snaptune.vst3">SnapTune-VST3.pkg</pkg-ref>
+    <pkg-ref id="com.nicofernandez.snaptune.au">SnapTune-AU.pkg</pkg-ref>
+    <pkg-ref id="com.nicofernandez.snaptune.app">SnapTune-App.pkg</pkg-ref>
+</installer-gui-script>

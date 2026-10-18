@@ -1,0 +1,20 @@
+SnapTune - manual installation (Windows 10 or newer, 64-bit)
+
+The easiest way is SnapTune-<version>-Windows-Setup.exe from the same release page. To install
+by hand from this zip instead:
+
+1. Copy the SnapTune.vst3 folder to
+
+     C:\Program Files\Common Files\VST3\
+
+   SnapTune.exe is a standalone version (use it with a microphone and
+   headphones); put it anywhere.
+
+2. Close your DAW completely, open it again and rescan plugins
+   (FL Studio: Options > Manage plugins > Find installed plugins).
+
+The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC":
+click More info > Run anyway.
+
+Docs and source: https://github.com/NicoFerni/snaptune
+License: GNU AGPL v3 (see LICENSE.txt). Built with JUCE.

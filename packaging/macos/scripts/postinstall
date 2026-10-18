@@ -1,0 +1,21 @@
+#!/bin/bash
+# Runs as root after each SnapTune component package is installed.
+#
+# Versions up to 1.1.0 were installed by hand in ~/Library. Remove those copies once the installer has
+# put the same plugin in /Library, so the DAW doesn't list SnapTune twice or load the old one.
+
+user=$(stat -f%Su /dev/console)
+
+if [[ -n "$user" && "$user" != "root" && "$user" != "loginwindow" ]]; then
+    home=$(dscl . -read "/Users/$user" NFSHomeDirectory 2>/dev/null | awk '{print $2}')
+
+    for plugin in VST3/SnapTune.vst3 Components/SnapTune.component; do
+        if [[ -n "$home" && -e "/Library/Audio/Plug-Ins/$plugin" && -e "$home/Library/Audio/Plug-Ins/$plugin" ]]; then
+            rm -rf "$home/Library/Audio/Plug-Ins/$plugin"
+        fi
+    done
+fi
+
+# Make macOS rescan Audio Units so the new one shows up without a restart.
+killall -9 AudioComponentRegistrar 2>/dev/null || true
+exit 0
