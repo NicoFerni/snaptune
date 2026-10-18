@@ -1,0 +1,682 @@
+/* The SnapTune window (components/demo). --u is one plugin pixel. On a wide column it is the plugin's
+   own 1000 x 640 layout scaled to fit: every .st-at element sits at its MainView::resized() bounds,
+   given as --x --y --w --h. Narrower, the same panels stack at the plugin's real size. Colours are
+   SnapLookAndFeel's palette. */
+
+.st-demo {
+  container-type: inline-size;
+}
+
+.st-window {
+  --u: 1px;
+  /* JUCE font heights are ascent + descent; SF Pro's em is 1/1.19 of that. */
+  --f: calc(var(--u) / 1.19);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 12px 12px;
+  border-radius: 22px;
+  overflow: hidden;
+  background:
+    radial-gradient(circle 300px at 175px 232px, rgb(60 240 191 / 0.07), transparent),
+    linear-gradient(#11151c, #0a0c10);
+  color: #eef2f7;
+  font-size: calc(14 * var(--f));
+  line-height: 1.2;
+  letter-spacing: normal;
+  text-align: left;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+.st-window button,
+.st-window select {
+  letter-spacing: inherit;
+}
+
+.st-window :focus-visible {
+  outline: 2px solid #3cf0bf;
+  outline-offset: -2px;
+}
+
+/* Knobs draw their own focus ring. */
+.st-window .st-knob:focus-visible {
+  outline: none;
+}
+
+/* Captions: bold, uppercase, widely spaced ("RETUNE SPEED"). */
+.st-caption {
+  display: block;
+  font-size: calc(11 * var(--f));
+  font-weight: 700;
+  line-height: calc(15 * var(--u));
+  letter-spacing: 0.095em;
+  text-transform: uppercase;
+  color: #7d879a;
+  white-space: nowrap;
+}
+
+.st-caption.st-dim {
+  color: #9aa4b5;
+}
+
+.st-caption-svg {
+  font-size: 9.25px;
+  font-weight: 700;
+  letter-spacing: 0.095em;
+}
+
+.st-studio-only {
+  color: #7d879a;
+}
+
+/* Panels: a soft top-lit gradient, an outline and a faint highlight along the top edge. */
+.st-panel {
+  position: relative;
+  border: 1px solid #242b36;
+  border-radius: calc(14 * var(--u));
+  background: linear-gradient(#1f232a, #12161d calc(80 * var(--u)));
+}
+
+.st-panel::before {
+  content: "";
+  position: absolute;
+  top: -1px;
+  left: calc(14 * var(--u));
+  right: calc(14 * var(--u));
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
+  pointer-events: none;
+}
+
+/* Header ---------------------------------------------------------------------------------------- */
+.st-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px 12px;
+}
+
+.st-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  grid-area: 1 / 1;
+}
+
+.st-latency {
+  grid-area: 1 / 2;
+}
+
+.st-presets {
+  grid-area: 2 / 1;
+}
+
+.st-header .st-mode {
+  grid-area: 2 / 2;
+  width: calc(150 * var(--u));
+}
+
+.st-logo {
+  width: calc(30 * var(--u));
+  height: calc(30 * var(--u));
+  flex-shrink: 0;
+}
+
+.st-wordmark {
+  font-size: calc(24 * var(--f));
+  font-weight: 700;
+  line-height: calc(32 * var(--u));
+  white-space: nowrap;
+}
+
+.st-wordmark span {
+  color: #3cf0bf;
+}
+
+.st-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: calc(42 * var(--u));
+  height: calc(19 * var(--u));
+  border: 1px solid #343d4c;
+  border-radius: calc(9.5 * var(--u));
+  color: #9aa4b5;
+  font-size: calc(11 * var(--f));
+  font-weight: 700;
+  letter-spacing: 0.095em;
+}
+
+.st-latency {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: calc(2 * var(--u));
+}
+
+.st-latency-value {
+  font-size: calc(15 * var(--f));
+  font-weight: 700;
+  line-height: calc(20 * var(--u));
+  font-variant-numeric: tabular-nums;
+}
+
+/* Combo boxes: native selects drawn like the plugin's. */
+.st-combo {
+  position: relative;
+  height: calc(30 * var(--u));
+}
+
+.st-combo select {
+  appearance: none;
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0 calc(26 * var(--u)) 0 calc(12 * var(--u));
+  border: 1px solid #242b36;
+  border-radius: calc(8 * var(--u));
+  background: #1a1f28;
+  color: #eef2f7;
+  font-size: calc(14 * var(--f));
+  font-weight: 700;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.st-combo select:hover {
+  border-color: #343d4c;
+  background: #2b3038;
+}
+
+.st-combo select option,
+.st-combo select optgroup {
+  background: #1a1f28;
+  color: #eef2f7;
+  font-weight: 400;
+}
+
+.st-combo svg {
+  position: absolute;
+  top: 50%;
+  right: calc(10 * var(--u));
+  width: calc(10 * var(--u));
+  height: calc(7 * var(--u));
+  transform: translateY(-50%);
+  color: #9aa4b5;
+  pointer-events: none;
+}
+
+/* Studio / Live. */
+.st-mode {
+  display: flex;
+  height: calc(30 * var(--u));
+  border: 1px solid #242b36;
+  border-radius: calc(6 * var(--u));
+  background: #1a1f28;
+}
+
+.st-mode button {
+  flex: 1;
+  margin: calc(1.5 * var(--u));
+  border-radius: calc(4.5 * var(--u));
+  color: #9aa4b5;
+  font-size: calc(12.5 * var(--f));
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.st-mode button:hover {
+  color: #eef2f7;
+}
+
+.st-mode button[aria-pressed="true"] {
+  background: #3cf0bf;
+  color: #0a0c10;
+}
+
+/* Scale notes. */
+.st-pills {
+  display: flex;
+  gap: calc(5 * var(--u));
+}
+
+.st-pills button {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+  border: 1px solid #242b36;
+  border-radius: calc(8 * var(--u));
+  background-color: #1a1f28;
+  color: #7d879a;
+  font-size: calc(14 * var(--f));
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* Sharps sit on a darker base, a nod to the black keys of a piano. */
+.st-pills button[data-sharp] {
+  background-color: #0d1015;
+  font-size: calc(12 * var(--f));
+}
+
+.st-pills button:hover {
+  border-color: #343d4c;
+}
+
+.st-pills button[aria-pressed="true"] {
+  border-color: rgb(60 240 191 / 0.55);
+  background-image: linear-gradient(rgb(60 240 191 / 0.12), rgb(60 240 191 / 0.12));
+  color: #3cf0bf;
+}
+
+.st-pills button[aria-pressed="true"]:hover {
+  background-image: linear-gradient(rgb(60 240 191 / 0.2), rgb(60 240 191 / 0.2));
+}
+
+/* The note being tuned to, with its glow spilling into the gaps. */
+.st-pills button[data-target] {
+  border-color: transparent;
+  background-image: linear-gradient(#3cf0bf, #10a07c);
+  color: #0a0c10;
+  box-shadow: 0 0 0 calc(3 * var(--u)) rgb(60 240 191 / 0.18);
+}
+
+.st-held {
+  position: absolute;
+  top: calc(4 * var(--u));
+  right: calc(4 * var(--u));
+  width: calc(6 * var(--u));
+  height: calc(6 * var(--u));
+  border-radius: 50%;
+  background: #a996ff;
+}
+
+/* MIDI notes switch. */
+.st-toggle {
+  display: flex;
+  align-items: center;
+  gap: calc(8 * var(--u));
+  padding-left: calc(1 * var(--u));
+  color: #9aa4b5;
+  font-size: calc(13 * var(--f));
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.st-toggle:hover,
+.st-toggle[aria-checked="true"] {
+  color: #eef2f7;
+}
+
+.st-toggle-pill {
+  position: relative;
+  flex-shrink: 0;
+  width: calc(32 * var(--u));
+  height: calc(18 * var(--u));
+  border-radius: calc(9 * var(--u));
+  background: #242b36;
+  transition: background-color 0.15s;
+}
+
+.st-toggle-pill::after {
+  content: "";
+  position: absolute;
+  top: calc(3 * var(--u));
+  left: calc(3 * var(--u));
+  width: calc(12 * var(--u));
+  height: calc(12 * var(--u));
+  border-radius: 50%;
+  background: #9aa4b5;
+  transition: transform 0.15s;
+}
+
+.st-toggle[aria-checked="true"] .st-toggle-pill {
+  background: #a996ff;
+}
+
+.st-toggle[aria-checked="true"] .st-toggle-pill::after {
+  background: #0a0c10;
+  transform: translateX(calc(14 * var(--u)));
+}
+
+/* Knobs: drag up or right to turn them up. */
+.st-knob {
+  touch-action: none;
+  cursor: ns-resize;
+  outline: none;
+}
+
+.st-knob[aria-disabled] {
+  cursor: default;
+}
+
+.st-small-knob {
+  width: calc(84 * var(--u));
+  height: calc(92 * var(--u));
+}
+
+.st-hero-knob {
+  width: calc(180 * var(--u));
+  height: calc(128 * var(--u));
+}
+
+.st-knob-caption {
+  text-align: center;
+}
+
+.st-divider {
+  display: none;
+  background: #242b36;
+}
+
+.st-help {
+  display: block;
+  color: #7d879a;
+  font-size: calc(11.5 * var(--f));
+  line-height: calc(15 * var(--u));
+}
+
+.st-graph-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(13 * var(--u));
+  cursor: grab;
+  touch-action: pan-y;
+}
+
+.st-graph-svg:active {
+  cursor: grabbing;
+}
+
+/* Narrow: stacked panels ------------------------------------------------------------------------ */
+.st-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 10px 10px 14px;
+  order: 1;
+}
+
+.st-gauge {
+  width: 100%;
+  max-width: 330px;
+  height: auto;
+}
+
+.st-retune-caption {
+  margin-top: 6px;
+  margin-bottom: 2px;
+  text-align: center;
+}
+
+.st-graph {
+  height: 280px;
+  order: 2;
+}
+
+.st-scalebar {
+  display: grid;
+  grid-template-columns: 76px minmax(0, 1fr);
+  gap: 14px 12px;
+  padding: 12px;
+  order: 3;
+}
+
+.st-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.st-notes-field,
+.st-target-field,
+.st-voice-field {
+  grid-column: 1 / -1;
+}
+
+.st-scalebar .st-pills {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+
+.st-scalebar .st-pills button {
+  height: 38px;
+}
+
+.st-target-field .st-toggle {
+  min-height: 36px;
+}
+
+.st-controls {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 4px;
+  padding: 16px 12px;
+  order: 4;
+}
+
+.st-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.st-voice-field {
+  padding-top: 14px;
+  border-top: 1px solid #242b36;
+}
+
+/* Medium: tuner and graph side by side, one row of notes and knobs. */
+@container (min-width: 600px) {
+  .st-window {
+    display: grid;
+    grid-template-columns: 300px minmax(0, 1fr);
+    padding: 16px;
+  }
+
+  .st-header,
+  .st-scalebar,
+  .st-controls {
+    grid-column: 1 / -1;
+  }
+
+  .st-header {
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+  }
+
+  .st-brand {
+    grid-area: 1 / 1;
+  }
+
+  .st-presets {
+    grid-area: 1 / 2;
+    max-width: 220px;
+  }
+
+  .st-latency {
+    grid-area: 1 / 3;
+  }
+
+  .st-header .st-mode {
+    grid-area: 1 / 4;
+  }
+
+  .st-graph {
+    height: auto;
+    min-height: 330px;
+  }
+
+  .st-scalebar {
+    order: 0;
+    grid-template-columns: 70px 168px minmax(0, 1fr);
+    align-items: end;
+  }
+
+  .st-target-field {
+    grid-area: 1 / 3;
+    justify-self: end;
+  }
+
+  .st-notes-field {
+    grid-area: 2 / 1 / 3 / -1;
+  }
+
+  .st-scalebar .st-pills {
+    display: flex;
+    gap: 5px;
+  }
+
+  .st-scalebar .st-pills button {
+    height: 30px;
+  }
+
+  .st-controls {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Wide: the plugin's own layout -------------------------------------------------------------------- */
+@container (min-width: 840px) {
+  .st-window {
+    --u: calc(100cqw / 1000);
+    --f: calc(var(--u) / 1.19);
+    display: block;
+    aspect-ratio: 1000 / 640;
+    padding: 0;
+    border-radius: 26px;
+    background:
+      radial-gradient(circle calc(300 * var(--u)) at calc(175 * var(--u)) calc(232 * var(--u)), rgb(60 240 191 / 0.07), transparent),
+      linear-gradient(#11151c, #0a0c10);
+  }
+
+  .st-header,
+  .st-brand,
+  .st-field,
+  .st-cell {
+    display: contents;
+  }
+
+  .st-at {
+    position: absolute;
+    left: calc(var(--x) * var(--u));
+    top: calc(var(--y) * var(--u));
+    width: calc(var(--w) * var(--u));
+    height: calc(var(--h) * var(--u));
+    max-width: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  /* Children of a panel are placed from its outer edge, as JUCE does; CSS measures from inside the border. */
+  .st-panel .st-at {
+    left: calc(var(--x) * var(--u) - 1px);
+    top: calc(var(--y) * var(--u) - 1px);
+  }
+
+  .st-panel.st-at {
+    display: block;
+    min-height: 0;
+  }
+
+  .st-scalebar .st-pills {
+    display: flex;
+    gap: calc(5 * var(--u));
+  }
+
+  .st-scalebar .st-pills button {
+    height: auto;
+  }
+
+  .st-target-field .st-toggle {
+    min-height: 0;
+  }
+
+  .st-latency .st-caption {
+    margin-top: calc(4 * var(--u));
+  }
+
+  .st-latency {
+    justify-content: flex-start;
+  }
+
+  .st-divider {
+    display: block;
+  }
+}
+
+/* Tooltip, like the plugin's. */
+.st-tip {
+  position: absolute;
+  z-index: 10;
+  max-width: 282px;
+  padding: 8px 11px;
+  border: 1px solid #343d4c;
+  border-radius: 7px;
+  background: #1a1f28;
+  color: #eef2f7;
+  font-size: 13px;
+  line-height: 1.35;
+  letter-spacing: normal;
+  text-align: left;
+  pointer-events: none;
+  text-wrap: balance;
+}
+
+/* One octave to hold MIDI notes on. */
+.st-piano {
+  position: relative;
+  display: flex;
+  width: min(100%, 336px);
+  height: 132px;
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+
+.st-pkey {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 10px;
+  border: 1px solid #0a0c10;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(#dfe4ec, #f4f6f9);
+  color: #7d879a;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.st-pkey[data-black] {
+  position: absolute;
+  top: 0;
+  z-index: 1;
+  width: 26px;
+  height: 60%;
+  padding-bottom: 8px;
+  border-radius: 0 0 6px 6px;
+  background: linear-gradient(#20252e, #0b0d11);
+  color: #7d879a;
+  font-size: 10px;
+}
+
+.st-pkey[aria-pressed="true"] {
+  background: #a996ff;
+  color: #0a0c10;
+}
+
+.st-pkey:focus-visible {
+  outline: 2px solid #3cf0bf;
+  outline-offset: -3px;
+}
