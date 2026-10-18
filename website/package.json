@@ -11,6 +11,7 @@
     "demo-frames": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo-frames.mjs"
   },
   "dependencies": {
+    "@vercel/analytics": "^2.0.1",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"
