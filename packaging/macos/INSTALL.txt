@@ -1,4 +1,7 @@
-SnapTune - installation (macOS 11 or newer, Apple Silicon or Intel)
+SnapTune - manual installation (macOS 11 or newer, Apple Silicon or Intel)
+
+The easiest way is SnapTune-<version>-macOS.pkg from the same release page: it puts everything in
+place and needs no Terminal. To install by hand from this zip instead:
 
 1. Copy the plugins into your plugin folders
    (in Finder: Go > Go to Folder..., then paste the path):

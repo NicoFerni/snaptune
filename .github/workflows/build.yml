@@ -1,7 +1,8 @@
 name: Build
 
-# Every push and pull request: build the universal plugins, run the tests, keep the zip as an artifact.
-# Pushing a tag like v1.2.0 also publishes that zip as a GitHub Release.
+# Every push and pull request: build the plugins on macOS (universal) and Windows (x64), run the tests,
+# and keep the zips and installers as artifacts. Pushing a tag like v1.2.0 also publishes them as a
+# GitHub Release.
 
 on:
   push:
@@ -17,14 +18,16 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
-jobs:
-  macos:
-    runs-on: macos-26
-    timeout-minutes: 45
-    defaults:
-      run:
-        shell: bash   # explicit bash enables -o pipefail, so a failing command in a pipe fails the step
+defaults:
+  run:
+    shell: bash   # explicit bash enables -o pipefail, so a failing command in a pipe fails the step
 
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      number: ${{ steps.version.outputs.number }}
+      name: ${{ steps.version.outputs.name }}
     steps:
       - uses: actions/checkout@v7
 
@@ -32,6 +35,7 @@ jobs:
         id: version
         run: |
           project_version=$(sed -nE 's/^project\(SnapTune VERSION ([0-9.]+).*/\1/p' CMakeLists.txt)
+          echo "number=$project_version" >> "$GITHUB_OUTPUT"
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             if [[ "${GITHUB_REF_NAME#v}" != "$project_version" ]]; then
               echo "::error::Tag $GITHUB_REF_NAME does not match project(VERSION $project_version) in CMakeLists.txt"
@@ -41,6 +45,14 @@ jobs:
           else
             echo "name=$project_version-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
+
+  macos:
+    needs: version
+    runs-on: macos-26
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
 
       - name: Configure (downloads JUCE)
         run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
@@ -63,15 +75,15 @@ jobs:
           auval -v aumf Snpt Ncfz | tail -n 5
 
       - name: Package
-        id: package
         run: |
           artefacts=build/SnapTune_artefacts/Release
-          stage=dist/SnapTune-${{ steps.version.outputs.name }}
+          name=SnapTune-${{ needs.version.outputs.name }}
+          stage=dist/stage/$name
           mkdir -p "$stage"
           ditto "$artefacts/VST3/SnapTune.vst3" "$stage/SnapTune.vst3"
           ditto "$artefacts/AU/SnapTune.component" "$stage/SnapTune.component"
           ditto "$artefacts/Standalone/SnapTune.app" "$stage/SnapTune.app"
-          cp packaging/INSTALL.txt LICENSE "$stage/"
+          cp packaging/macos/INSTALL.txt LICENSE "$stage/"
 
           # Seal each bundle with an ad-hoc signature (the app only has a linker signature on its
           # binary otherwise, which macOS reports as damaged after download).
@@ -81,21 +93,92 @@ jobs:
             lipo -info "$bundle"/Contents/MacOS/*
           done
 
-          zip="dist/SnapTune-${{ steps.version.outputs.name }}-macOS.zip"
-          ditto -c -k --keepParent "$stage" "$zip"
-          echo "zip=$zip" >> "$GITHUB_OUTPUT"
+          ditto -c -k --keepParent "$stage" "dist/$name-macOS.zip"
+          packaging/macos/build-pkg.sh "$stage" "${{ needs.version.outputs.number }}" "dist/$name-macOS.pkg"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: SnapTune-${{ steps.version.outputs.name }}-macOS
-          path: ${{ steps.package.outputs.zip }}
+          name: SnapTune-${{ needs.version.outputs.name }}-macOS
+          path: |
+            dist/*.zip
+            dist/*.pkg
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Configure (downloads JUCE)
+        run: cmake -B build -A x64
+
+      - name: Build VST3 and Standalone
+        run: cmake --build build --config Release --parallel --target SnapTune_VST3 SnapTune_Standalone
+
+      - name: Build tests
+        run: cmake --build build --config Release --parallel --target SnapTuneTests
+
+      - name: DSP tests
+        run: ./build/SnapTuneTests_artefacts/Release/SnapTuneTests.exe
+
+      - name: Load the built VST3 in a host
+        # juce::File needs an absolute path on Windows.
+        run: ./build/SnapTuneTests_artefacts/Release/SnapTuneTests.exe --host "$(cygpath -m "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3")"
+
+      - name: Package zip
+        run: |
+          artefacts=build/SnapTune_artefacts/Release
+          name=SnapTune-${{ needs.version.outputs.name }}
+          stage=dist/stage/$name-Windows
+          mkdir -p "$stage"
+          cp -R "$artefacts/VST3/SnapTune.vst3" "$stage/"
+          cp "$artefacts/Standalone/SnapTune.exe" "$stage/"
+          cp packaging/windows/INSTALL.txt "$stage/"
+          cp LICENSE "$stage/LICENSE.txt"
+          (cd dist/stage && 7z a -tzip "../$name-Windows.zip" "$name-Windows" > /dev/null)
+
+      - name: Package installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          $iscc = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe", "$env:ProgramFiles\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $iscc) { Write-Error "ISCC.exe not found"; exit 1 }
+          & $iscc.FullName `
+            "/DAppVersion=${{ needs.version.outputs.name }}" `
+            "/DAppNumber=${{ needs.version.outputs.number }}" `
+            "/DStageDir=$PWD\dist\stage\SnapTune-${{ needs.version.outputs.name }}-Windows" `
+            "/O$PWD\dist" `
+            packaging\windows\SnapTune.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SnapTune-${{ needs.version.outputs.name }}-Windows
+          path: |
+            dist/*.zip
+            dist/*.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [version, macos, windows]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
 
       - name: Publish release
-        if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" "${{ steps.package.outputs.zip }}" \
-            --title "SnapTune ${{ steps.version.outputs.name }}" \
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "SnapTune ${{ needs.version.outputs.name }}" \
             --notes-file packaging/release-notes.md \
             --verify-tag
