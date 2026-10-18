@@ -60,6 +60,14 @@ body {
   color: var(--color-muted);
 }
 
+/* The frosted nav goes solid when the visitor asks for less transparency. */
+@media (prefers-reduced-transparency: reduce) {
+  .local-nav {
+    background: var(--color-bg);
+    backdrop-filter: none;
+  }
+}
+
 details > summary {
   list-style: none;
 }

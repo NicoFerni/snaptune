@@ -93,7 +93,7 @@ function MoreLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-function SectionHeader({ eyebrow, eyebrowClass = "text-teal", title, children }: { eyebrow: string; eyebrowClass?: string; title: ReactNode; children?: ReactNode }) {
+function SectionHeader({ eyebrow, eyebrowClass = "text-muted", title, children }: { eyebrow: string; eyebrowClass?: string; title: ReactNode; children?: ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl text-center">
       <p className={`text-[19px] font-semibold sm:text-[21px] ${eyebrowClass}`}>{eyebrow}</p>
@@ -140,17 +140,21 @@ export default function Home() {
   return (
     <>
       {/* Local nav: Apple's product sub-navigation, a frosted bar over the page. */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-bg/75 backdrop-blur-xl backdrop-saturate-150">
+      <header className="local-nav sticky top-0 z-50 border-b border-white/10 bg-bg/75 backdrop-blur-xl backdrop-saturate-150">
         <nav className="mx-auto flex h-13 max-w-[980px] items-center justify-between px-4 sm:px-6">
           <a href="#top" className="flex items-center gap-2 text-[19px] font-semibold tracking-tight sm:text-[21px]">
             <LogoMark className="h-6 w-6" />
             SnapTune
           </a>
           <div className="flex items-center gap-5 text-xs">
-            <a href="#features" className="hidden text-ink/80 transition hover:text-ink sm:block">Overview</a>
-            <a href="#install" className="text-ink/80 transition hover:text-ink">Install</a>
-            <a href="#faq" className="hidden text-ink/80 transition hover:text-ink sm:block">FAQ</a>
-            <a href={links.download} className="rounded-full bg-teal px-3 py-1 font-medium text-bg transition hover:bg-[#6bf5cf]">
+            <a href="#features" className="hidden min-h-11 items-center text-ink/80 transition hover:text-ink sm:inline-flex">Overview</a>
+            <a href="#install" className="inline-flex min-h-11 items-center text-ink/80 transition hover:text-ink">Install</a>
+            <a href="#faq" className="hidden min-h-11 items-center text-ink/80 transition hover:text-ink sm:inline-flex">FAQ</a>
+            {/* The pill stays small; the invisible ::before stretches its tap area to 44 px. */}
+            <a
+              href={links.download}
+              className="relative rounded-full bg-teal px-3 py-1 font-medium text-bg transition before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-[#6bf5cf]"
+            >
               Download
             </a>
           </div>
@@ -160,7 +164,7 @@ export default function Home() {
       <main id="top" className="flex-1 overflow-x-clip">
         {/* Hero */}
         <section className="relative px-4 pt-16 text-center sm:px-6 sm:pt-24">
-          <p className="text-[19px] font-semibold text-teal sm:text-[21px]">SnapTune {shortVersion} for Mac</p>
+          <p className="text-[19px] font-semibold text-muted sm:text-[21px]">SnapTune {shortVersion} for Mac</p>
           <h1 className="headline mx-auto mt-3 max-w-4xl text-[56px] sm:text-[88px]">Hard-tune. Live. Free.</h1>
           <p className="mx-auto mt-6 max-w-2xl text-[19px] leading-snug text-muted sm:text-[24px]">
             A pitch correction plugin that snaps your voice to the key with 2.7&nbsp;ms of delay, so you hear it tuned while you record.
@@ -363,7 +367,7 @@ export default function Home() {
           </SectionHeader>
           <ol className="mx-auto mt-12 grid max-w-[980px] gap-4 md:grid-cols-2 md:gap-5">
             <li className="rounded-[28px] bg-panel p-8">
-              <p className="text-sm font-semibold text-teal">Step 1</p>
+              <p className="text-sm font-semibold text-muted">Step 1</p>
               <h3 className="mt-1 text-[21px] font-semibold">Unzip the download</h3>
               <p className="mt-2 text-[15px] text-muted">
                 <a href={links.download} className="text-teal hover:underline">SnapTune-{version}-macOS.zip</a> holds the VST3, the Audio Unit and a
@@ -371,7 +375,7 @@ export default function Home() {
               </p>
             </li>
             <li className="rounded-[28px] bg-panel p-8">
-              <p className="text-sm font-semibold text-teal">Step 2</p>
+              <p className="text-sm font-semibold text-muted">Step 2</p>
               <h3 className="mt-1 text-[21px] font-semibold">Move the plugins into place</h3>
               <p className="mt-2 text-[15px] text-muted">In Finder, choose Go › Go to Folder… and paste each path.</p>
               <dl className="mt-4 space-y-3 rounded-2xl bg-bg/60 p-4 font-mono text-[13px] tracking-normal">
@@ -387,13 +391,13 @@ export default function Home() {
               </dl>
             </li>
             <li className="rounded-[28px] bg-panel p-8 md:col-span-2">
-              <p className="text-sm font-semibold text-teal">Step 3</p>
+              <p className="text-sm font-semibold text-muted">Step 3</p>
               <h3 className="mt-1 text-[21px] font-semibold">Let macOS open them</h3>
               <p className="mt-2 text-[15px] text-muted">macOS blocks plugins Apple hasn&apos;t checked. Paste this into Terminal once:</p>
               <CopyCommand command={quarantineCommand} />
             </li>
             <li className="rounded-[28px] bg-panel p-8 md:col-span-2">
-              <p className="text-sm font-semibold text-teal">Step 4</p>
+              <p className="text-sm font-semibold text-muted">Step 4</p>
               <h3 className="mt-1 text-[21px] font-semibold">Restart your DAW and rescan</h3>
               <p className="mt-2 text-[15px] text-muted">Quit it completely first. In FL Studio: Options › Manage plugins › Find installed plugins.</p>
             </li>
