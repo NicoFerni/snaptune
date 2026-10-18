@@ -30,10 +30,21 @@ html {
   }
 }
 
+/* Apple's product-page rhythm: 17 px body with SF's tight text tracking. */
 body {
   background: var(--color-bg);
   color: var(--color-ink);
-  font-feature-settings: "tnum";
+  font-size: 17px;
+  line-height: 1.47;
+  letter-spacing: -0.022em;
+}
+
+/* Display headlines: semibold, tight, short line height. */
+.headline {
+  font-weight: 600;
+  letter-spacing: -0.028em;
+  line-height: 1.07;
+  text-wrap: balance;
 }
 
 ::selection {
@@ -55,6 +66,12 @@ details > summary {
 details > summary::-webkit-details-marker {
   display: none;
 }
-details[open] .faq-chevron {
+details[open] .faq-icon {
   transform: rotate(45deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .faq-icon {
+    transition: none;
+  }
 }

@@ -16,15 +16,15 @@ export function CopyCommand({ command }: { command: string }) {
   }
 
   return (
-    <div className="group relative mt-3 rounded-xl border border-line bg-black/40 font-mono text-[13px] leading-relaxed">
-      <pre className="overflow-x-auto px-4 py-3 pr-20 text-ink/90">
+    <div className="mt-4 flex items-start gap-3 rounded-2xl bg-bg/60 p-2 pl-4 font-mono text-[13px] leading-relaxed tracking-normal">
+      <pre className="min-w-0 flex-1 whitespace-pre-wrap break-all py-1.5 text-ink/90">
         <span className="select-none text-teal">$ </span>
         {command}
       </pre>
       <button
         type="button"
         onClick={copy}
-        className="absolute right-2 top-2 rounded-md border border-line bg-panel px-2.5 py-1 font-sans text-xs font-medium text-muted transition hover:border-teal/50 hover:text-ink"
+        className="min-h-8 shrink-0 rounded-full bg-panel-2 px-4 font-sans text-[13px] font-medium tracking-[-0.01em] text-ink transition hover:bg-teal hover:text-bg"
       >
         {copied ? "Copied" : "Copy"}
       </button>
