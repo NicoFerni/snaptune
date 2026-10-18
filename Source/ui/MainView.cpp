@@ -42,7 +42,9 @@ MainView::MainView (SnapTuneProcessor& p)
         presetBox.addItem (factoryPresets[i].name, i + 1);
 
     presetBox.setTextWhenNothingSelected ("Presets");
+    presetBox.setTitle ("Presets");
     presetBox.setTooltip ("Starting points for the correction knobs. Key, scale and voice are not changed.");
+    presetBox.setHelpText (presetBox.getTooltip());
     presetBox.onChange = [this]
     {
         if (presetBox.getSelectedId() > 0)
@@ -56,40 +58,45 @@ MainView::MainView (SnapTuneProcessor& p)
     addAndMakeVisible (*modeSwitch);
 
     // Scale bar.
-    setUpCombo (keyBox, keys, ids::key, keyAttachment, "The key of the song.");
-    setUpCombo (scaleBox, scales, ids::scale, scaleAttachment, "Which notes the voice may land on. Pick Chromatic if you don't know the key.");
+    setUpCombo (keyBox, "Key", keys, ids::key, keyAttachment, "The key of the song.");
+    setUpCombo (scaleBox, "Scale", scales, ids::scale, scaleAttachment, "Which notes the voice may land on. Pick Chromatic if you don't know the key.");
 
     pills.setTooltip ("Lit notes are in the scale; the solid one is being tuned to right now. Click to add or remove a note (switches to Custom).");
     pills.onToggle = [this] (int pc) { toggleNote (pc); };
     addAndMakeVisible (pills);
 
     midiButton.setTooltip ("Tune to the notes held on the MIDI input instead of the scale (e.g. from FL's piano roll via a MIDI Out channel).");
+    midiButton.setHelpText (midiButton.getTooltip());
     addAndMakeVisible (midiButton);
     midiAttachment = std::make_unique<ButtonAttachment> (audioProcessor.apvts, ids::midi, midiButton);
 
     // Hero: tuner and retune speed.
-    gauge.setTooltip ("Coral: where you sang. Mint: where it comes out. Centre: the note it is tuning to.");
+    gauge.setTitle ("Tuner");
+    gauge.setTooltip ("Coral: what you sang. Teal: what comes out. Centre: the note it is tuning to.");
+    gauge.setHelpText (gauge.getTooltip());
     addAndMakeVisible (gauge);
 
     retuneKnob.getProperties().set ("hero", true);
-    retuneKnob.getProperties().set ("startLabel", "HARD");
+    retuneKnob.getProperties().set ("startLabel", "FAST");
     retuneKnob.getProperties().set ("endLabel", "SLOW");
-    setUpKnob (retuneKnob, ids::retune, retuneAttachment, 20.0,
+    setUpKnob (retuneKnob, "Retune Speed", ids::retune, retuneAttachment, 20.0,
                "How fast the voice is pulled onto the note. 0 ms is the hard, robotic snap; slower keeps slides and vibrato.");
 
     // Pitch graph.
     graph.setFramesPerSecond (audioProcessor.engine.getFramesPerSecond());
+    graph.setTitle ("Pitch graph");
     graph.setTooltip ("Scroll or drag to move the note range (it then stays put). Double-click to follow the singer again.");
+    graph.setHelpText ("Dashed coral: what you sang. Solid teal: what comes out.");
     addAndMakeVisible (graph);
 
     // Controls.
-    addKnob (ids::humanize, "HUMANIZE", false, 0.0, "Relaxes the correction on long notes so they keep their natural movement.");
-    addKnob (ids::amount, "AMOUNT", false, 100.0, "How much of the pitch error is corrected.");
-    addKnob (ids::formant, "FORMANT", true, 0.0, "Moves the character of the voice up (smaller) or down (bigger) without changing pitch. Studio mode only.");
-    addKnob (ids::tracking, "TRACKING", false, 50.0, "Higher treats breathy or noisy singing as pitched; lower is stricter.");
-    addKnob (ids::mix, "MIX", false, 100.0, "Blend of the original and the tuned voice.");
+    addKnob (ids::humanize, "Humanize", false, 0.0, "Relaxes the correction on long notes so they keep their natural movement.");
+    addKnob (ids::amount, "Amount", false, 100.0, "How much of the pitch error is corrected.");
+    addKnob (ids::formant, "Formant", true, 0.0, "Moves the character of the voice up (smaller) or down (bigger) without changing pitch. Studio mode only.");
+    addKnob (ids::tracking, "Tracking", false, 50.0, "Higher treats breathy or noisy singing as pitched; lower is stricter.");
+    addKnob (ids::mix, "Mix", false, 100.0, "Blend of the original and the tuned voice.");
 
-    setUpCombo (voiceBox, voiceTypeNames, ids::voice, voiceAttachment, "The range the pitch detector listens in. Pick Low Male for deep voices.");
+    setUpCombo (voiceBox, "Voice", voiceTypeNames, ids::voice, voiceAttachment, "The range the pitch detector listens in. Pick Low Male for deep voices.");
 
     // Discard frames that piled up while the editor was closed.
     while (audioProcessor.engine.popFrames (scratch.data(), (int) scratch.size()) > 0)
@@ -106,19 +113,24 @@ MainView::~MainView()
     stopTimer();
 }
 
-void MainView::setUpCombo (juce::ComboBox& box, const juce::StringArray& items, const char* parameterId,
+void MainView::setUpCombo (juce::ComboBox& box, const juce::String& title, const juce::StringArray& items, const char* parameterId,
                            std::unique_ptr<ComboBoxAttachment>& attachment, const juce::String& tooltip)
 {
     box.addItemList (items, 1);
     box.setJustificationType (juce::Justification::centredLeft);
+    box.setTitle (title);
     box.setTooltip (tooltip);
+    box.setHelpText (tooltip);
     addAndMakeVisible (box);
     attachment = std::make_unique<ComboBoxAttachment> (audioProcessor.apvts, parameterId, box);
 }
 
-void MainView::setUpKnob (juce::Slider& slider, const char* parameterId, std::unique_ptr<SliderAttachment>& attachment,
-                          double resetValue, const juce::String& tooltip)
+void MainView::setUpKnob (juce::Slider& slider, const juce::String& title, const char* parameterId,
+                          std::unique_ptr<SliderAttachment>& attachment, double resetValue, const juce::String& tooltip)
 {
+    slider.setTitle (title);
+    slider.setHelpText (tooltip);
+    slider.setWantsKeyboardFocus (true);
     slider.setSliderStyle (juce::Slider::RotaryHorizontalVerticalDrag);
     slider.setTextBoxStyle (juce::Slider::NoTextBox, false, 0, 0);
     slider.setRotaryParameters (juce::MathConstants<float>::pi * 1.25f, juce::MathConstants<float>::pi * 2.75f, true);
@@ -130,12 +142,12 @@ void MainView::setUpKnob (juce::Slider& slider, const char* parameterId, std::un
     slider.setDoubleClickReturnValue (true, resetValue);
 }
 
-void MainView::addKnob (const char* parameterId, const juce::String& caption, bool bipolar, double resetValue, const juce::String& tooltip)
+void MainView::addKnob (const char* parameterId, const juce::String& title, bool bipolar, double resetValue, const juce::String& tooltip)
 {
     auto knob = std::make_unique<Knob>();
-    knob->caption = caption;
+    knob->caption = title.toUpperCase();
     knob->slider.getProperties().set ("bipolar", bipolar);
-    setUpKnob (knob->slider, parameterId, knob->attachment, resetValue, tooltip);
+    setUpKnob (knob->slider, title, parameterId, knob->attachment, resetValue, tooltip);
     knobs.push_back (std::move (knob));
 }
 
@@ -192,20 +204,20 @@ void MainView::paint (juce::Graphics& g)
     wordmark.append ("Tune", uiFont (24.0f, true), palette::accent);
     wordmark.draw (g, Rectangle<float> ((float) header.getX() + 42.0f, 18.0f, 120.0f, 32.0f));
 
-    const auto chip = Rectangle<float> ((float) header.getX() + 150.0f, 26.0f, 36.0f, 17.0f);
+    const auto chip = Rectangle<float> ((float) header.getX() + 150.0f, 25.0f, 42.0f, 19.0f);
     g.setColour (palette::outlineBright);
-    g.drawRoundedRectangle (chip, 8.5f, 1.0f);
+    g.drawRoundedRectangle (chip, 9.5f, 1.0f);
     g.setColour (palette::textDim);
-    g.setFont (captionFont (9.0f));
+    g.setFont (captionFont());
     g.drawText (versionText, chip, Justification::centred);
 
     // Latency readout next to the mode switch.
     const double sampleRate = audioProcessor.getSampleRate();
-    g.setFont (captionFont (9.0f));
+    g.setFont (captionFont());
     g.setColour (palette::textFaint);
-    g.drawText ("LATENCY", latencyArea.withHeight (16).translated (0, 5), Justification::centredRight);
+    g.drawText ("LATENCY", latencyArea.withHeight (16).translated (0, 4), Justification::centredRight);
     g.setFont (uiFont (15.0f, true));
-    g.setColour (isLive() ? palette::accent : palette::text);
+    g.setColour (palette::text);
     g.drawText (sampleRate > 0.0 ? String (1000.0 * audioProcessor.engine.getLatencySamples() / sampleRate, 1) + " ms" : String ("--"),
                 latencyArea.withTrimmedTop (20), Justification::centredRight);
 
@@ -213,11 +225,11 @@ void MainView::paint (juce::Graphics& g)
     for (auto panel : { scaleBar, heroPanel, graphPanel, controlsPanel })
         drawPanel (g, panel.toFloat());
 
-    g.setFont (captionFont (9.5f));
+    g.setFont (captionFont());
     g.setColour (palette::textFaint);
 
     auto captionAbove = [&] (const Component& c, const String& text, Justification just = Justification::centredLeft)
-    { g.drawText (text, c.getX() + 2, c.getY() - 17, jmax (c.getWidth(), 80), 13, just); };
+    { g.drawText (text, c.getX() + 2, c.getY() - 19, jmax (c.getWidth(), 100), 15, just); };
 
     captionAbove (keyBox, "KEY");
     captionAbove (scaleBox, "SCALE");
@@ -226,8 +238,8 @@ void MainView::paint (juce::Graphics& g)
 
     // Hero caption.
     g.setColour (palette::textDim);
-    g.setFont (captionFont (10.0f));
-    g.drawText ("RETUNE SPEED", Rectangle<int> (heroPanel.getX(), retuneKnob.getY() - 16, heroPanel.getWidth(), 14), Justification::centred);
+    g.setFont (captionFont());
+    g.drawText ("RETUNE SPEED", Rectangle<int> (heroPanel.getX(), retuneKnob.getY() - 17, heroPanel.getWidth(), 15), Justification::centred);
 
     // Control captions.
     for (auto& knob : knobs)
@@ -235,7 +247,7 @@ void MainView::paint (juce::Graphics& g)
         const bool enabled = knob->slider.isEnabled();
         g.setColour (enabled ? palette::textDim : palette::textFaint);
         g.drawText (enabled ? knob->caption : knob->caption + "  (STUDIO)", knob->slider.getX() - 40, controlsPanel.getY() + 18,
-                    knob->slider.getWidth() + 80, 14, Justification::centred);
+                    knob->slider.getWidth() + 80, 15, Justification::centred);
     }
 
     // Divider and the voice selector.
@@ -244,7 +256,7 @@ void MainView::paint (juce::Graphics& g)
     g.fillRect (Rectangle<float> (dividerX, (float) controlsPanel.getY() + 18.0f, 1.0f, (float) controlsPanel.getHeight() - 36.0f));
 
     g.setColour (palette::textDim);
-    g.drawText ("VOICE", voiceBox.getX() + 2, controlsPanel.getY() + 18, voiceBox.getWidth(), 14, Justification::centredLeft);
+    g.drawText ("VOICE", voiceBox.getX() + 2, controlsPanel.getY() + 18, voiceBox.getWidth(), 15, Justification::centredLeft);
     g.setColour (palette::textFaint);
     g.setFont (uiFont (11.5f));
     g.drawFittedText ("Pitch range the detector\nlistens for", voiceBox.getX() + 2, voiceBox.getBottom() + 8, voiceBox.getWidth(), 30,
@@ -332,11 +344,6 @@ void MainView::refreshState()
 }
 
 //==============================================================================
-bool MainView::isLive() const
-{
-    return audioProcessor.engine.getActiveMode() == LatencyMode::live;
-}
-
 uint16_t MainView::allowedMask() const
 {
     const auto settings = audioProcessor.readSettings();

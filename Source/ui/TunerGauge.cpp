@@ -28,6 +28,52 @@ void TunerGauge::setState (bool isActive, int targetNote, float inputCents, floa
         targetInput = inputCents;
         targetOutput = outputCents;
     }
+
+    // Tell VoiceOver when the note or status changes, not on every cent.
+    const auto now = juce::String (active ? note : -1) + statusText();
+
+    if (now != announced)
+    {
+        announced = now;
+
+        if (auto* handler = getAccessibilityHandler())
+            handler->notifyAccessibilityEvent (juce::AccessibilityEvent::valueChanged);
+    }
+}
+
+juce::String TunerGauge::statusText() const
+{
+    if (! active)
+        return "LISTENING";
+
+    return std::abs (targetOutput) < 3.0f ? "OUTPUT IN TUNE" : "CORRECTING";
+}
+
+juce::String TunerGauge::describe() const
+{
+    if (! active || note < 0)
+        return "Listening";
+
+    const auto cents = [] (float c) { return juce::String (juce::roundToInt (c)) + " cents"; };
+    return juce::String (noteName (note)).replace ("#", " sharp") + juce::String (noteOctave (note)) + ", "
+           + statusText().toLowerCase() + ", sung " + cents (targetInput) + ", output " + cents (targetOutput);
+}
+
+std::unique_ptr<juce::AccessibilityHandler> TunerGauge::createAccessibilityHandler()
+{
+    struct Readout final : public juce::AccessibilityTextValueInterface
+    {
+        explicit Readout (const TunerGauge& g) : gauge (g) {}
+
+        bool isReadOnly() const override { return true; }
+        juce::String getCurrentValueAsString() const override { return gauge.describe(); }
+        void setValueAsString (const juce::String&) override {}
+
+        const TunerGauge& gauge;
+    };
+
+    return std::make_unique<juce::AccessibilityHandler> (*this, juce::AccessibilityRole::staticText, juce::AccessibilityActions(),
+                                                         juce::AccessibilityHandler::Interfaces { std::make_unique<Readout> (*this) });
 }
 
 void TunerGauge::animate()
@@ -74,12 +120,12 @@ void TunerGauge::paint (juce::Graphics& g)
                     major ? 1.6f : 1.0f);
     }
 
-    g.setFont (captionFont (9.0f));
+    g.setFont (captionFont());
     g.setColour (palette::textFaint);
 
     for (int cents : { -50, 50 })
         g.drawText (cents < 0 ? "-50" : "+50",
-                    Rectangle<float> (34.0f, 12.0f).withCentre (centre.getPointOnCircumference (radius - 24.0f, angleFor ((float) cents))),
+                    Rectangle<float> (38.0f, 14.0f).withCentre (centre.getPointOnCircumference (radius - 24.0f, angleFor ((float) cents))),
                     Justification::centred);
 
     if (presence > 0.01f)
@@ -119,20 +165,20 @@ void TunerGauge::paint (juce::Graphics& g)
 
     // Status line and the two readouts.
     const bool locked = std::abs (targetOutput) < 3.0f;
-    g.setFont (captionFont (10.0f));
+    g.setFont (captionFont());
     g.setColour (! active ? palette::textFaint : (locked ? palette::accent : palette::textDim));
-    g.drawText (! active ? "LISTENING" : (locked ? "IN TUNE" : "CORRECTING"),
-                Rectangle<float> (140.0f, 14.0f).withCentre (centre.translated (0.0f, -radius * 0.5f + 38.0f)), Justification::centred);
+    g.drawText (statusText(),
+                Rectangle<float> (180.0f, 14.0f).withCentre (centre.translated (0.0f, -radius * 0.5f + 38.0f)), Justification::centred);
 
     const float readoutY = arcEndY + 14.0f;
     auto readout = [&] (float x, Justification just, Colour colour, const String& label, const String& value)
     {
-        g.setFont (captionFont (9.0f));
+        g.setFont (captionFont());
         g.setColour (palette::textFaint);
-        g.drawText (label, Rectangle<float> (x, readoutY, 90.0f, 12.0f), just);
+        g.drawText (label, Rectangle<float> (x, readoutY, 90.0f, 14.0f), just);
         g.setFont (uiFont (16.0f, true));
         g.setColour (colour);
-        g.drawText (value, Rectangle<float> (x, readoutY + 13.0f, 90.0f, 20.0f), just);
+        g.drawText (value, Rectangle<float> (x, readoutY + 15.0f, 90.0f, 20.0f), just);
     };
 
     const auto inputColour = active ? palette::input : palette::textFaint;
