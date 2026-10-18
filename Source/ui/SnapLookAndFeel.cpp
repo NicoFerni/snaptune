@@ -9,7 +9,13 @@ juce::Font uiFont (float height, bool bold)
 
 juce::Font captionFont (float height)
 {
-    return juce::Font (juce::FontOptions (height, juce::Font::bold).withKerningFactor (0.09f));
+    return juce::Font (juce::FontOptions (height, juce::Font::bold).withKerningFactor (0.08f));
+}
+
+void drawFocusRing (juce::Graphics& g, juce::Rectangle<float> bounds, float radius)
+{
+    g.setColour (palette::accent);
+    g.drawRoundedRectangle (bounds.reduced (1.0f), radius, 2.0f);
 }
 
 void drawPanel (juce::Graphics& g, juce::Rectangle<float> bounds, float radius)
@@ -100,7 +106,7 @@ void SnapLookAndFeel::drawRotarySlider (juce::Graphics& g, int x, int y, int wid
 namespace
 {
     void drawValueArc (juce::Graphics& g, juce::Point<float> centre, float radius, float thickness, float startAngle, float endAngle,
-                       float angle, bool bipolar, bool enabled, bool emphasised)
+                       float angle, bool bipolar, juce::Colour colour, float glowAlpha, bool emphasised)
     {
         using namespace juce;
 
@@ -118,10 +124,9 @@ namespace
         Path value;
         value.addCentredArc (centre.x, centre.y, radius, radius, 0.0f, jmin (origin, angle), jmax (origin, angle), true);
 
-        const auto colour = enabled ? palette::accent : palette::textFaint;
         const FillType fill (ColourGradient (colour.withMultipliedBrightness (0.75f), centre.x - radius, centre.y + radius,
                                              colour, centre.x + radius, centre.y - radius, false));
-        strokeWithGlow (g, value, fill, thickness, thickness * 2.6f, enabled ? 0.18f : 0.0f);
+        strokeWithGlow (g, value, fill, thickness, thickness * 2.6f, glowAlpha);
     }
 
     void drawKnobBody (juce::Graphics& g, juce::Point<float> centre, float radius, bool emphasised)
@@ -157,8 +162,13 @@ void SnapLookAndFeel::drawSmallKnob (juce::Graphics& g, juce::Rectangle<float> b
     const float radius = area.getWidth() * 0.5f;
     const float angle = startAngle + sliderPos * (endAngle - startAngle);
 
-    drawValueArc (g, centre, radius - 3.0f, 4.5f, startAngle, endAngle, angle, (bool) slider.getProperties()["bipolar"],
-                  slider.isEnabled(), emphasised);
+    // Teal is kept for the output pitch and Retune Speed; the supporting knobs stay neutral.
+    const auto arcColour = ! slider.isEnabled() ? palette::outlineBright : (emphasised ? palette::text : palette::textDim);
+    drawValueArc (g, centre, radius - 3.0f, 4.5f, startAngle, endAngle, angle, (bool) slider.getProperties()["bipolar"], arcColour, 0.0f,
+                  emphasised);
+
+    if (slider.hasKeyboardFocus (false))
+        drawFocusRing (g, area.expanded (2.0f), radius + 2.0f);
 
     const float bodyRadius = radius - 11.0f;
     drawKnobBody (g, centre, bodyRadius, emphasised);
@@ -169,7 +179,7 @@ void SnapLookAndFeel::drawSmallKnob (juce::Graphics& g, juce::Rectangle<float> b
     g.setColour (slider.isEnabled() ? palette::text : palette::textFaint);
     g.strokePath (pointer, PathStrokeType (2.6f, PathStrokeType::curved, PathStrokeType::rounded));
 
-    g.setColour (emphasised ? palette::accent : palette::textDim);
+    g.setColour (emphasised ? palette::text : palette::textDim);
     g.setFont (uiFont (12.5f, true));
     g.drawText (slider.getTextFromValue (slider.getValue()), bounds.removeFromBottom (18.0f), Justification::centred);
 }
@@ -198,7 +208,10 @@ void SnapLookAndFeel::drawHeroKnob (juce::Graphics& g, juce::Rectangle<float> bo
     }
 
     const float arcRadius = radius - 11.0f;
-    drawValueArc (g, centre, arcRadius, 7.0f, startAngle, endAngle, angle, false, true, emphasised);
+    drawValueArc (g, centre, arcRadius, 7.0f, startAngle, endAngle, angle, false, palette::accent, 0.18f, emphasised);
+
+    if (slider.hasKeyboardFocus (false))
+        drawFocusRing (g, Rectangle<float> (radius * 2.0f + 10.0f, radius * 2.0f + 10.0f).withCentre (centre), radius + 5.0f);
 
     const float bodyRadius = radius - 20.0f;
     drawKnobBody (g, centre, bodyRadius, emphasised);
@@ -217,7 +230,7 @@ void SnapLookAndFeel::drawHeroKnob (juce::Graphics& g, juce::Rectangle<float> bo
 
     const auto startLabel = slider.getProperties()["startLabel"].toString();
     const auto endLabel = slider.getProperties()["endLabel"].toString();
-    g.setFont (captionFont (9.5f));
+    g.setFont (captionFont());
     g.setColour (palette::textFaint);
     const auto startPoint = centre.getPointOnCircumference (radius + 2.0f, startAngle);
     const auto endPoint = centre.getPointOnCircumference (radius + 2.0f, endAngle);
@@ -234,6 +247,9 @@ void SnapLookAndFeel::drawComboBox (juce::Graphics& g, int width, int height, bo
     g.fillRoundedRectangle (r, 8.0f);
     g.setColour (box.isMouseOver (true) ? palette::outlineBright : palette::outline);
     g.drawRoundedRectangle (r, 8.0f, 1.0f);
+
+    if (box.hasKeyboardFocus (true))
+        drawFocusRing (g, r.expanded (0.5f), 8.0f);
 
     const float cx = (float) width - 15.0f, cy = (float) height * 0.5f;
     Path chevron;
@@ -282,6 +298,9 @@ void SnapLookAndFeel::drawToggleButton (juce::Graphics& g, juce::ToggleButton& b
     const float knobX = on ? pill.getRight() - pillHeight * 0.5f : pill.getX() + pillHeight * 0.5f;
     g.setColour (on ? palette::background : palette::textDim);
     g.fillEllipse (Rectangle<float> (pillHeight - 6.0f, pillHeight - 6.0f).withCentre ({ knobX, pill.getCentreY() }));
+
+    if (button.hasKeyboardFocus (false))
+        drawFocusRing (g, pill.expanded (3.0f), pillHeight * 0.5f + 3.0f);
 
     g.setColour (on || highlighted ? palette::text : palette::textDim);
     g.setFont (uiFont (13.0f, true));

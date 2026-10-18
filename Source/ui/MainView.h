@@ -31,9 +31,16 @@ private:
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
     using ButtonAttachment = juce::AudioProcessorValueTreeState::ButtonAttachment;
 
+    /** A knob that takes keyboard focus (arrow keys move it) and repaints to show its focus ring. */
+    struct FocusSlider final : public juce::Slider
+    {
+        void focusGained (FocusChangeType) override { repaint(); }
+        void focusLost (FocusChangeType) override { repaint(); }
+    };
+
     struct Knob
     {
-        juce::Slider slider;
+        FocusSlider slider;
         juce::String caption;
         std::unique_ptr<SliderAttachment> attachment;
     };
@@ -47,12 +54,12 @@ private:
     void setParameter (const juce::String& id, float plainValue);
     float plainValue (const char* id) const;
     uint16_t allowedMask() const;
-    bool isLive() const;
 
-    void setUpCombo (juce::ComboBox&, const juce::StringArray& items, const char* parameterId, std::unique_ptr<ComboBoxAttachment>&,
-                     const juce::String& tooltip);
-    void setUpKnob (juce::Slider&, const char* parameterId, std::unique_ptr<SliderAttachment>&, double resetValue, const juce::String& tooltip);
-    void addKnob (const char* parameterId, const juce::String& caption, bool bipolar, double resetValue, const juce::String& tooltip);
+    void setUpCombo (juce::ComboBox&, const juce::String& title, const juce::StringArray& items, const char* parameterId,
+                     std::unique_ptr<ComboBoxAttachment>&, const juce::String& tooltip);
+    void setUpKnob (juce::Slider&, const juce::String& title, const char* parameterId, std::unique_ptr<SliderAttachment>&, double resetValue,
+                    const juce::String& tooltip);
+    void addKnob (const char* parameterId, const juce::String& title, bool bipolar, double resetValue, const juce::String& tooltip);
 
     SnapTuneProcessor& audioProcessor;
 
@@ -62,7 +69,7 @@ private:
     std::unique_ptr<ButtonAttachment> midiAttachment;
     std::unique_ptr<ModeSwitch> modeSwitch;
 
-    juce::Slider retuneKnob;
+    FocusSlider retuneKnob;
     std::unique_ptr<SliderAttachment> retuneAttachment;
     std::vector<std::unique_ptr<Knob>> knobs;
 

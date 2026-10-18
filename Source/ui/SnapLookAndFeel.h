@@ -15,7 +15,7 @@ namespace palette
     inline const juce::Colour grid { 0xff181d25 };
     inline const juce::Colour text { 0xffeef2f7 };
     inline const juce::Colour textDim { 0xff9aa4b5 };
-    inline const juce::Colour textFaint { 0xff5d677a };
+    inline const juce::Colour textFaint { 0xff7d879a };
     inline const juce::Colour accent { 0xff3cf0bf };     // corrected pitch, active state
     inline const juce::Colour accentDeep { 0xff10a07c };
     inline const juce::Colour input { 0xffff8a5b };      // detected pitch
@@ -24,8 +24,12 @@ namespace palette
 
 juce::Font uiFont (float height, bool bold = false);
 
-/** Small uppercase labels: bold with extra letter spacing. */
-juce::Font captionFont (float height = 10.0f);
+/** Small uppercase labels: bold with extra letter spacing. 11 pt stays at or above the 10 pt macOS
+    minimum down to the smallest window size (0.91x). */
+juce::Font captionFont (float height = 11.0f);
+
+/** Keyboard focus ring drawn around a control's bounds. */
+void drawFocusRing (juce::Graphics&, juce::Rectangle<float> bounds, float radius);
 
 /** Rounded panel with a faint top highlight. */
 void drawPanel (juce::Graphics&, juce::Rectangle<float> bounds, float radius = 14.0f);

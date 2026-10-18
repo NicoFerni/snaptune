@@ -13,6 +13,44 @@ namespace
         const int pc = pitchClass (note);
         return pc == 1 || pc == 3 || pc == 6 || pc == 8 || pc == 10;
     }
+
+    /** Dashed outline of a polyline. JUCE's createDashedStroke bridges the gaps between sub-paths,
+        so each one is dashed on its own. */
+    juce::Path dashedStroke (const juce::Path& source, float thickness)
+    {
+        using namespace juce;
+
+        const float dashes[] = { 5.0f, 4.0f };
+        const PathStrokeType stroke (thickness, PathStrokeType::curved, PathStrokeType::butt);
+        Path result, piece;
+
+        auto flush = [&]
+        {
+            if (! piece.isEmpty())
+            {
+                Path dashed;
+                stroke.createDashedStroke (dashed, piece, dashes, 2);
+                result.addPath (dashed);
+                piece.clear();
+            }
+        };
+
+        for (Path::Iterator it (source); it.next();)
+        {
+            if (it.elementType == Path::Iterator::startNewSubPath)
+            {
+                flush();
+                piece.startNewSubPath (it.x1, it.y1);
+            }
+            else if (it.elementType == Path::Iterator::lineTo)
+            {
+                piece.lineTo (it.x1, it.y1);
+            }
+        }
+
+        flush();
+        return result;
+    }
 } // namespace
 
 PitchGraph::PitchGraph()
@@ -277,9 +315,9 @@ void PitchGraph::paint (juce::Graphics& g)
         Graphics::ScopedSaveState state (g);
         g.reduceClipRegion (plot.toNearestInt());
 
-        const auto detected = buildPath (false);
+        // The sung line is dashed so the two curves differ by more than colour.
         g.setFillType (fading (palette::input.withAlpha (0.85f)));
-        g.strokePath (detected, PathStrokeType (1.6f, PathStrokeType::curved, PathStrokeType::rounded));
+        g.fillPath (dashedStroke (buildPath (false), 1.6f));
 
         strokeWithGlow (g, buildPath (true), fading (palette::accent), 2.4f, 9.0f, 0.16f);
     }
@@ -349,23 +387,40 @@ void PitchGraph::paint (juce::Graphics& g)
         g.drawText ("SING OR PLAY A VOCAL", plot.withTrimmedBottom (18.0f), Justification::centred);
         g.setColour (palette::textFaint);
         g.setFont (uiFont (12.5f));
-        g.drawText ("the corrected pitch will draw here", plot.withTrimmedTop (22.0f), Justification::centred);
+        g.drawText ("the output pitch will draw here", plot.withTrimmedTop (22.0f), Justification::centred);
     }
 
-    // Legend.
-    auto legend = Rectangle<float> (plot.getRight() - 196.0f, bounds.getY() + 10.0f, 186.0f, 16.0f);
+    // Legend at the top left, clear of the out-of-range arrow on the right, on a backing so curves
+    // near the top row pass behind it rather than through the text.
+    auto legend = Rectangle<float> (plot.getX() + 10.0f, bounds.getY() + 8.0f, 140.0f, 22.0f);
+    g.setColour (palette::background.withAlpha (0.85f));
+    g.fillRoundedRectangle (legend, 6.0f);
+    g.setColour (palette::outline);
+    g.drawRoundedRectangle (legend, 6.0f, 1.0f);
+    legend.reduce (10.0f, 3.0f);
 
-    auto drawKey = [&] (Colour colour, const String& label)
+    auto drawKey = [&] (Colour colour, bool dashed, const String& label)
     {
-        auto item = legend.removeFromLeft (93.0f);
+        auto item = legend.removeFromLeft (legend.getWidth() * (dashed ? 0.46f : 1.0f));
+        const auto swatch = item.removeFromLeft (14.0f).withSizeKeepingCentre (14.0f, dashed ? 2.0f : 3.0f);
         g.setColour (colour);
-        g.fillRoundedRectangle (item.removeFromLeft (14.0f).withSizeKeepingCentre (14.0f, 3.0f), 1.5f);
+
+        if (dashed)
+        {
+            g.fillRect (swatch.withWidth (5.0f));
+            g.fillRect (swatch.withTrimmedLeft (9.0f));
+        }
+        else
+        {
+            g.fillRoundedRectangle (swatch, 1.5f);
+        }
+
         g.setColour (palette::textDim);
         g.setFont (uiFont (11.5f));
         g.drawText (label, item.withTrimmedLeft (6.0f), Justification::centredLeft);
     };
 
-    drawKey (palette::input, "Detected");
-    drawKey (palette::accent, "Corrected");
+    drawKey (palette::input, true, "Sung");
+    drawKey (palette::accent, false, "Output");
 }
 } // namespace snaptune

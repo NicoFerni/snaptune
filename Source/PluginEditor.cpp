@@ -11,13 +11,14 @@ SnapTuneEditor::SnapTuneEditor (SnapTuneProcessor& p)
     : AudioProcessorEditor (p), audioProcessor (p), view (p)
 {
     // Reopen at the size the user left it (read before the resize limits trigger a first resize).
-    const auto scale = juce::jlimit (0.7, 1.5, (double) audioProcessor.apvts.state.getProperty (uiScaleProperty, 1.0));
+    // The 0.91x floor keeps the 11 pt captions at the 10 pt macOS minimum.
+    const auto scale = juce::jlimit (0.91, 1.5, (double) audioProcessor.apvts.state.getProperty (uiScaleProperty, 1.0));
 
     setLookAndFeel (&lookAndFeel);
     addAndMakeVisible (view);
 
     setResizable (true, true);
-    setResizeLimits (700, 448, 1500, 960);
+    setResizeLimits (910, 582, 1500, 960);
     getConstrainer()->setFixedAspectRatio ((double) MainView::baseWidth / MainView::baseHeight);
     setSize (juce::roundToInt (MainView::baseWidth * scale), juce::roundToInt (MainView::baseHeight * scale));
     rememberSize = true;
