@@ -21,7 +21,6 @@ execFileSync(runner, ["--snapshot", source, "studio", "1.0", "4"], { stdio: "inh
 
 // Regions of the 1000 x 640 window as fractions of its size, and the CSS width each is shown at.
 const shots = {
-  window: { region: { x: 0, y: 0, w: 1, h: 1 }, cssWidth: 1100 },
   graph: { region: { x: 0.3425, y: 0.223, w: 0.6375, h: 0.512 }, cssWidth: 1100 },
   gauge: { region: { x: 0.03, y: 0.234, w: 0.29, h: 0.254 }, cssWidth: 540 },
   retune: { region: { x: 0.03, y: 0.522, w: 0.29, h: 0.205 }, cssWidth: 540 },

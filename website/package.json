@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "shots": "node scripts/shots.mjs"
+    "shots": "node scripts/shots.mjs",
+    "demo-frames": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo-frames.mjs"
   },
   "dependencies": {
     "next": "16.4.2",
