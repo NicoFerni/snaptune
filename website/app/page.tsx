@@ -4,20 +4,12 @@ import { ABPlayer } from "@/components/ABPlayer";
 import { CopyCommand } from "@/components/CopyCommand";
 import { DemoVideo } from "@/components/DemoVideo";
 import { LogoMark } from "@/components/Logo";
+import shots from "@/lib/shots.json";
 import { clips, hasPublicFile, kofi, links, midiDemo, quarantineCommand, version } from "@/lib/site";
 
 // Missing demo media is a visible to-do in `next dev` and simply absent from the built site.
 const isDev = process.env.NODE_ENV === "development";
 
-// Regions of the plugin screenshot (docs/screenshot.png, 1600 × 1024) as fractions of its size.
-type Region = { x: number; y: number; w: number; h: number };
-
-const regions = {
-  graph: { x: 0.3425, y: 0.223, w: 0.6375, h: 0.512 },
-  gauge: { x: 0.03, y: 0.234, w: 0.29, h: 0.254 },
-  retune: { x: 0.03, y: 0.522, w: 0.29, h: 0.205 },
-  notes: { x: 0.306, y: 0.139, w: 0.514, h: 0.056 },
-} satisfies Record<string, Region>;
 
 const quickStart: ReactNode[] = [
   <>Put SnapTune on the <b className="font-semibold text-ink">vocal&apos;s mixer track</b>, not the beat or the master.</>,
@@ -81,23 +73,12 @@ const faqs: { q: string; a: ReactNode }[] = [
 const githubIcon =
   "M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.7c-2.78.6-3.37-1.34-3.37-1.34-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.6.07-.6 1 .07 1.53 1.03 1.53 1.03.9 1.52 2.34 1.08 2.91.83.09-.65.35-1.09.63-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02a9.5 9.5 0 0 1 5 0c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.85v2.74c0 .27.18.58.69.48A10 10 0 0 0 12 2Z";
 
-// A close-up of one part of the plugin window, cut from the same screenshot.
-function UiCrop({ region, alt, fadeTop = false, className = "" }: { region: Region; alt: string; fadeTop?: boolean; className?: string }) {
-  const { x, y, w, h } = region;
-  // A crop from inside a panel starts mid-gradient; fading its top edge hides the cut.
-  const fade = fadeTop ? { maskImage: "linear-gradient(to bottom, transparent, black 22%)" } : {};
-  return (
-    <div className={`relative overflow-hidden ${className}`} style={{ aspectRatio: `${w * 1600} / ${h * 1024}`, ...fade }}>
-      <Image
-        src="/screenshot.png"
-        alt={alt}
-        width={1600}
-        height={1024}
-        className="absolute h-auto max-w-none"
-        style={{ width: `${100 / w}%`, left: `${(-x / w) * 100}%`, top: `${(-y / h) * 100}%` }}
-      />
-    </div>
-  );
+// A render of the plugin window, or a close-up cut from it at 2x. `npm run shots` regenerates them.
+function Shot({ name, alt, fadeTop = false, priority = false, className = "" }: { name: keyof typeof shots; alt: string; fadeTop?: boolean; priority?: boolean; className?: string }) {
+  const { src, width, height } = shots[name];
+  // A close-up from inside a panel starts mid-gradient; fading its top edge hides the cut.
+  const fade = fadeTop ? { maskImage: "linear-gradient(to bottom, transparent, black 22%)" } : undefined;
+  return <Image src={src} alt={alt} width={width} height={height} priority={priority} className={`h-auto w-full ${className}`} style={fade} />;
 }
 
 // Apple's text links end in a chevron: "Learn more ›".
@@ -112,7 +93,7 @@ function MoreLink({ href, children }: { href: string; children: ReactNode }) {
   );
 }
 
-function SectionHeader({ eyebrow, eyebrowClass = "text-teal", title, children }: { eyebrow: string; eyebrowClass?: string; title: ReactNode; children?: ReactNode }) {
+function SectionHeader({ eyebrow, eyebrowClass = "text-muted", title, children }: { eyebrow: string; eyebrowClass?: string; title: ReactNode; children?: ReactNode }) {
   return (
     <div className="mx-auto max-w-3xl text-center">
       <p className={`text-[19px] font-semibold sm:text-[21px] ${eyebrowClass}`}>{eyebrow}</p>
@@ -159,17 +140,21 @@ export default function Home() {
   return (
     <>
       {/* Local nav: Apple's product sub-navigation, a frosted bar over the page. */}
-      <header className="sticky top-0 z-50 border-b border-white/10 bg-bg/75 backdrop-blur-xl backdrop-saturate-150">
+      <header className="local-nav sticky top-0 z-50 border-b border-white/10 bg-bg/75 backdrop-blur-xl backdrop-saturate-150">
         <nav className="mx-auto flex h-13 max-w-[980px] items-center justify-between px-4 sm:px-6">
           <a href="#top" className="flex items-center gap-2 text-[19px] font-semibold tracking-tight sm:text-[21px]">
             <LogoMark className="h-6 w-6" />
             SnapTune
           </a>
           <div className="flex items-center gap-5 text-xs">
-            <a href="#features" className="hidden text-ink/80 transition hover:text-ink sm:block">Overview</a>
-            <a href="#install" className="text-ink/80 transition hover:text-ink">Install</a>
-            <a href="#faq" className="hidden text-ink/80 transition hover:text-ink sm:block">FAQ</a>
-            <a href={links.download} className="rounded-full bg-teal px-3 py-1 font-medium text-bg transition hover:bg-[#6bf5cf]">
+            <a href="#features" className="hidden min-h-11 items-center text-ink/80 transition hover:text-ink sm:inline-flex">Overview</a>
+            <a href="#install" className="inline-flex min-h-11 items-center text-ink/80 transition hover:text-ink">Install</a>
+            <a href="#faq" className="hidden min-h-11 items-center text-ink/80 transition hover:text-ink sm:inline-flex">FAQ</a>
+            {/* The pill stays small; the invisible ::before stretches its tap area to 44 px. */}
+            <a
+              href={links.download}
+              className="relative rounded-full bg-teal px-3 py-1 font-medium text-bg transition before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-[#6bf5cf]"
+            >
               Download
             </a>
           </div>
@@ -179,7 +164,7 @@ export default function Home() {
       <main id="top" className="flex-1 overflow-x-clip">
         {/* Hero */}
         <section className="relative px-4 pt-16 text-center sm:px-6 sm:pt-24">
-          <p className="text-[19px] font-semibold text-teal sm:text-[21px]">SnapTune {shortVersion} for Mac</p>
+          <p className="text-[19px] font-semibold text-muted sm:text-[21px]">SnapTune {shortVersion} for Mac</p>
           <h1 className="headline mx-auto mt-3 max-w-4xl text-[56px] sm:text-[88px]">Hard-tune. Live. Free.</h1>
           <p className="mx-auto mt-6 max-w-2xl text-[19px] leading-snug text-muted sm:text-[24px]">
             A pitch correction plugin that snaps your voice to the key with 2.7&nbsp;ms of delay, so you hear it tuned while you record.
@@ -203,13 +188,11 @@ export default function Home() {
               aria-hidden="true"
               className="pointer-events-none absolute -inset-x-20 -top-24 bottom-0 bg-[radial-gradient(ellipse_at_center,rgba(60,240,191,0.16),transparent_62%)]"
             />
-            <Image
-              src="/screenshot.png"
+            <Shot
+              name="window"
               alt="The SnapTune window: tuner gauge, Retune Speed knob, scale note buttons and a pitch graph with the sung and output pitch"
-              width={1600}
-              height={1024}
               priority
-              className="relative h-auto w-full rounded-[18px] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/10 sm:rounded-[26px]"
+              className="relative rounded-[18px] shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/10 sm:rounded-[26px]"
             />
           </div>
         </section>
@@ -239,7 +222,7 @@ export default function Home() {
                   double-click to follow the singer again.
                 </p>
               </div>
-              <UiCrop region={regions.graph} alt="The pitch graph, with the sung pitch dashed and the output pitch snapped to each note" className="mt-8 sm:mt-10" />
+              <Shot name="graph" alt="The pitch graph, with the sung pitch dashed and the output pitch snapped to each note" className="mt-8 sm:mt-10" />
             </article>
 
             <article className="flex flex-col overflow-hidden rounded-[28px] bg-panel">
@@ -250,7 +233,7 @@ export default function Home() {
                   across the room.
                 </p>
               </div>
-              <UiCrop region={regions.gauge} alt="The tuner gauge: G3, sung −40 cents, output 0 cents" fadeTop className="mt-auto" />
+              <Shot name="gauge" alt="The tuner gauge: G3, sung −40 cents, output 0 cents" fadeTop className="mt-auto" />
             </article>
 
             <article className="flex flex-col overflow-hidden rounded-[28px] bg-panel">
@@ -260,7 +243,7 @@ export default function Home() {
                   All the way to 0 ms is the robotic stair-step. Turn it up and your slides and vibrato come back.
                 </p>
               </div>
-              <UiCrop region={regions.retune} alt="The Retune Speed knob at 8 ms, from Fast to Slow" fadeTop className="mt-auto" />
+              <Shot name="retune" alt="The Retune Speed knob at 8 ms, from Fast to Slow" fadeTop className="mt-auto" />
             </article>
 
             <article className="overflow-hidden rounded-[28px] bg-panel md:col-span-2">
@@ -269,7 +252,7 @@ export default function Home() {
                   <h3 className="headline text-[28px] sm:text-[32px]">Scale notes.</h3>
                   <p className="mt-3 text-muted">Lit notes are allowed. Click one to switch it off and the voice will never land there.</p>
                 </div>
-                <UiCrop region={regions.notes} alt="The twelve scale note buttons, C major lit, G being tuned to" />
+                <Shot name="notes" alt="The twelve scale note buttons, C major lit, G being tuned to" />
               </div>
             </article>
           </div>
@@ -384,7 +367,7 @@ export default function Home() {
           </SectionHeader>
           <ol className="mx-auto mt-12 grid max-w-[980px] gap-4 md:grid-cols-2 md:gap-5">
             <li className="rounded-[28px] bg-panel p-8">
-              <p className="text-sm font-semibold text-teal">Step 1</p>
+              <p className="text-sm font-semibold text-muted">Step 1</p>
               <h3 className="mt-1 text-[21px] font-semibold">Unzip the download</h3>
               <p className="mt-2 text-[15px] text-muted">
                 <a href={links.download} className="text-teal hover:underline">SnapTune-{version}-macOS.zip</a> holds the VST3, the Audio Unit and a
@@ -392,7 +375,7 @@ export default function Home() {
               </p>
             </li>
             <li className="rounded-[28px] bg-panel p-8">
-              <p className="text-sm font-semibold text-teal">Step 2</p>
+              <p className="text-sm font-semibold text-muted">Step 2</p>
               <h3 className="mt-1 text-[21px] font-semibold">Move the plugins into place</h3>
               <p className="mt-2 text-[15px] text-muted">In Finder, choose Go › Go to Folder… and paste each path.</p>
               <dl className="mt-4 space-y-3 rounded-2xl bg-bg/60 p-4 font-mono text-[13px] tracking-normal">
@@ -408,13 +391,13 @@ export default function Home() {
               </dl>
             </li>
             <li className="rounded-[28px] bg-panel p-8 md:col-span-2">
-              <p className="text-sm font-semibold text-teal">Step 3</p>
+              <p className="text-sm font-semibold text-muted">Step 3</p>
               <h3 className="mt-1 text-[21px] font-semibold">Let macOS open them</h3>
               <p className="mt-2 text-[15px] text-muted">macOS blocks plugins Apple hasn&apos;t checked. Paste this into Terminal once:</p>
               <CopyCommand command={quarantineCommand} />
             </li>
             <li className="rounded-[28px] bg-panel p-8 md:col-span-2">
-              <p className="text-sm font-semibold text-teal">Step 4</p>
+              <p className="text-sm font-semibold text-muted">Step 4</p>
               <h3 className="mt-1 text-[21px] font-semibold">Restart your DAW and rescan</h3>
               <p className="mt-2 text-[15px] text-muted">Quit it completely first. In FL Studio: Options › Manage plugins › Find installed plugins.</p>
             </li>

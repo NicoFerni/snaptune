@@ -3,7 +3,8 @@
 //   SnapTuneTests [--out <dir>]                 DSP test suite (+ demo WAVs when --out is given)
 //   SnapTuneTests --process <in> <out> [opts]   tune an audio file: --key C --scale Major --retune 0 --formant 0
 //   SnapTuneTests --host <plugin path>          load the built VST3 / AU and check it corrects pitch
-//   SnapTuneTests --snapshot <out.png>          render the editor with real pitch data
+//   SnapTuneTests --snapshot <out.png> [studio|live] [uiScale] [pixelScale]
+//                                               render the editor with real pitch data (pixelScale 2 = Retina)
 
 #include "Parameters.h"
 #include "PluginEditor.h"
@@ -1363,7 +1364,7 @@ int runHostTest (const juce::String& path)
     return failures == 0 ? 0 : 1;
 }
 
-int runSnapshot (const juce::File& file, bool liveMode, double uiScale)
+int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pixelScale)
 {
     const double sampleRate = 48000.0;
     SnapTuneProcessor processor;
@@ -1404,7 +1405,7 @@ int runSnapshot (const juce::File& file, bool liveMode, double uiScale)
         editor->injectFrames (frames.data(), count);
     }
 
-    const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, 2.0f);
+    const auto image = editor->createComponentSnapshot (editor->getLocalBounds(), true, pixelScale);
     file.deleteFile();
     juce::FileOutputStream stream (file);
     juce::PNGImageFormat png;
@@ -1450,7 +1451,8 @@ int main (int argc, char* argv[])
         return runHostTest (args[2]);
 
     if (args[1] == "--snapshot" && args.size() >= 3)
-        return runSnapshot (juce::File (args[2]), args[3] == "live", args.size() > 4 ? args[4].getDoubleValue() : 1.0);
+        return runSnapshot (juce::File (args[2]), args[3] == "live", args.size() > 4 ? args[4].getDoubleValue() : 1.0,
+                            args.size() > 5 ? juce::jlimit (1.0f, 8.0f, args[5].getFloatValue()) : 2.0f);
 
     juce::File outDir;
 

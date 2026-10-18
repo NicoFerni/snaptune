@@ -143,7 +143,8 @@ cmake --build build --target SnapTuneTests
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --out build/demo        # DSP suite + demo WAVs
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --process in.wav out.wav --key A --scale Minor --retune 0 --mode live
-./build/SnapTuneTests_artefacts/Release/SnapTuneTests --snapshot docs/screenshot.png
+./build/SnapTuneTests_artefacts/Release/SnapTuneTests --snapshot ui.png studio 1.0 4   # 4000 x 2560 render
+(cd website && npm run shots)                                                    # README + site images
 auval -v aumf Snpt Ncfz
 ```
 
