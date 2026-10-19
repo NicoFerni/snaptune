@@ -6,9 +6,9 @@ import { join } from "node:path";
 function readVersion(): string {
   try {
     const cmake = readFileSync(join(process.cwd(), "..", "CMakeLists.txt"), "utf8");
-    return cmake.match(/project\(SnapTune VERSION ([0-9.]+)/)?.[1] ?? "1.1.0";
+    return cmake.match(/project\(SnapTune VERSION ([0-9.]+)/)?.[1] ?? "1.2.0";
   } catch {
-    return "1.1.0";
+    return "1.2.0";
   }
 }
 
@@ -19,7 +19,8 @@ const repo = "https://github.com/NicoFerni/snaptune";
 export const links = {
   repo,
   releases: `${repo}/releases/latest`,
-  download: `${repo}/releases/download/v${version}/SnapTune-${version}-macOS.zip`,
+  mac: `${repo}/releases/download/v${version}/SnapTune-${version}-macOS.pkg`,
+  windows: `${repo}/releases/download/v${version}/SnapTune-${version}-Windows-Setup.exe`,
   readme: `${repo}#readme`,
   issues: `${repo}/issues`,
   license: `${repo}/blob/main/LICENSE`,
@@ -32,9 +33,6 @@ export const kofi = {
   goal: 99,
   raised: 0,
 };
-
-export const quarantineCommand =
-  "xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3 ~/Library/Audio/Plug-Ins/Components/SnapTune.component";
 
 // True when a file exists in public/. Demo media is optional: sections without their files are left
 // out of the production build and shown as placeholders in `next dev`.
