@@ -7,7 +7,7 @@
 
 **Open-source real-time pitch correction for your DAW.** From the robotic hard-tune snap to
 transparent correction, with a formant-preserving Studio mode and a 2.7 ms Live mode for tracking.
-VST3 + Audio Unit, macOS (Apple Silicon and Intel).
+VST3 + Audio Unit for macOS (Apple Silicon and Intel), VST3 for Windows (64-bit).
 
 ![SnapTune](docs/screenshot.png)
 
@@ -24,19 +24,27 @@ VST3 + Audio Unit, macOS (Apple Silicon and Intel).
 
 ## Download
 
-Grab **SnapTune-…-macOS.zip** from the [latest release](https://github.com/NicoFerni/snaptune/releases/latest)
-(VST3, Audio Unit and a standalone app; universal for Apple Silicon and Intel, macOS 11+):
+Get the installer for your system from the [latest release](https://github.com/NicoFerni/snaptune/releases/latest):
 
-1. Copy `SnapTune.vst3` to `~/Library/Audio/Plug-Ins/VST3/` and `SnapTune.component` to `~/Library/Audio/Plug-Ins/Components/`.
-2. The builds aren't notarized by Apple, so clear the download quarantine once:
-   ```sh
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3 ~/Library/Audio/Plug-Ins/Components/SnapTune.component
-   ```
-3. Restart your DAW and rescan plugins.
+**macOS 11+** (Apple Silicon and Intel): **SnapTune-…-macOS.pkg** installs the VST3, the Audio Unit
+and a standalone app.
 
-Step 2 goes away once SnapTune is notarized, which needs the $99/year Apple Developer membership.
-If SnapTune is useful to you, you can [chip in on Ko-fi](https://ko-fi.com/nicofernandev); once
-the fee is covered, releases ship as a signed installer.
+1. Open the .pkg. It isn't notarized by Apple yet, so macOS blocks it the first time: click **Done**,
+   then **System Settings > Privacy & Security > Open Anyway** (on macOS 14 or earlier, right-click
+   the .pkg and choose **Open**).
+2. Restart your DAW and rescan plugins.
+
+**Windows 10+** (64-bit): **SnapTune-…-Windows-Setup.exe** installs the VST3 in
+`C:\Program Files\Common Files\VST3` and a standalone app.
+
+1. Run the installer. It isn't code-signed yet, so SmartScreen may say "Windows protected your PC":
+   click **More info > Run anyway**.
+2. Restart your DAW and rescan plugins.
+
+Each release also has a zip per platform for installing by hand; its INSTALL.txt has the steps.
+
+The macOS warning goes away once SnapTune is notarized, which needs the $99/year Apple Developer
+membership. If SnapTune is useful to you, you can [chip in on Ko-fi](https://ko-fi.com/nicofernandev).
 
 ## Build from source
 
@@ -54,6 +62,14 @@ JUCE 9.0.4 is downloaded automatically during the first configure. The build ins
 `~/Library/Audio/Plug-Ins/Components`; then rescan plugins in your DAW. `SnapTune.app` (Standalone,
 in `build/SnapTune_artefacts/Release/Standalone`) lets you try it with a microphone, no DAW needed;
 use headphones.
+
+On Windows, with Visual Studio 2022 or later and CMake, from a terminal run as administrator (the
+build copies the VST3 into `C:\Program Files\Common Files\VST3`):
+
+```sh
+cmake -B build -A x64
+cmake --build build --config Release --target SnapTune_VST3 SnapTune_Standalone
+```
 
 ## Quick start (FL Studio)
 

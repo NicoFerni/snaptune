@@ -1,12 +1,11 @@
 import Image from "next/image";
 import type { ReactNode } from "react";
 import { ABPlayer } from "@/components/ABPlayer";
-import { CopyCommand } from "@/components/CopyCommand";
 import { DemoVideo } from "@/components/DemoVideo";
 import { SnapTuneDemo } from "@/components/demo/SnapTuneDemo";
 import { LogoMark } from "@/components/Logo";
 import shots from "@/lib/shots.json";
-import { clips, hasPublicFile, kofi, links, midiDemo, quarantineCommand, version } from "@/lib/site";
+import { clips, hasPublicFile, kofi, links, midiDemo, version } from "@/lib/site";
 
 // Missing demo media is a visible to-do in `next dev` and simply absent from the built site.
 const isDev = process.env.NODE_ENV === "development";
@@ -21,6 +20,32 @@ const quickStart: ReactNode[] = [
   </>,
   <>Set <b className="font-semibold text-ink">Voice</b> to the singer. Deep voice: Low Male.</>,
   <>Use <b className="font-semibold text-ink">Live</b> while you record and <b className="font-semibold text-ink">Studio</b> when you mix.</>,
+];
+
+const installGuides: { platform: string; file: string; href: string; steps: [string, string][] }[] = [
+  {
+    platform: "Mac",
+    file: `SnapTune-${version}-macOS.pkg`,
+    href: links.mac,
+    steps: [
+      ["Open the installer", "It installs the VST3, the Audio Unit and a standalone app."],
+      [
+        "Let macOS open it",
+        "macOS blocks it the first time. Click Done, then System Settings › Privacy & Security › Open Anyway. On macOS 14 or earlier, right-click it and choose Open.",
+      ],
+      ["Restart your DAW and rescan", "Quit it completely first. In FL Studio: Options › Manage plugins › Find installed plugins."],
+    ],
+  },
+  {
+    platform: "Windows",
+    file: `SnapTune-${version}-Windows-Setup.exe`,
+    href: links.windows,
+    steps: [
+      ["Run the installer", "It installs the VST3 in Common Files\\VST3, plus a standalone app."],
+      ["Get past SmartScreen", "If Windows says it protected your PC, click More info › Run anyway."],
+      ["Restart your DAW and rescan", "Close it completely first. In FL Studio: Options › Manage plugins › Find installed plugins."],
+    ],
+  },
 ];
 
 const faqs: { q: string; a: ReactNode }[] = [
@@ -38,13 +63,18 @@ const faqs: { q: string; a: ReactNode }[] = [
     a: "It needs the vocal on its own track. On a full mix or a beat it can't find a single pitch to follow. If the voice is breathy or the room is echoey, raise Tracking. For deep voices, set Voice to Low Male.",
   },
   {
-    q: "macOS says it's damaged or can't be opened.",
+    q: "macOS says the installer can't be opened.",
     a: (
       <>
-        That&apos;s the missing Apple notarization, not a broken file. Run the command in <a href="#install" className="text-teal hover:underline">step 3</a>.
-        For the standalone app, right-click it and choose Open the first time.
+        That&apos;s the missing Apple notarization, not a broken file. Click Done, then go to System Settings › Privacy &amp; Security and click
+        Open Anyway (on macOS 14 or earlier, right-click the installer and choose Open). Installed the zip by hand instead? INSTALL.txt inside
+        it has the one Terminal command you need.
       </>
     ),
+  },
+  {
+    q: "Windows says it protected my PC.",
+    a: "That's SmartScreen: the installer isn't code-signed yet. Click More info, then Run anyway.",
   },
   {
     q: "Does it work in Ableton, Logic, Reaper…?",
@@ -53,15 +83,6 @@ const faqs: { q: string; a: ReactNode }[] = [
         It&apos;s tested in FL Studio, and every build passes Apple&apos;s own Audio Unit validation. Other DAWs that load VST3 or AU should
         work, but I haven&apos;t tried each one. If yours gives you trouble, <a href={links.issues} className="text-teal hover:underline">open an issue</a>{" "}
         and say which DAW and version.
-      </>
-    ),
-  },
-  {
-    q: "Windows?",
-    a: (
-      <>
-        Not yet. Windows is planned for a coming version. New versions show up on the{" "}
-        <a href={links.releases} className="text-teal hover:underline">releases page</a>.
       </>
     ),
   },
@@ -153,7 +174,7 @@ export default function Home() {
             <a href="#faq" className="hidden min-h-11 items-center text-ink/80 transition hover:text-ink sm:inline-flex">FAQ</a>
             {/* The pill stays small; the invisible ::before stretches its tap area to 44 px. */}
             <a
-              href={links.download}
+              href="#install"
               className="relative rounded-full bg-teal px-3 py-1 font-medium text-bg transition before:absolute before:-inset-x-1 before:-inset-y-2.5 before:content-[''] hover:bg-[#6bf5cf]"
             >
               Download
@@ -165,22 +186,31 @@ export default function Home() {
       <main id="top" className="flex-1 overflow-x-clip">
         {/* Hero */}
         <section className="relative px-4 pt-16 text-center sm:px-6 sm:pt-24">
-          <p className="text-[19px] font-semibold text-muted sm:text-[21px]">SnapTune {shortVersion} for Mac</p>
+          <p className="text-[19px] font-semibold text-muted sm:text-[21px]">SnapTune {shortVersion} for Mac and Windows</p>
           <h1 className="headline mx-auto mt-3 max-w-4xl text-[56px] sm:text-[88px]">Hard-tune. Live. Free.</h1>
           <p className="mx-auto mt-6 max-w-2xl text-[19px] leading-snug text-muted sm:text-[24px]">
             A pitch correction plugin that snaps your voice to the key with 2.7&nbsp;ms of delay, so you hear it tuned while you record.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-5 sm:flex-row sm:gap-8">
-            <a
-              href={links.download}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-teal px-7 py-3 text-[17px] font-medium text-bg transition hover:bg-[#6bf5cf]"
-            >
-              Download for Mac
-            </a>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <a
+                href={links.mac}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full bg-teal px-7 py-3 text-[17px] font-medium text-bg transition hover:bg-[#6bf5cf]"
+              >
+                Download for Mac
+              </a>
+              <a
+                href={links.windows}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-full border border-teal/60 px-7 py-3 text-[17px] font-medium text-teal transition hover:bg-teal hover:text-bg"
+              >
+                Download for Windows
+              </a>
+            </div>
             <MoreLink href={links.repo}>View the source on GitHub</MoreLink>
           </div>
-          <p className="mt-6 text-sm text-faint">
-            VST3 and Audio Unit · macOS 11 or later · Apple silicon and Intel · Tested in FL Studio
+          <p className="mx-auto mt-6 max-w-2xl text-sm text-faint">
+            Mac: VST3 and Audio Unit · macOS 11 or later · Apple silicon and Intel · Windows: VST3 · Windows 10 or later, 64-bit · Tested in FL
+            Studio
           </p>
 
           {/* The product, large and playable, with the plugin's own glow behind it. */}
@@ -362,56 +392,42 @@ export default function Home() {
 
         {/* Install */}
         <section id="install" className="scroll-mt-16 px-4 pt-28 sm:px-6 sm:pt-40">
-          <SectionHeader eyebrow="Install" title="Up and running in two minutes.">
-            One step is a Terminal command, and I&apos;m working on <a href="#support" className="text-teal hover:underline">getting rid of it</a>.
+          <SectionHeader eyebrow="Install" title="Up and running in a minute.">
+            An installer puts everything in place. The system asks once before opening it, and I&apos;m working on{" "}
+            <a href="#support" className="text-teal hover:underline">getting rid of that</a>.
           </SectionHeader>
-          <ol className="mx-auto mt-12 grid max-w-[980px] gap-4 md:grid-cols-2 md:gap-5">
-            <li className="rounded-[28px] bg-panel p-8">
-              <p className="text-sm font-semibold text-muted">Step 1</p>
-              <h3 className="mt-1 text-[21px] font-semibold">Unzip the download</h3>
-              <p className="mt-2 text-[15px] text-muted">
-                <a href={links.download} className="text-teal hover:underline">SnapTune-{version}-macOS.zip</a> holds the VST3, the Audio Unit and a
-                standalone app.
-              </p>
-            </li>
-            <li className="rounded-[28px] bg-panel p-8">
-              <p className="text-sm font-semibold text-muted">Step 2</p>
-              <h3 className="mt-1 text-[21px] font-semibold">Move the plugins into place</h3>
-              <p className="mt-2 text-[15px] text-muted">In Finder, choose Go › Go to Folder… and paste each path.</p>
-              <dl className="mt-4 space-y-3 rounded-2xl bg-bg/60 p-4 font-mono text-[13px] tracking-normal">
-                {[
-                  ["SnapTune.vst3", "~/Library/Audio/Plug-Ins/VST3/"],
-                  ["SnapTune.component", "~/Library/Audio/Plug-Ins/Components/"],
-                ].map(([file, folder]) => (
-                  <div key={file}>
-                    <dt className="text-ink">{file}</dt>
-                    <dd className="text-muted"><span className="text-faint" aria-hidden="true">→ </span>{folder}</dd>
-                  </div>
-                ))}
-              </dl>
-            </li>
-            <li className="rounded-[28px] bg-panel p-8 md:col-span-2">
-              <p className="text-sm font-semibold text-muted">Step 3</p>
-              <h3 className="mt-1 text-[21px] font-semibold">Let macOS open them</h3>
-              <p className="mt-2 text-[15px] text-muted">macOS blocks plugins Apple hasn&apos;t checked. Paste this into Terminal once:</p>
-              <CopyCommand command={quarantineCommand} />
-            </li>
-            <li className="rounded-[28px] bg-panel p-8 md:col-span-2">
-              <p className="text-sm font-semibold text-muted">Step 4</p>
-              <h3 className="mt-1 text-[21px] font-semibold">Restart your DAW and rescan</h3>
-              <p className="mt-2 text-[15px] text-muted">Quit it completely first. In FL Studio: Options › Manage plugins › Find installed plugins.</p>
-            </li>
-          </ol>
+          <div className="mx-auto mt-12 grid max-w-[980px] gap-4 md:grid-cols-2 md:gap-5">
+            {installGuides.map((guide) => (
+              <div key={guide.platform} className="rounded-[28px] bg-panel p-8">
+                <h3 className="text-[21px] font-semibold">{guide.platform}</h3>
+                <p className="mt-1 text-[15px] text-muted">
+                  <a href={guide.href} className="text-teal hover:underline">{guide.file}</a>
+                </p>
+                <ol className="mt-6 space-y-5">
+                  {guide.steps.map(([title, body], i) => (
+                    <li key={title}>
+                      <p className="text-sm font-semibold text-muted">Step {i + 1}</p>
+                      <p className="mt-0.5 text-[17px] font-semibold">{title}</p>
+                      <p className="mt-1 text-[15px] text-muted">{body}</p>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+            ))}
+          </div>
+          <p className="mx-auto mt-6 max-w-2xl text-center text-sm text-faint">
+            Rather copy the files yourself? Each <a href={links.releases} className="text-teal hover:underline">release</a> also has a zip with
+            an INSTALL.txt.
+          </p>
         </section>
 
         {/* Support */}
         <section id="support" className="scroll-mt-16 px-4 pt-28 sm:px-6 sm:pt-40">
           <div className="mx-auto max-w-3xl text-center">
-            <h2 className="headline text-[40px] sm:text-[56px]">Help get rid of step 3.</h2>
+            <h2 className="headline text-[40px] sm:text-[56px]">Help get rid of the warning.</h2>
             <p className="mx-auto mt-5 max-w-2xl text-[19px] leading-snug text-muted sm:text-[21px]">
-              macOS shows that warning because SnapTune isn&apos;t notarized by Apple. Notarizing needs an Apple Developer membership, which costs{" "}
-              <span className="text-ink">$99 a year</span>. Once that&apos;s covered, SnapTune ships as a signed installer that opens like any other
-              Mac app.
+              macOS asks you to click Open Anyway because SnapTune isn&apos;t notarized by Apple. Notarizing needs an Apple Developer membership,
+              which costs <span className="text-ink">$99 a year</span>. Once that&apos;s covered, the installer opens like any other Mac app.
             </p>
             {kofi.raised > 0 && (
               <div className="mx-auto mt-8 max-w-sm text-left">
@@ -455,7 +471,11 @@ export default function Home() {
       <footer className="border-t border-line bg-panel/40">
         <div className="mx-auto max-w-[980px] px-4 py-6 text-xs text-faint sm:px-6">
           <div className="flex flex-col gap-4 border-b border-line pb-5 sm:flex-row sm:items-center sm:justify-between">
-            <a href={links.download} className="text-[13px] font-medium text-teal hover:underline">Download SnapTune {version} for Mac</a>
+            <p className="text-[13px] font-medium">
+              Download SnapTune {version} for{" "}
+              <a href={links.mac} className="text-teal hover:underline">Mac</a> or{" "}
+              <a href={links.windows} className="text-teal hover:underline">Windows</a>
+            </p>
             <div className="flex flex-wrap gap-x-5 gap-y-2 text-[13px] text-muted">
               <a href={links.repo} className="inline-flex items-center gap-1.5 hover:text-ink">
                 <svg viewBox="0 0 24 24" className="h-3.5 w-3.5" fill="currentColor" aria-hidden="true"><path d={githubIcon} /></svg>
