@@ -118,6 +118,11 @@ target_link_libraries(SnapTune
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
 
+# GCC checks every complex product for NaN (C99 Annex G), which slows down JUCE's own FFT, the one
+# the pitch detector uses wherever there's no vDSP. SnapTune never multiplies infinities.
+set(SNAPTUNE_GCC_OPTIONS $<$<CXX_COMPILER_ID:GNU>:-fcx-limited-range>)
+target_compile_options(SnapTune PRIVATE ${SNAPTUNE_GCC_OPTIONS})
+
 # Linux: carry the C++ runtime inside the plugin, so it loads whatever runtime the host brings, and
 # drop libraries nothing calls (libcurl is opened at run time instead).
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
@@ -132,6 +137,7 @@ if(SNAPTUNE_BUILD_TESTS)
 
     target_sources(SnapTuneTests PRIVATE tests/TestMain.cpp ${SNAPTUNE_SOURCES})
     target_include_directories(SnapTuneTests PRIVATE Source)
+    target_compile_options(SnapTuneTests PRIVATE ${SNAPTUNE_GCC_OPTIONS})
 
     target_compile_definitions(SnapTuneTests
         PRIVATE
