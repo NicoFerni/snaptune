@@ -58,7 +58,7 @@ const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNod
 ];
 
 const receipt: { group: string; rows: string[] }[] = [
-  { group: "The plugin", rows: ["VST3 for Mac", "Audio Unit for Mac", "VST3 for Windows, 64-bit", "Standalone app"] },
+  { group: "The plugin", rows: ["VST3 for Mac", "Audio Unit for Mac", "VST3 for Windows, 64-bit", "VST3 and LV2 for Linux", "Standalone app"] },
   { group: "Inside", rows: ["Six factory presets", "Thirteen scales", "MIDI target notes", "Studio and Live modes"] },
   { group: "Later", rows: ["Updates", "The source code"] },
 ];
@@ -124,11 +124,15 @@ const faqs: { q: string; a: ReactNode }[] = [
     a: "That’s SmartScreen: the installer isn’t code-signed yet. Click More info, then Run anyway.",
   },
   {
+    q: "Does it run on Linux?",
+    a: "Yes, as a VST3, an LV2 and a standalone app, on 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04 and later). Unpack the download and run install.sh. The Linux builds are new and I haven’t tried them in a Linux DAW yet, so if yours has trouble, open an issue and say which DAW and distribution.",
+  },
+  {
     q: "Does it work in Ableton, Logic, Reaper…?",
     a: (
       <>
-        I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3 or AU should work, but I haven’t
-        tried each one. If yours gives you trouble, <a href={links.issues}>open an issue</a> and say which DAW and version.
+        I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I
+        haven’t tried each one. If yours gives you trouble, <a href={links.issues}>open an issue</a> and say which DAW and version.
       </>
     ),
   },
@@ -233,7 +237,7 @@ export default function Home() {
               A free plugin that snaps your vocal onto the key, from robot to natural, with 2.7&nbsp;ms of delay while you record.</p>
             <ul className="cover-details" aria-label="At a glance" data-rise style={{ ["--i" as string]: 2 }}>
               <li>Version {shortVersion}</li>
-              <li>Mac and Windows</li>
+              <li>Mac, Windows and Linux</li>
               <li>VST3 and Audio Unit</li>
               <li>Open source</li>
             </ul>
@@ -403,16 +407,16 @@ export default function Home() {
       <div className="curtain">
         <section id="install" className="install field-gold" aria-labelledby="install-title">
           <p className="install-note" data-reveal>
-            The installer puts everything in place. Your system asks once before opening it, because it isn’t signed yet; the questions above say
-            what to click.
+            The installer puts everything in place. A Mac or a Windows PC asks once before opening it, because it isn’t signed yet; the questions
+            above say what to click.
           </p>
           <div className="reply-card" data-reveal>
             <h2 id="install-title" className="heading">
               Install it
             </h2>
             <p>
-              Version {version}. On a Mac: the VST3, the Audio Unit and a standalone app. On Windows: the VST3 and the app. Then restart your DAW and
-              rescan.
+              Version {version}. On a Mac: the VST3, the Audio Unit and a standalone app. On Windows: the VST3 and the app. On Linux: the VST3, the
+              LV2 and the app, with an install script. Then restart your DAW and rescan.
             </p>
             <a href={links.mac} className="bar">
               Download for Mac
@@ -420,8 +424,11 @@ export default function Home() {
             <a href={links.windows} className="bar">
               Download for Windows
             </a>
+            <a href={links.linux} className="bar">
+              Download for Linux
+            </a>
             <a href={links.releases} className="reply-link">
-              Or a zip, to install by hand
+              Or every file, to install by hand
             </a>
           </div>
         </section>

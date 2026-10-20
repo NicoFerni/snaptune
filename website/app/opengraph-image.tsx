@@ -5,7 +5,7 @@ import { ImageResponse } from "next/og";
 // The link preview for chats and social sites, rendered once at build time: the gold cover of the
 // manual on the left, the real plugin window running off the right edge. twitter-image.tsx reuses it.
 
-export const alt = "SnapTune: free pitch correction plugin for Mac and Windows, VST3 and Audio Unit";
+export const alt = "SnapTune: free pitch correction plugin for Mac, Windows and Linux";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -55,7 +55,7 @@ export default async function Image() {
             <span style={{ transform: "translateX(-34px)" }}>SNAP</span>
             <span style={{ transform: "translateX(34px)" }}>TUNE</span>
           </div>
-          <div style={{ display: "flex", textAlign: "center", fontSize: 27, lineHeight: 1.3 }}>Free pitch correction for Mac and Windows, with 2.7&nbsp;ms of delay while you record.</div>
+          <div style={{ display: "flex", textAlign: "center", fontSize: 27, lineHeight: 1.3 }}>Free pitch correction for Mac, Windows and Linux, with 2.7&nbsp;ms of delay while you record.</div>
           <div style={{ display: "flex", fontSize: 24, fontWeight: 600 }}>getsnaptune.com</div>
         </div>
       </div>

@@ -1,0 +1,28 @@
+SnapTune - installation on Linux (64-bit)
+
+The quickest way: open a terminal in this folder and run
+
+    ./install.sh
+
+It installs for your user only, no sudo needed:
+
+    SnapTune.vst3  ->  ~/.vst3/
+    SnapTune.lv2   ->  ~/.lv2/
+    SnapTune       ->  ~/.local/bin/  (the standalone app, with an entry in the applications menu)
+
+To install by hand, copy those three yourself. For every user on the computer, put the plugins in
+/usr/local/lib/vst3 and /usr/local/lib/lv2 instead.
+
+Then close your DAW completely, open it again and rescan plugins. SnapTune should load in any host
+that supports VST3 or LV2. These Linux builds are new and haven't been tried in every DAW yet: if
+yours has trouble, open an issue with the DAW, its version and your distribution.
+
+Needs a 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and
+X11 or XWayland. The standalone app uses ALSA or JACK; use headphones with a microphone.
+
+To uninstall, delete ~/.vst3/SnapTune.vst3, ~/.lv2/SnapTune.lv2, ~/.local/bin/SnapTune,
+~/.local/share/applications/snaptune.desktop and
+~/.local/share/icons/hicolor/512x512/apps/snaptune.png.
+
+Docs and source: https://github.com/NicoFerni/snaptune
+License: GNU AGPL v3 (see LICENSE). Built with JUCE.

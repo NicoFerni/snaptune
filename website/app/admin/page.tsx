@@ -32,6 +32,7 @@ async function github<T>(path: string): Promise<T | null> {
 function assetOs(name: string): string {
   if (/macos/i.test(name)) return "macOS";
   if (/windows/i.test(name)) return "Windows";
+  if (/linux/i.test(name)) return "Linux";
   return "Other";
 }
 
