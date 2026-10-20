@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Literata, Rokkitt } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 
 // The brand's two faces: Rokkitt capitals for display, Literata for reading (SIL OFL, also compiled
@@ -47,6 +48,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col font-sans">
         {children}
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   );
