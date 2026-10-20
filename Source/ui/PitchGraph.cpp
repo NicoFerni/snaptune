@@ -6,7 +6,7 @@ namespace snaptune
 namespace
 {
     constexpr float keyboardWidth = 46.0f;
-    constexpr float cornerRadius = 13.0f;
+    constexpr float cornerRadius = 5.0f;
 
     bool isBlackKey (int note)
     {
@@ -216,42 +216,32 @@ void PitchGraph::paint (juce::Graphics& g)
         const bool black = isBlackKey (note);
         const bool inScale = maskContains (allowedMask, note);
 
-        g.setColour (black ? Colour (0xff0d1015) : Colour (0xff11151b));
+        g.setColour (black ? palette::laneBlack : palette::panel);
         g.fillRect (lane);
 
         if (inScale)
         {
-            g.setColour (palette::accent.withAlpha (0.035f));
+            g.setColour (palette::text.withAlpha (0.025f));
             g.fillRect (lane);
         }
 
-        g.setColour (black ? Colour (0xff0b0d11) : Colour (0xff1c222b));
+        // The keyboard: the notes in the scale are lit ivory keys, the one being tuned to is gold.
+        g.setColour (note == liveTarget ? palette::accent : (inScale ? palette::raised : (black ? palette::laneBlack : palette::panel)));
         g.fillRect (key.withTrimmedRight (1.0f));
 
-        if (note == liveTarget)
-        {
-            g.setColour (palette::accent);
-            g.fillRect (key.withTrimmedRight (1.0f));
-        }
-        else if (inScale)
-        {
-            g.setColour (palette::accent.withAlpha (black ? 0.22f : 0.14f));
-            g.fillRect (key.withTrimmedRight (1.0f));
-        }
-
         // Row separators, with a stronger line under every C.
-        g.setColour (pitchClass (note) == 0 ? palette::outline : palette::grid);
+        g.setColour (pitchClass (note) == 0 ? palette::line : palette::grid);
         g.fillRect (Rectangle<float> (bounds.getX(), yTop + rowHeight - 1.0f, bounds.getWidth(), 1.0f));
 
         if ((inScale || pitchClass (note) == 0) && rowHeight > 11.0f)
         {
-            g.setColour (note == liveTarget ? palette::background : (inScale ? palette::accent.withAlpha (0.85f) : palette::textFaint));
-            g.setFont (uiFont (jmin (11.0f, rowHeight * 0.55f), true));
+            g.setColour (note == liveTarget ? palette::background : (inScale ? palette::text : palette::textDim));
+            g.setFont (uiFont (jmin (11.5f, rowHeight * 0.58f), true));
             g.drawText (String (noteName (note)) + String (noteOctave (note)), key.withTrimmedRight (7.0f), Justification::centredRight);
         }
     }
 
-    g.setColour (palette::outline);
+    g.setColour (palette::line);
     g.fillRect (Rectangle<float> (plot.getX() - 1.0f, bounds.getY(), 1.0f, bounds.getHeight()));
 
     // One-second grid.
@@ -262,7 +252,7 @@ void PitchGraph::paint (juce::Graphics& g)
 
     for (float x = plot.getRight() - phase; x > plot.getX(); x -= secondWidth)
     {
-        g.setColour (Colours::white.withAlpha (0.025f));
+        g.setColour (palette::text.withAlpha (0.035f));
         g.fillRect (Rectangle<float> (x, bounds.getY(), 1.0f, bounds.getHeight()));
     }
 
@@ -319,7 +309,8 @@ void PitchGraph::paint (juce::Graphics& g)
         g.setFillType (fading (palette::input.withAlpha (0.85f)));
         g.fillPath (dashedStroke (buildPath (false), 1.6f));
 
-        strokeWithGlow (g, buildPath (true), fading (palette::accent), 2.4f, 9.0f, 0.16f);
+        g.setFillType (fading (palette::accent));
+        g.strokePath (buildPath (true), PathStrokeType (2.4f, PathStrokeType::curved, PathStrokeType::rounded));
     }
 
     // "Now" marker on the newest voiced frame, with the note it is tuned to.
@@ -331,8 +322,6 @@ void PitchGraph::paint (juce::Graphics& g)
             continue;
 
         const Point<float> dot (plot.getRight() - (float) age * dx - 4.0f, noteToY (f.outputNote));
-        g.setColour (palette::accent.withAlpha (0.2f));
-        g.fillEllipse (Rectangle<float> (18.0f, 18.0f).withCentre (dot));
         g.setColour (palette::accent);
         g.fillEllipse (Rectangle<float> (8.0f, 8.0f).withCentre (dot));
 
@@ -343,12 +332,12 @@ void PitchGraph::paint (juce::Graphics& g)
 
             if (tag.getY() < bounds.getY() + 4.0f)
                 tag.setY (dot.y + 12.0f);
-            g.setColour (palette::background.withAlpha (0.85f));
-            g.fillRoundedRectangle (tag, 6.0f);
-            g.setColour (palette::accent.withAlpha (0.6f));
-            g.drawRoundedRectangle (tag, 6.0f, 1.0f);
+            g.setColour (palette::panel);
+            g.fillRoundedRectangle (tag, 3.0f);
+            g.setColour (palette::accent.withAlpha (0.7f));
+            g.drawRoundedRectangle (tag, 3.0f, 1.0f);
             g.setColour (palette::accent);
-            g.setFont (uiFont (11.5f, true));
+            g.setFont (uiFont (12.0f, true));
             g.drawText (label, tag, Justification::centred);
         }
 
@@ -364,10 +353,10 @@ void PitchGraph::paint (juce::Graphics& g)
         if (above || below)
         {
             const auto tag = Rectangle<float> (58.0f, 22.0f).withCentre ({ plot.getRight() - 40.0f, above ? bounds.getY() + 16.0f : bounds.getBottom() - 16.0f });
-            g.setColour (palette::background.withAlpha (0.9f));
-            g.fillRoundedRectangle (tag, 6.0f);
+            g.setColour (palette::panel);
+            g.fillRoundedRectangle (tag, 3.0f);
             g.setColour (palette::accent);
-            g.drawRoundedRectangle (tag, 6.0f, 1.0f);
+            g.drawRoundedRectangle (tag, 3.0f, 1.0f);
 
             Path arrow;
             const float ax = tag.getX() + 12.0f, ay = tag.getCentreY();
@@ -375,28 +364,28 @@ void PitchGraph::paint (juce::Graphics& g)
             g.fillPath (arrow);
 
             const int note = latest->targetNote >= 0 ? latest->targetNote : (int) std::lround (latest->outputNote);
-            g.setFont (uiFont (11.5f, true));
+            g.setFont (uiFont (12.0f, true));
             g.drawText (String (noteName (note)) + String (noteOctave (note)), tag.withTrimmedLeft (20.0f), Justification::centredLeft);
         }
     }
 
     if (! anyVoiced)
     {
+        g.setColour (palette::text);
+        g.setFont (uiFont (14.0f, true));
+        g.drawText ("Sing, or play a vocal", plot.withTrimmedBottom (20.0f), Justification::centred);
         g.setColour (palette::textDim);
-        g.setFont (captionFont (11.0f));
-        g.drawText ("SING OR PLAY A VOCAL", plot.withTrimmedBottom (18.0f), Justification::centred);
-        g.setColour (palette::textFaint);
         g.setFont (uiFont (12.5f));
-        g.drawText ("the output pitch will draw here", plot.withTrimmedTop (22.0f), Justification::centred);
+        g.drawText ("Its pitch and the tuned pitch will draw here.", plot.withTrimmedTop (24.0f), Justification::centred);
     }
 
     // Legend at the top left, clear of the out-of-range arrow on the right, on a backing so curves
     // near the top row pass behind it rather than through the text.
-    auto legend = Rectangle<float> (plot.getX() + 10.0f, bounds.getY() + 8.0f, 140.0f, 22.0f);
-    g.setColour (palette::background.withAlpha (0.85f));
-    g.fillRoundedRectangle (legend, 6.0f);
-    g.setColour (palette::outline);
-    g.drawRoundedRectangle (legend, 6.0f, 1.0f);
+    auto legend = Rectangle<float> (plot.getX() + 10.0f, bounds.getY() + 8.0f, 146.0f, 22.0f);
+    g.setColour (palette::panel);
+    g.fillRoundedRectangle (legend, 3.0f);
+    g.setColour (palette::line);
+    g.drawRoundedRectangle (legend, 3.0f, 1.0f);
     legend.reduce (10.0f, 3.0f);
 
     auto drawKey = [&] (Colour colour, bool dashed, const String& label)
@@ -416,7 +405,7 @@ void PitchGraph::paint (juce::Graphics& g)
         }
 
         g.setColour (palette::textDim);
-        g.setFont (uiFont (11.5f));
+        g.setFont (uiFont (12.0f));
         g.drawText (label, item.withTrimmedLeft (6.0f), Justification::centredLeft);
     };
 

@@ -73,13 +73,13 @@ MainView::MainView (SnapTuneProcessor& p)
 
     // Hero: tuner and retune speed.
     gauge.setTitle ("Tuner");
-    gauge.setTooltip ("Coral: what you sang. Teal: what comes out. Centre: the note it is tuning to.");
+    gauge.setTooltip ("Sage: what you sang. Gold: what comes out. Centre: the note it is tuning to.");
     gauge.setHelpText (gauge.getTooltip());
     addAndMakeVisible (gauge);
 
     retuneKnob.getProperties().set ("hero", true);
-    retuneKnob.getProperties().set ("startLabel", "FAST");
-    retuneKnob.getProperties().set ("endLabel", "SLOW");
+    retuneKnob.getProperties().set ("startLabel", "Fast");
+    retuneKnob.getProperties().set ("endLabel", "Slow");
     setUpKnob (retuneKnob, "Retune Speed", ids::retune, retuneAttachment, 20.0,
                "How fast the voice is pulled onto the note. 0 ms is the hard, robotic snap; slower keeps slides and vibrato.");
 
@@ -87,7 +87,7 @@ MainView::MainView (SnapTuneProcessor& p)
     graph.setFramesPerSecond (audioProcessor.engine.getFramesPerSecond());
     graph.setTitle ("Pitch graph");
     graph.setTooltip ("Scroll or drag to move the note range (it then stays put). Double-click to follow the singer again.");
-    graph.setHelpText ("Dashed coral: what you sang. Solid teal: what comes out.");
+    graph.setHelpText ("Dashed sage: what you sang. Solid gold: what comes out.");
     addAndMakeVisible (graph);
 
     // Controls.
@@ -146,7 +146,7 @@ void MainView::setUpKnob (juce::Slider& slider, const juce::String& title, const
 void MainView::addKnob (const char* parameterId, const juce::String& title, bool bipolar, double resetValue, const juce::String& tooltip)
 {
     auto knob = std::make_unique<Knob>();
-    knob->caption = title.toUpperCase();
+    knob->caption = title;
     knob->slider.getProperties().set ("bipolar", bipolar);
     setUpKnob (knob->slider, title, parameterId, knob->attachment, resetValue, tooltip);
     knobs.push_back (std::move (knob));
@@ -188,35 +188,26 @@ void MainView::paint (juce::Graphics& g)
 {
     using namespace juce;
 
-    const auto bounds = getLocalBounds().toFloat();
-    g.setGradientFill (ColourGradient (palette::backgroundLift, 0.0f, 0.0f, palette::background, 0.0f, bounds.getHeight(), false));
-    g.fillAll();
-
-    // A soft glow behind the tuner.
-    g.setGradientFill (ColourGradient (palette::accent.withAlpha (0.07f), (float) heroPanel.getCentreX(), (float) heroPanel.getY() + 90.0f,
-                                       palette::accent.withAlpha (0.0f), (float) heroPanel.getCentreX() + 300.0f, (float) heroPanel.getY() + 90.0f, true));
-    g.fillRect (bounds);
+    g.fillAll (palette::background);
 
     // Header: mark, wordmark, version.
     drawLogo (g, Rectangle<float> ((float) header.getX(), 19.0f, 30.0f, 30.0f));
+    const auto wordmarkFont = displayFont (27.0f);
+    const float wordmarkWidth = GlyphArrangement::getStringWidth (wordmarkFont, "SNAPTUNE");
+    g.setColour (palette::accent);
+    g.setFont (wordmarkFont);
+    g.drawText ("SNAPTUNE", Rectangle<float> ((float) header.getX() + 42.0f, 18.0f, wordmarkWidth + 4.0f, 32.0f), Justification::centredLeft);
 
-    AttributedString wordmark;
-    wordmark.append ("Snap", uiFont (24.0f, true), palette::text);
-    wordmark.append ("Tune", uiFont (24.0f, true), palette::accent);
-    wordmark.draw (g, Rectangle<float> ((float) header.getX() + 42.0f, 18.0f, 120.0f, 32.0f));
-
-    const auto chip = Rectangle<float> ((float) header.getX() + 150.0f, 25.0f, 42.0f, 19.0f);
-    g.setColour (palette::outlineBright);
-    g.drawRoundedRectangle (chip, 9.5f, 1.0f);
     g.setColour (palette::textDim);
-    g.setFont (captionFont());
-    g.drawText (versionText, chip, Justification::centred);
+    g.setFont (labelFont());
+    g.drawText (versionText, Rectangle<float> ((float) header.getX() + 42.0f + wordmarkWidth + 10.0f, 26.0f, 40.0f, 19.0f),
+                Justification::centredLeft);
 
     // Latency readout next to the mode switch.
     const double sampleRate = audioProcessor.getSampleRate();
-    g.setFont (captionFont());
-    g.setColour (palette::textFaint);
-    g.drawText ("LATENCY", latencyArea.withHeight (16).translated (0, 4), Justification::centredRight);
+    g.setFont (labelFont());
+    g.setColour (palette::textDim);
+    g.drawText ("Latency", latencyArea.withHeight (16).translated (0, 3), Justification::centredRight);
     g.setFont (uiFont (15.0f, true));
     g.setColour (palette::text);
     g.drawText (sampleRate > 0.0 ? String (1000.0 * audioProcessor.engine.getLatencySamples() / sampleRate, 1) + " ms" : String ("--"),
@@ -226,39 +217,36 @@ void MainView::paint (juce::Graphics& g)
     for (auto panel : { scaleBar, heroPanel, graphPanel, controlsPanel })
         drawPanel (g, panel.toFloat());
 
-    g.setFont (captionFont());
-    g.setColour (palette::textFaint);
+    g.setFont (labelFont());
+    g.setColour (palette::textDim);
 
     auto captionAbove = [&] (const Component& c, const String& text, Justification just = Justification::centredLeft)
-    { g.drawText (text, c.getX() + 2, c.getY() - 19, jmax (c.getWidth(), 100), 15, just); };
+    { g.drawText (text, c.getX() + 2, c.getY() - 20, jmax (c.getWidth(), 100), 16, just); };
 
-    captionAbove (keyBox, "KEY");
-    captionAbove (scaleBox, "SCALE");
-    captionAbove (pills, "SCALE NOTES");
-    captionAbove (midiButton, "TARGET");
+    captionAbove (keyBox, "Key");
+    captionAbove (scaleBox, "Scale");
+    captionAbove (pills, "Scale notes");
+    captionAbove (midiButton, "Target");
 
     // Hero caption.
-    g.setColour (palette::textDim);
-    g.setFont (captionFont());
-    g.drawText ("RETUNE SPEED", Rectangle<int> (heroPanel.getX(), retuneKnob.getY() - 17, heroPanel.getWidth(), 15), Justification::centred);
+    g.drawText ("Retune speed", Rectangle<int> (heroPanel.getX(), retuneKnob.getY() - 18, heroPanel.getWidth(), 16), Justification::centred);
 
     // Control captions.
     for (auto& knob : knobs)
     {
         const bool enabled = knob->slider.isEnabled();
         g.setColour (enabled ? palette::textDim : palette::textFaint);
-        g.drawText (enabled ? knob->caption : knob->caption + "  (STUDIO)", knob->slider.getX() - 40, controlsPanel.getY() + 18,
-                    knob->slider.getWidth() + 80, 15, Justification::centred);
+        g.drawText (enabled ? knob->caption : knob->caption + " (Studio only)", knob->slider.getX() - 40, controlsPanel.getY() + 17,
+                    knob->slider.getWidth() + 80, 16, Justification::centred);
     }
 
     // Divider and the voice selector.
     const float dividerX = (float) voiceBox.getX() - 14.0f;
-    g.setColour (palette::outline);
+    g.setColour (palette::line);
     g.fillRect (Rectangle<float> (dividerX, (float) controlsPanel.getY() + 18.0f, 1.0f, (float) controlsPanel.getHeight() - 36.0f));
 
     g.setColour (palette::textDim);
-    g.drawText ("VOICE", voiceBox.getX() + 2, controlsPanel.getY() + 18, voiceBox.getWidth(), 15, Justification::centredLeft);
-    g.setColour (palette::textFaint);
+    g.drawText ("Voice", voiceBox.getX() + 2, controlsPanel.getY() + 17, voiceBox.getWidth(), 16, Justification::centredLeft);
     g.setFont (uiFont (11.5f));
     g.drawFittedText ("Pitch range the detector\nlistens for", voiceBox.getX() + 2, voiceBox.getBottom() + 8, voiceBox.getWidth(), 30,
                       Justification::topLeft, 2);

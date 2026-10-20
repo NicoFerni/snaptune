@@ -34,19 +34,8 @@ export const kofi = {
   raised: 0,
 };
 
-// True when a file exists in public/. Demo media is optional: sections without their files are left
-// out of the production build and shown as placeholders in `next dev`.
+// True when a file exists in public/: the cover film is optional, and the cover shows the screenshot
+// without it.
 export function hasPublicFile(path: string): boolean {
   return existsSync(join(process.cwd(), "public", path));
 }
-
-// Before/after clips: the same dry take, then rendered through SnapTune. Drop the files in
-// public/audio/ as <id>-dry.mp3 and <id>-tuned.mp3.
-export const clips = [
-  { id: "hard-tune", preset: "Hard Tune", note: "Retune Speed 0 ms: the robotic stair-step." },
-  { id: "melodic-trap", preset: "Melodic Trap", note: "Tight, but slides between notes survive." },
-  { id: "natural", preset: "Natural", note: "Pulled in tune without sounding tuned." },
-].map((c) => ({ ...c, dry: `/audio/${c.id}-dry.mp3`, tuned: `/audio/${c.id}-tuned.mp3` }));
-
-// Screen recording of FL Studio's piano roll driving the pitch graph.
-export const midiDemo = "/midi-demo.mp4";

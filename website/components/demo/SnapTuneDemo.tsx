@@ -37,7 +37,7 @@ type Take = { name: string; buffer: Float32Array };
 type LastVoiced = { input: number; output: number; target: number };
 
 const RECORD_SECONDS = 10;
-const DESKTOP_MIN_WIDTH = 840;
+const DESKTOP_MIN_WIDTH = 760;
 
 /** Plugin coordinates (x, y, width, height) for the desktop layout. */
 const at = (x: number, y: number, w: number, h: number) => ({ "--x": x, "--y": y, "--w": w, "--h": h }) as CSSProperties;
@@ -101,26 +101,6 @@ function PlayIcon({ status, source }: { status: Status; source: Source }) {
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor" aria-hidden="true">
       {stop ? <rect x="6.5" y="6.5" width="11" height="11" rx="2" /> : status === "playing" ? <path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /> : <path d="M8 5.5v13l10.5-6.5z" />}
     </svg>
-  );
-}
-
-function Segmented<T extends string>({ label, value, options, onSelect }: { label: string; value: T; options: { value: T; label: string }[]; onSelect: (v: T) => void }) {
-  return (
-    <div className="flex rounded-full bg-panel-2 p-1 ring-1 ring-line" role="group" aria-label={label}>
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          aria-pressed={value === o.value}
-          onClick={() => onSelect(o.value)}
-          className={`min-h-9 max-w-44 truncate rounded-full px-4 text-[14px] font-medium tracking-[-0.01em] transition ${
-            value === o.value ? "bg-ink text-bg" : "text-muted hover:text-ink"
-          }`}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
   );
 }
 
@@ -364,8 +344,8 @@ export function SnapTuneDemo({ version }: { version: string }) {
           : name === "NotFoundError"
             ? "No microphone found."
             : name === "EncodingError"
-              ? "Couldn't read that file. Try a WAV, MP3 or M4A."
-              : "Audio couldn't start in this browser.",
+              ? "Couldn’t read that file. Try a WAV, MP3 or M4A."
+              : "Audio couldn’t start in this browser.",
       );
     }
   }
@@ -408,7 +388,7 @@ export function SnapTuneDemo({ version }: { version: string }) {
   async function loadFile(file: File | undefined) {
     if (!file) return;
     if (!file.type.startsWith("audio/") && !/\.(wav|mp3|m4a|aac|ogg|flac|aiff?)$/i.test(file.name)) {
-      setMessage("That isn't an audio file.");
+      setMessage("That isn’t an audio file.");
       return;
     }
 
@@ -505,89 +485,94 @@ export function SnapTuneDemo({ version }: { version: string }) {
     status === "recording" ? "Stop recording" : status === "playing" ? (source === "mic" ? "Stop the mic" : "Pause") : status === "paused" ? "Resume" : "Play";
 
   let context;
-  if (message) context = <span className="text-coral">{message}</span>;
-  else if (status === "recording") context = <>Recording… sing anything. {recordLeft} s left, then you&apos;ll hear it tuned.</>;
+  if (message) context = <span className="try-alert">{message}</span>;
+  else if (status === "recording") context = <>Recording… sing anything. {recordLeft} s left, then you’ll hear it tuned.</>;
   else if (source === "mic" && status === "playing") context = <>Listening, in Live mode. Sing something and watch where it lands.</>;
-  else if (source === "mic") context = <>Sing into your mic and watch it land on the notes.</>;
-  else if (source === "file" && take) context = <>Playing <span className="text-ink">{take.name}</span>. Set Key and Scale to match it.</>;
+  else if (source === "mic") context = <>Sing into your mic and watch it land on the notes. Headphones keep it from feeding back.</>;
+  else if (source === "file" && take) context = <>Playing <b>{take.name}</b>. Set Key and Scale to match it.</>;
   else if (source === "voice")
     context = (
       <>
-        A synthesized singer, off-key on purpose, over chords in C major.{" "}
-        <button type="button" className="text-teal hover:underline" aria-pressed={backing} onClick={() => { setBacking(!backing); audioRef.current?.setBacking(!backing); }}>
+        SnapTune’s own engine, ported line by line from the plugin, running in your browser. The test voice is a synthesized singer,
+        off-key on purpose, over chords in tune. Turn the knobs while it plays.{" "}
+        <button type="button" className="try-link" aria-pressed={!backing} onClick={() => { setBacking(!backing); audioRef.current?.setBacking(!backing); }}>
           {backing ? "Mute the chords" : "Play the chords"}
         </button>
       </>
     );
 
+  const sources: { value: Source; label: string }[] = [
+    { value: "voice", label: "Test voice" },
+    { value: "mic", label: "Your mic" },
+    { value: "file", label: take?.name ?? "Your file" },
+  ];
+
   return (
-    <div ref={rootRef} className="st-demo relative" onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()} onDrop={onDrop} onPointerOver={onPointerOver} onPointerOut={onPointerOut} onPointerDown={hideTip}>
-      {/* Transport: what goes into the plugin, and what you hear. */}
-      <div className="mb-6 flex flex-col items-center gap-3 sm:mb-8">
-        <div className="flex flex-wrap items-center justify-center gap-3">
+    <div className="try">
+      <div className="try-text" data-reveal>
+        <div className="try-tabs" role="group" aria-label="What goes in">
+          {sources.map((o) => (
+            <button key={o.value} type="button" aria-pressed={source === o.value} onClick={() => selectSource(o.value)}>
+              {o.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="try-body">
+          <h2 id="try-title" className="heading">
+            Play it here
+          </h2>
+          <p className="try-copy" aria-live="polite">
+            {supported ? context : "This browser can’t run the demo. It needs Web Audio worklets (any current Chrome, Safari, Firefox or Edge)."}
+            {source === "file" && take && status !== "loading" && (
+              <>
+                {" "}
+                <button type="button" className="try-link" onClick={chooseFile}>
+                  Open another
+                </button>
+              </>
+            )}
+            {status === "recording" && (
+              <>
+                {" "}
+                <button type="button" className="try-link" onClick={() => audioRef.current?.stopRecording()}>
+                  Stop now
+                </button>
+              </>
+            )}
+          </p>
+        </div>
+
+        <div className="try-cells">
+          <button type="button" className="cell cell-ink" onClick={togglePlay} disabled={!supported || status === "loading"}>
+            <PlayIcon status={status} source={source} />
+            {playLabel}
+          </button>
           <button
             type="button"
-            onClick={togglePlay}
-            disabled={!supported || status === "loading"}
-            aria-label={playLabel}
-            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-teal text-bg transition hover:bg-[#6bf5cf] disabled:opacity-50"
-          >
-            <PlayIcon status={status} source={source} />
-          </button>
-          <Segmented
-            label="What goes in"
-            value={source}
-            onSelect={selectSource}
-            options={[
-              { value: "voice", label: "Test voice" },
-              { value: "mic", label: "Your mic" },
-              { value: "file", label: take?.name ?? "Your file" },
-            ]}
-          />
-          <Segmented
-            label="What you hear"
-            value={bypass ? "dry" : "tuned"}
-            onSelect={(v) => {
-              setBypass(v === "dry");
-              audioRef.current?.setBypass(v === "dry");
+            className="cell"
+            aria-pressed={bypass}
+            onClick={() => {
+              setBypass(!bypass);
+              audioRef.current?.setBypass(!bypass);
             }}
-            options={[
-              { value: "dry", label: "As sung" },
-              { value: "tuned", label: "SnapTune" },
-            ]}
-          />
+          >
+            {bypass ? "Hear it tuned" : "Hear it as sung"}
+          </button>
         </div>
-        <p className="min-h-6 px-2 text-center text-[15px] text-muted" aria-live="polite">
-          {supported ? context : "This browser can't run the demo. It needs Web Audio worklets (any current Chrome, Safari, Firefox or Edge)."}
-          {source === "file" && take && status !== "loading" && (
-            <>
-              {" "}
-              <button type="button" className="text-teal hover:underline" onClick={chooseFile}>
-                Open another
-              </button>
-            </>
-          )}
-          {status === "recording" && (
-            <>
-              {" "}
-              <button type="button" className="text-teal hover:underline" onClick={() => audioRef.current?.stopRecording()}>
-                Stop now
-              </button>
-            </>
-          )}
-        </p>
         <input ref={fileRef} type="file" accept="audio/*" className="hidden" onChange={(e) => void loadFile(e.target.files?.[0]).finally(() => (e.target.value = ""))} />
       </div>
 
+      <div ref={rootRef} className="st-demo try-plate" data-reveal onDragOver={(e) => e.dataTransfer.types.includes("Files") && e.preventDefault()} onDrop={onDrop} onPointerOver={onPointerOver} onPointerOut={onPointerOut} onPointerDown={hideTip}>
       {/* The plugin window. */}
-      <div className="st-window shadow-[0_40px_120px_-20px_rgba(0,0,0,0.9)] ring-1 ring-white/10">
-        <div className="st-header">
+      <div className="st-window">
+        <div className="st-header" data-ui>
           <div className="st-brand">
             <PluginLogo className="st-at st-logo" style={at(20, 19, 30, 30)} />
-            <span className="st-at st-wordmark" style={at(62, 18, 110, 32)}>
-              Snap<span>Tune</span>
+            <span className="st-at st-wordmark" style={at(62, 18, 124, 32)}>
+              SNAPTUNE
             </span>
-            <span className="st-at st-chip" style={at(170, 25, 42, 19)}>
+            <span className="st-at st-chip" style={at(192, 26, 40, 19)}>
               {shortVersion}
             </span>
           </div>
@@ -610,7 +595,7 @@ export function SnapTuneDemo({ version }: { version: string }) {
           <ModeSwitch className="st-at" style={at(830, 19, 150, 30)} mode={params.mode} onChange={(m) => set("mode", m)} tip={TIPS.mode} />
         </div>
 
-        <section className="st-panel st-at st-scalebar" style={at(20, 66, 960, 64)} aria-label="Key and scale">
+        <section className="st-panel st-at st-scalebar" data-ui style={at(20, 66, 960, 64)} aria-label="Key and scale">
           <div className="st-field st-key-field">
             <span className="st-caption st-at" style={at(18, 7, 100, 15)} aria-hidden="true">
               Key
@@ -649,15 +634,15 @@ export function SnapTuneDemo({ version }: { version: string }) {
           </div>
         </section>
 
-        <section className="st-panel st-at st-hero" style={at(20, 142, 310, 328)} aria-label="Tuner and retune speed">
+        <section className="st-panel st-at st-hero" data-ui style={at(20, 142, 310, 328)} aria-label="Tuner and retune speed">
           <TunerGauge className="st-at st-gauge" style={at(10, 8, 290, 164)} model={gauge} version={gaugeVersion} />
-          <span className="st-caption st-dim st-at st-retune-caption" style={at(0, 179, 310, 15)} aria-hidden="true">
-            Retune Speed
+          <span className="st-caption st-dim st-at st-retune-caption" style={at(0, 178, 310, 16)} aria-hidden="true">
+            Retune speed
           </span>
           <Knob hero className="st-at st-hero-knob" style={at(65, 196, 180, 128)} param="retune" value={params.retune} onChange={(v) => set("retune", v)} />
         </section>
 
-        <section ref={graphPanelRef} className="st-panel st-at st-graph" style={at(342, 142, 638, 328)} aria-label="Pitch graph">
+        <section ref={graphPanelRef} className="st-panel st-at st-graph" data-ui style={at(342, 142, 638, 328)} aria-label="Pitch graph">
           <PitchGraph
             className="st-graph-svg"
             model={graph}
@@ -669,7 +654,7 @@ export function SnapTuneDemo({ version }: { version: string }) {
           />
         </section>
 
-        <section className="st-panel st-at st-controls" style={at(20, 482, 960, 138)} aria-label="Correction">
+        <section className="st-panel st-at st-controls" data-ui style={at(20, 482, 960, 138)} aria-label="Correction">
           {SMALL_KNOBS.map((id: KnobId, i) => {
             const disabled = id === "formant" && !formantEnabled;
             const x = 49 + 150 * i;
@@ -677,7 +662,7 @@ export function SnapTuneDemo({ version }: { version: string }) {
               <div key={id} className="st-cell">
                 <span className={`st-caption st-at st-knob-caption ${disabled ? "" : "st-dim"}`} style={at(x - 40, 18, 164, 15)} aria-hidden="true">
                   {KNOBS[id].title}
-                  {disabled && <span className="st-studio-only">&nbsp; (Studio)</span>}
+                  {disabled && <span className="st-studio-only"> (Studio only)</span>}
                 </span>
                 <Knob className="st-at st-small-knob" style={at(x, 34, 84, 92)} param={id} value={params[id]} disabled={disabled} onChange={(v) => set(id, v)} />
               </div>
@@ -718,27 +703,22 @@ export function SnapTuneDemo({ version }: { version: string }) {
       )}
 
       {params.midi && <MiniKeyboard held={held} onNoteOn={noteOn} onNoteOff={noteOff} />}
+      </div>
 
-      <dialog
-        ref={dialogRef}
-        className="m-auto w-[min(26rem,calc(100vw-2rem))] text-left rounded-3xl bg-panel p-7 text-ink ring-1 ring-line backdrop:bg-black/60"
-        aria-labelledby="st-dialog-title"
-      >
-        <h2 id="st-dialog-title" className="text-[21px] font-semibold">
-          Headphones on?
-        </h2>
-        <p className="mt-2 text-[15px] text-muted">
-          Through speakers, the mic hears SnapTune&apos;s output and it feeds back. Without headphones, record a {RECORD_SECONDS}-second take and
+      <dialog ref={dialogRef} className="try-dialog" aria-labelledby="st-dialog-title">
+        <h2 id="st-dialog-title">Headphones on?</h2>
+        <p>
+          Through speakers, the mic hears SnapTune’s output and it feeds back. Without headphones, record a {RECORD_SECONDS}-second take and
           hear it tuned right after.
         </p>
-        <div className="mt-6 flex flex-col gap-3">
-          <button type="button" autoFocus onClick={() => startMic(false)} className="min-h-11 rounded-full bg-teal px-5 font-medium text-bg transition hover:bg-[#6bf5cf]">
+        <div className="try-dialog-actions">
+          <button type="button" autoFocus onClick={() => startMic(false)} className="cell cell-ink">
             Yes, let me hear myself
           </button>
-          <button type="button" onClick={() => startMic(true)} className="min-h-11 rounded-full border border-teal/60 px-5 font-medium text-teal transition hover:bg-teal hover:text-bg">
+          <button type="button" onClick={() => startMic(true)} className="cell">
             No, record a take first
           </button>
-          <button type="button" onClick={() => dialogRef.current?.close()} className="min-h-11 rounded-full px-5 text-muted transition hover:text-ink">
+          <button type="button" onClick={() => dialogRef.current?.close()} className="try-link">
             Cancel
           </button>
         </div>

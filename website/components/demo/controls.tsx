@@ -9,28 +9,14 @@ import { palette } from "./palette";
 
 type Positioned = { className?: string; style?: CSSProperties };
 
-/** The SnapTune mark: a wave that snaps onto steps (drawLogo). */
+/** The SnapTune mark (drawLogo): a cent sign drawn as a tuner, an arc with the needle through it,
+    green on a gold tile. */
 export function PluginLogo({ className, style }: Positioned) {
-  // box = bounds.reduced (20%), 18 x 18 inside a 30 x 30 tile.
-  const at = (x: number, y: number) => `${6 + 18 * x} ${6 + 18 * y}`;
-
   return (
-    <svg viewBox="0 0 30 30" className={className} style={style} aria-hidden="true">
-      <defs>
-        <linearGradient id="st-logo" x1={0} y1={0} x2={1} y2={1}>
-          <stop offset={0} stopColor={palette.accent} />
-          <stop offset={1} stopColor={palette.accentDeep} />
-        </linearGradient>
-      </defs>
-      <rect width={30} height={30} rx={8.1} fill="url(#st-logo)" />
-      <path
-        d={`M${at(0, 0.62)}C${at(0.1, 0.05)} ${at(0.24, 1.05)} ${at(0.38, 0.62)}L${at(0.6, 0.62)}L${at(0.6, 0.3)}L${at(1, 0.3)}`}
-        fill="none"
-        stroke={palette.background}
-        strokeWidth={2.85}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 48 48" className={className} style={style} aria-hidden="true">
+      <rect width={48} height={48} rx={6} fill={palette.accent} />
+      <path d="M33.54 15.17A13 13 0 1 0 33.54 32.83" fill="none" stroke={palette.background} strokeWidth={5.5} />
+      <rect x={21.25} y={6} width={5.5} height={36} fill={palette.background} />
     </svg>
   );
 }
@@ -73,7 +59,7 @@ export function MidiToggle({ on, onChange, tip, className = "", style }: Positio
   return (
     <button type="button" role="switch" aria-checked={on} className={`st-toggle ${className}`} style={style} onClick={() => onChange(!on)} data-tip={tip}>
       <span className="st-toggle-pill" aria-hidden="true" />
-      MIDI notes
+      <span className="st-toggle-label">MIDI notes</span>
     </button>
   );
 }

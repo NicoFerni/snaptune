@@ -1,6 +1,12 @@
 import type { Metadata, Viewport } from "next";
+import { Literata, Rokkitt } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
+
+// The brand's two faces: Rokkitt capitals for display, Literata for reading (SIL OFL, also compiled
+// into the plugin from ../Source/fonts).
+const rokkitt = Rokkitt({ subsets: ["latin"], weight: "800", variable: "--font-rokkitt" });
+const literata = Literata({ subsets: ["latin"], style: ["normal", "italic"], axes: ["opsz"], variable: "--font-literata" });
 
 const description =
   "Free, open-source pitch correction plugin (VST3 and Audio Unit) for Mac and Windows. Hard-tune your vocals, and hear it while you record with 2.7 ms of delay. Tested in FL Studio.";
@@ -27,12 +33,17 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0a0c10",
+  themeColor: "#133621",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="h-full antialiased">
+    // The inline script adds `js` to <html> before React hydrates, hence the warning suppression.
+    <html lang="en" className={`h-full antialiased ${rokkitt.variable} ${literata.variable}`} suppressHydrationWarning>
+      <head>
+        {/* Entrance states only apply when scripting works (app/landing.css). */}
+        <script dangerouslySetInnerHTML={{ __html: "document.documentElement.classList.add('js')" }} />
+      </head>
       <body className="min-h-full flex flex-col font-sans">
         {children}
         <Analytics />

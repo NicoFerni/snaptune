@@ -1,0 +1,1208 @@
+/* The landing page: the manual of a precision instrument. Direction "The page is the object"
+   (tasteskill, seed 445987502), with SnapTune's own palette and type. One pair of margins, one 12-column
+   grid, square corners, flat fills; separation by space and by fields of colour, never by rules. */
+
+:root {
+  --margin: clamp(1rem, 2.2vw, 2rem);
+  --gutter: clamp(0.75rem, 1.4vw, 1.5rem);
+  --section-gap: clamp(7.5rem, 4rem + 8vw, 14rem);
+
+  /* Five sizes, no more. */
+  --step-small: clamp(0.8125rem, 0.79rem + 0.1vw, 0.875rem);
+  --step-body: clamp(1.0625rem, 1rem + 0.3vw, 1.25rem);
+  --step-lead: clamp(1.25rem, 1.1rem + 0.6vw, 1.625rem);
+  --step-head: clamp(2.5rem, 1.4rem + 3.6vw, 4.75rem);
+  --step-display: clamp(8rem, 3rem + 15vw, 17rem);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --t-press: 140ms;
+  --t-hover: 180ms;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.manual {
+  position: relative;
+  z-index: 1;
+  background: var(--color-bg);
+}
+
+/* Zero specificity, so buttons keep their own colours. */
+:where(.manual, .curtain) a {
+  color: inherit;
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.07em;
+  text-underline-offset: 0.2em;
+  transition: text-decoration-color var(--t-hover) ease;
+}
+
+.manual p {
+  text-wrap: pretty;
+}
+
+/* Display: Rokkitt capitals. */
+.heading {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-head);
+  line-height: 0.9;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+.section {
+  margin-top: var(--section-gap);
+  padding-inline: var(--margin);
+}
+
+/* One button shape for the page: square, one flat fill. */
+.button,
+.cell,
+.bar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 22px;
+  background: var(--color-ink);
+  color: var(--color-bg);
+  font-family: var(--font-text);
+  font-size: var(--step-body);
+  font-weight: 600;
+  text-decoration: none !important;
+  cursor: pointer;
+  transition:
+    transform var(--t-press) var(--ease-out),
+    background-color var(--t-hover) ease,
+    color var(--t-hover) ease;
+}
+
+.button:active,
+.cell:active,
+.bar:active {
+  transform: scale(0.97);
+}
+
+.button-ink {
+  background: var(--color-paper-ink);
+  color: var(--color-paper);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  :where(.manual, .curtain) a:hover {
+    text-decoration-color: currentColor;
+  }
+
+  .button:hover,
+  .cell-ink:hover {
+    background: #fbe89a;
+  }
+
+  .button-ink:hover,
+  .bar:hover {
+    background: #0b2314;
+  }
+}
+
+/* Navigation: on the field above the cover, no bar. */
+.nav {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 24px var(--margin) 0;
+}
+
+.nav-mark {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  text-decoration: none !important;
+}
+
+.nav-logo {
+  width: 36px;
+  height: 36px;
+}
+
+.nav-name {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-lead);
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+.nav-links {
+  display: flex;
+  gap: 32px;
+  font-size: var(--step-body);
+}
+
+.nav-links a {
+  text-decoration-color: transparent;
+}
+
+.nav-action {
+  grid-column: 3;
+  justify-self: end;
+}
+
+/* The cover: a gold card, letterpress-centred, running past the fold. */
+.cover {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  padding: clamp(72px, 10vh, 120px) var(--margin) 0;
+  overflow-x: clip;
+}
+
+.cover-card {
+  position: relative;
+  grid-column: 4 / 10;
+  aspect-ratio: 5 / 7;
+  padding: 56px;
+  background: var(--color-ink);
+  color: var(--color-accent-ink);
+  text-align: center;
+}
+
+/* Scalloped inner corners: discs of the field's colour over each corner. */
+.corner {
+  position: absolute;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--color-bg);
+}
+
+.corner-tl {
+  top: -28px;
+  left: -28px;
+}
+
+.corner-tr {
+  top: -28px;
+  right: -28px;
+}
+
+.corner-bl {
+  bottom: -28px;
+  left: -28px;
+}
+
+.corner-br {
+  right: -28px;
+  bottom: -28px;
+}
+
+.cover-title {
+  display: flex;
+  flex-direction: column;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-head);
+  line-height: 0.86;
+  letter-spacing: -0.01em;
+  text-transform: uppercase;
+}
+
+/* Line one sits left of centre, line two right, like a printed name. */
+.cover-title span:first-child {
+  transform: translateX(-0.45em);
+}
+
+.cover-title span:last-child {
+  transform: translateX(0.45em);
+}
+
+.cover-line {
+  max-width: 30ch;
+  margin: 36px auto 0;
+  font-size: var(--step-lead);
+  line-height: 1.35;
+}
+
+.cover-details {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  margin-top: 24px;
+  font-size: var(--step-small);
+}
+
+.cover-details li + li::before {
+  content: "";
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin: 0 14px;
+  background: currentColor;
+  transform: translateY(-1px) rotate(45deg);
+}
+
+.cover-plate {
+  margin: 40px 0 0;
+}
+
+.cover-plate video,
+.cover-plate img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1000 / 640;
+  object-fit: cover;
+  background: #133621;
+}
+
+.cover-plate figcaption,
+.how-row figcaption {
+  margin-top: 10px;
+  font-size: var(--step-small);
+  line-height: 1.4;
+}
+
+.cover-contents {
+  margin-top: 56px;
+}
+
+.cover-contents h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-lead);
+  text-transform: uppercase;
+}
+
+.cover-contents ul {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 28px;
+  margin-top: 16px;
+  font-size: var(--step-body);
+}
+
+/* Try it: one flat field a tone off the ground, so the window (which is the ground's green) reads as
+   an object on it. The window is the plate, on eight columns so it can take the plugin's own layout;
+   spare words take the other four, their top and bottom lined up with the window's. */
+.showcase {
+  padding-block: clamp(48px, 6vw, 96px);
+  background: var(--color-surface);
+}
+
+.try {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  align-items: stretch;
+}
+
+.try-plate {
+  position: relative;
+  grid-column: 1 / 9;
+  grid-row: 1;
+  align-self: center;
+}
+
+.try-text {
+  grid-column: 9 / 13;
+  grid-row: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 28px;
+  padding-left: calc(var(--gutter) * 2);
+}
+
+.try-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 28px;
+  font-size: var(--step-body);
+}
+
+.try-tabs button {
+  padding: 6px 0;
+  color: #c2b46a;
+  cursor: pointer;
+  text-underline-offset: 0.35em;
+  text-decoration-thickness: 2px;
+  transition: color var(--t-hover) ease;
+}
+
+.try-tabs button[aria-pressed="true"] {
+  color: var(--color-ink);
+  text-decoration-line: underline;
+}
+
+.try-copy {
+  max-width: 34ch;
+  margin-top: 24px;
+  font-size: var(--step-body);
+}
+
+.try-link {
+  color: var(--color-ink);
+  text-decoration-line: underline;
+  text-decoration-thickness: 0.07em;
+  text-underline-offset: 0.2em;
+  cursor: pointer;
+}
+
+.try-alert {
+  color: #f0a37f;
+}
+
+.try-cells {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.try-cells .cell {
+  padding-inline: 14px;
+  white-space: nowrap;
+}
+
+/* Between the phone layout and a wide screen the words' column is too narrow for two cells abreast. */
+@media (max-width: 1279px) {
+  .try-cells {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cell {
+  min-height: 72px;
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+.cell-ink {
+  background: var(--color-ink);
+  color: var(--color-bg);
+}
+
+.cell:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .try-tabs button:hover {
+    color: var(--color-ink);
+  }
+
+  .cell:not(.cell-ink):hover {
+    background: var(--color-deep);
+  }
+}
+
+.try-dialog {
+  margin: auto;
+  width: min(26rem, calc(100vw - 2rem));
+  padding: 32px;
+  background: var(--color-paper);
+  color: var(--color-paper-ink);
+}
+
+.try-dialog::backdrop {
+  background: rgb(10 22 14 / 0.7);
+}
+
+.try-dialog h2 {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-lead);
+  text-transform: uppercase;
+}
+
+.try-dialog p {
+  margin-top: 8px;
+  font-size: var(--step-body);
+}
+
+.try-dialog-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 24px;
+}
+
+.try-dialog .cell {
+  min-height: 52px;
+  background: var(--color-paper-ink);
+  color: var(--color-paper);
+}
+
+.try-dialog .cell-ink {
+  background: var(--color-paper-ink);
+}
+
+.try-dialog .cell:not(.cell-ink) {
+  background: #d9d1b4;
+  color: var(--color-paper-ink);
+}
+
+.try-dialog .try-link {
+  min-height: 44px;
+  color: var(--color-paper-ink);
+}
+
+/* What it does: full-width sheets that stack as you scroll, each leaving its name showing. */
+.features {
+  padding-inline: 0;
+}
+
+.features-heading {
+  padding-inline: var(--margin);
+  margin-bottom: 48px;
+}
+
+.sheet {
+  position: sticky;
+  top: calc(var(--i) * 72px);
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-rows: 72px minmax(0, 1fr);
+  column-gap: var(--gutter);
+  height: max(32rem, calc(100svh - var(--i) * 72px));
+  padding-inline: var(--margin);
+  border-radius: 28px 28px 0 0;
+}
+
+.field-gold {
+  background: var(--color-ink);
+  color: var(--color-accent-ink);
+}
+
+.field-surface {
+  background: var(--color-surface);
+  color: var(--color-ink);
+}
+
+.field-deep {
+  background: var(--color-deep);
+  color: var(--color-ink);
+}
+
+.sheet-name {
+  grid-column: 1 / 7;
+  grid-row: 1;
+  align-self: center;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-lead);
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.sheet-text {
+  grid-column: 1 / 6;
+  grid-row: 2;
+  align-self: start;
+  max-width: 40ch;
+  padding: 32px 0 56px;
+  font-size: var(--step-body);
+  line-height: 1.55;
+}
+
+.sheet-picture {
+  grid-column: 7 / 13;
+  grid-row: 2;
+  overflow: hidden;
+  background: #0e2a19;
+}
+
+.sheet-picture img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: var(--focus, center top);
+}
+
+/* What it costs: the total, and the slip that adds up to it. */
+.price {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  align-items: stretch;
+}
+
+.price-words {
+  grid-column: 1 / 7;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 64px;
+}
+
+.price-note {
+  max-width: 34ch;
+  margin-top: 24px;
+  font-size: var(--step-body);
+}
+
+.total-figure {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-display);
+  line-height: 0.8;
+  letter-spacing: -0.03em;
+}
+
+.total-caption {
+  margin-top: 16px;
+  font-size: var(--step-body);
+}
+
+.slip {
+  grid-column: 8 / 12;
+  align-self: start;
+  padding: 36px 36px 64px;
+  background: var(--color-paper);
+  color: var(--color-paper-ink);
+  font-size: var(--step-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.slip-head {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-lead);
+  text-transform: uppercase;
+}
+
+.slip-group + .slip-group {
+  margin-top: 20px;
+}
+
+.slip-group-name {
+  font-weight: 600;
+}
+
+.slip li {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.slip-leader {
+  flex: 1;
+  min-width: 16px;
+  border-bottom: 4px dotted rgb(19 54 33 / 0.45);
+  transform: translateY(-4px);
+}
+
+.slip-total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 24px;
+  padding: 12px 14px;
+  background: var(--color-paper-ink);
+  color: var(--color-paper);
+  font-size: var(--step-body);
+  font-weight: 600;
+}
+
+/* How it works: a row of moments, left to right. */
+.how-head {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  align-items: end;
+}
+
+.how-head .heading {
+  grid-column: 1 / 7;
+}
+
+.how-intro {
+  grid-column: 7 / 12;
+  max-width: 40ch;
+  font-size: var(--step-body);
+}
+
+.how-controls {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 40px;
+}
+
+.how-step {
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  background: var(--color-ink);
+  color: var(--color-bg);
+  cursor: pointer;
+  transition:
+    transform var(--t-press) var(--ease-out),
+    opacity var(--t-hover) ease;
+}
+
+.how-step svg {
+  width: 22px;
+  height: 22px;
+}
+
+.how-step:active {
+  transform: scale(0.95);
+}
+
+.how-step:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.how-progress {
+  height: 6px;
+  margin-top: 16px;
+  background: var(--color-surface);
+}
+
+.how-progress span {
+  display: block;
+  height: 100%;
+  background: var(--color-ink);
+  transform-origin: left;
+  transition: transform 200ms linear;
+}
+
+.how-row {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 280px;
+  grid-template-rows: auto auto auto;
+  column-gap: 32px;
+  margin: 48px calc(-1 * var(--margin)) 0;
+  padding: 0 var(--margin) 8px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--margin);
+  scrollbar-width: none;
+}
+
+.how-row::-webkit-scrollbar {
+  display: none;
+}
+
+.how-row li {
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
+  scroll-snap-align: start;
+}
+
+.how-row h3 {
+  font-size: var(--step-body);
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.how-row p {
+  margin-top: 8px;
+  color: var(--color-muted);
+  font-size: var(--step-small);
+  line-height: 1.5;
+}
+
+.how-row figure {
+  margin: calc(var(--gap) * 1px) 0 0;
+}
+
+.how-row img {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+/* A note from me: a letter on a sheet, with a strip to tear off. */
+.maker {
+  display: grid;
+  place-items: center;
+  margin-inline: 0;
+  padding: 112px var(--margin);
+  background: var(--color-deep);
+}
+
+.letter {
+  position: relative;
+  width: min(640px, 100%);
+  padding: 60px 60px 0;
+  background: var(--color-paper);
+  color: var(--color-paper-ink);
+  font-size: var(--step-body);
+  line-height: 1.55;
+}
+
+.letter-mark {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 28px;
+}
+
+.letter p + p {
+  margin-top: 1em;
+}
+
+/* What Ko-fi has raised toward the notarization, shown once it is more than nothing. */
+.letter-goal {
+  font-size: var(--step-small);
+  font-weight: 600;
+}
+
+.letter-bar {
+  display: block;
+  height: 6px;
+  margin-top: 8px;
+  background: #d9d1b4;
+}
+
+.letter-bar span {
+  display: block;
+  height: 100%;
+  background: var(--color-paper-ink);
+  transform-origin: left;
+}
+
+.letter-sign {
+  margin-top: 32px !important;
+  font-size: var(--step-lead);
+  font-style: italic;
+}
+
+.letter-sign span {
+  display: block;
+  font-size: var(--step-small);
+  font-style: normal;
+}
+
+.letter-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 72px;
+  margin: 48px -60px 0;
+  padding: 18px 60px 40px;
+  border-top: 5px dotted rgb(19 54 33 / 0.45);
+}
+
+.scallops {
+  position: absolute;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: space-around;
+  pointer-events: none;
+}
+
+.scallops span {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--color-deep);
+}
+
+.scallops-bottom {
+  bottom: -11px;
+}
+
+.scallops-top {
+  top: -11px;
+}
+
+.back .scallops span {
+  width: 44px;
+  height: 44px;
+  background: var(--color-bg);
+}
+
+.back .scallops-top {
+  top: -22px;
+}
+
+/* Questions: answered as reading text, everything at a glance. */
+.questions {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  align-items: start;
+}
+
+.questions .heading {
+  grid-column: 1 / 5;
+}
+
+.answers {
+  grid-column: 5 / 13;
+  columns: 2;
+  column-gap: 56px;
+  font-size: var(--step-body);
+  line-height: 1.55;
+}
+
+.answers p {
+  margin-bottom: 20px;
+  break-inside: avoid;
+}
+
+.answers b {
+  font-weight: 600;
+}
+
+/* Install it: the reply card, tilted on a gold field and cropped by the section's edge. */
+.install {
+  position: relative;
+  padding-inline: var(--margin);
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  column-gap: var(--gutter);
+  min-height: 80svh;
+  overflow: hidden;
+  padding-top: 120px;
+}
+
+.install-note {
+  grid-column: 1 / 5;
+  align-self: end;
+  margin-bottom: 64px;
+  font-size: var(--step-lead);
+  line-height: 1.4;
+}
+
+.reply-card {
+  grid-column: 6 / 13;
+  align-self: end;
+  width: min(44vw, 100%);
+  justify-self: center;
+  margin-bottom: -60px;
+  padding: 48px 48px 108px;
+  background: var(--color-paper);
+  color: var(--color-paper-ink);
+  text-align: center;
+  rotate: 2deg;
+}
+
+.reply-card p {
+  max-width: 40ch;
+  margin: 20px auto 32px;
+  font-size: var(--step-body);
+}
+
+.bar {
+  display: flex;
+  width: 100%;
+  min-height: 56px;
+  margin-top: 8px;
+  background: var(--color-paper-ink);
+  color: var(--color-paper);
+}
+
+.reply-link {
+  display: inline-block;
+  margin-top: 20px;
+  font-size: var(--step-body);
+}
+
+/* The curtain: the reply card's field slides up and uncovers the back of the card, which waits under
+   it. Scoped to these two, so the back only waits there while the reply card passes. */
+.curtain {
+  position: relative;
+  margin-top: var(--section-gap);
+}
+
+.curtain .install {
+  z-index: 1;
+  margin-top: 0;
+}
+
+.back {
+  position: sticky;
+  bottom: 0;
+  z-index: 0;
+  padding: 96px var(--margin) 40px;
+  background: var(--color-bg);
+}
+
+.back-card {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  width: min(100%, 1180px);
+  margin: 0 auto;
+  padding: 72px 64px 32px;
+  background: var(--color-paper);
+  color: var(--color-paper-ink);
+}
+
+.back-title {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-head);
+  line-height: 0.9;
+  text-transform: uppercase;
+}
+
+.back-message p + p {
+  margin-top: 16px;
+  max-width: 28ch;
+  font-size: var(--step-body);
+}
+
+.back-address {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding-top: 8px;
+  font-size: var(--step-body);
+}
+
+.stamp {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 96px;
+  margin: 0;
+  padding: 6px;
+  background: var(--color-paper);
+  border: 4px dotted rgb(19 54 33 / 0.45);
+}
+
+.stamp img {
+  display: block;
+  width: 100%;
+  height: 112px;
+  object-fit: cover;
+}
+
+.back-imprint {
+  grid-column: 1 / -1;
+  margin-top: 24px;
+  font-size: var(--step-small);
+  line-height: 1.5;
+  text-align: center;
+}
+
+/* Entrances: the cover's parts rise in on load (settled by 1.2 s), everything else once as it reaches
+   the viewport. The page is complete without them. */
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .js [data-rise] {
+    animation: rise 800ms var(--ease-out) both;
+    animation-delay: calc(var(--i, 0) * 90ms + 120ms);
+  }
+
+  .js [data-reveal] {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity 700ms var(--ease-out),
+      transform 900ms var(--ease-expo);
+  }
+
+  .js [data-reveal].is-in {
+    opacity: 1;
+    transform: none;
+  }
+
+  .js .price-total[data-reveal] {
+    transition-delay: 90ms;
+  }
+
+  .js .slip[data-reveal] {
+    transition-delay: 160ms;
+  }
+
+  /* The back of the card's sign-off fades in once the reply card has lifted off it. */
+  .js [data-under] {
+    opacity: 0;
+    transition: opacity 600ms var(--ease-out);
+  }
+
+  .js [data-under].is-in {
+    opacity: 1;
+  }
+}
+
+/* Phone: each composition rebuilt, not squeezed. */
+@media (max-width: 900px) {
+  .nav-links {
+    display: none;
+  }
+
+  .cover {
+    padding-top: 40px;
+  }
+
+  .cover-card {
+    grid-column: 1 / -1;
+    aspect-ratio: auto;
+    padding: 40px 20px 56px;
+  }
+
+  .try {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: 32px;
+  }
+
+  .try-plate,
+  .try-text {
+    grid-column: 1;
+    grid-row: auto;
+  }
+
+  /* The words and the Play cell come first: the window under them is more than a screen tall. */
+  .try-text {
+    gap: 28px;
+    padding-left: 0;
+  }
+
+  .try-cells {
+    grid-template-columns: 1fr;
+  }
+
+  .cell {
+    min-height: 60px;
+  }
+
+  .sheet {
+    top: calc(var(--i) * 52px);
+    grid-template-rows: 52px auto auto;
+    height: auto;
+    min-height: 70svh;
+    border-radius: 20px 20px 0 0;
+  }
+
+  .sheet-name {
+    grid-column: 1 / -1;
+    font-size: 22px;
+  }
+
+  .sheet-picture {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    aspect-ratio: 4 / 3;
+    margin-inline: calc(-1 * var(--margin));
+  }
+
+  .sheet-text {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    padding: 20px 0 32px;
+    font-size: var(--step-body);
+  }
+
+  .price-words,
+  .slip {
+    grid-column: 1 / -1;
+  }
+
+  .total-figure {
+    font-size: 40vw;
+  }
+
+  .slip {
+    margin-top: 48px;
+  }
+
+  .how-head .heading,
+  .how-intro {
+    grid-column: 1 / -1;
+  }
+
+  .how-intro {
+    margin-top: 20px;
+  }
+
+  .how-controls {
+    display: none;
+  }
+
+  .how-row figure {
+    margin-top: calc(var(--gap) * 0.6px);
+  }
+
+  .maker {
+    padding: 96px 0;
+  }
+
+  .letter {
+    padding: 40px 24px 0;
+  }
+
+  .letter-strip {
+    flex-direction: column;
+    align-items: stretch;
+    margin-inline: -24px;
+    padding-inline: 24px;
+  }
+
+  .questions .heading,
+  .answers {
+    grid-column: 1 / -1;
+  }
+
+  .answers {
+    columns: 1;
+    margin-top: 32px;
+  }
+
+  .install {
+    padding-top: 72px;
+  }
+
+  .install-note,
+  .reply-card {
+    grid-column: 1 / -1;
+  }
+
+  .reply-card {
+    width: 90%;
+    margin-top: 32px;
+    padding: 36px 24px 96px;
+    rotate: 1deg;
+  }
+
+  .back-card {
+    grid-template-columns: 1fr;
+    padding: 56px 24px 24px;
+  }
+}
+
+@media (max-width: 600px) {
+  .how-row {
+    grid-auto-columns: 72vw;
+    column-gap: 16px;
+  }
+
+  .how-row figure {
+    margin-top: calc(var(--gap) * 0.4px);
+  }
+}

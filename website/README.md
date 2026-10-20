@@ -4,7 +4,7 @@ The download page for SnapTune, plus the plugin's usage-ping API and a private a
 
 ```sh
 npm install
-npm run dev      # http://localhost:3000, shows placeholders for missing demo media
+npm run dev      # http://localhost:3000
 npm run build
 ```
 
@@ -34,22 +34,26 @@ To test a plugin build against a local server: `SNAPTUNE_TELEMETRY_URL=http://lo
 
 ## The playable plugin window
 
-The hero is the SnapTune window rebuilt in HTML and SVG (`components/demo/`), running the real engine in an AudioWorklet. Visitors can play a test voice, sing into their mic (live with headphones, or record a 10 s take), or open their own file.
+"Play it here" is the SnapTune window rebuilt in HTML and SVG (`components/demo/`), running the real engine in an AudioWorklet. Visitors can play a test voice, sing into their mic (live with headphones, or record a 10 s take), or open their own file.
 
 - `public/snaptune-worklet.js` is a line-by-line port of `../Source/dsp` (Scales, PitchDetector, AutoTuneEngine). Checked against the compiled C++ engine on test melodies and speech, in both modes and at 44.1 and 48 kHz: the output matched to 88–98 dB SNR, with the same voicing and target note on every frame. When the C++ changes, port the change.
 - The same file holds the test voice: a synthesized singer, off-key on purpose, over chords played in tune. The page says it's synthesized.
 - Before anyone presses play, the window shows the first 4 seconds of the test voice through the engine. After changing the engine, the test voice or the demo's default settings (`components/demo/model.ts`), refresh that with `npm run demo-frames`, which writes `lib/demo-frames.json`.
-- Layout: from 840 px wide it's the plugin's own 1000 × 640 layout, scaled. Narrower, the same panels stack.
+- Layout: from 760 px wide it's the plugin's own 1000 × 640 layout, scaled. Narrower, the same panels stack.
 
-## Demo media
+## Look, pictures and film
 
-Sections with missing files are left out of the build, and shown as dashed "needs proof" boxes in `npm run dev`.
+The page is set like the manual of a precision instrument: a gold cover, the playable window, a sheet per
+feature, a receipt, the method beside the machines that first drew a voice, a letter, a reply card.
 
-| File | What it is |
-| --- | --- |
-| `public/audio/hard-tune-dry.mp3`, `public/audio/hard-tune-tuned.mp3` | 8–10 s of a real dry vocal, then the same file through the Hard Tune preset |
-| `public/audio/melodic-trap-{dry,tuned}.mp3` | Same, Melodic Trap |
-| `public/audio/natural-{dry,tuned}.mp3` | Same, Natural |
-| `public/midi-demo.mp4` | 10–15 s screen recording: FL Studio's piano roll driving SnapTune's pitch graph |
-
-Each dry/tuned pair must be the same length and start at the same moment: the player plays both and switches which one you hear.
+- Type: Rokkitt for display (capitals) and Literata for text, both SIL OFL, loaded with `next/font`.
+  The link preview uses static cuts of both in `assets/fonts/`.
+- Colours: bottle green and gold, ivory for paper (`app/globals.css`), the plugin's own palette
+  (`../Source/ui/SnapLookAndFeel.h`). The mark is a cent sign drawn as a tuner (`components/Logo.tsx`).
+- `public/shots/*.webp` and `public/screenshot.png` are cut from the plugin's own rendering by
+  `npm run shots`.
+- `public/media/snaptune-loop.mp4` and `.jpg`, the film on the cover, come from the promo project:
+  `cd ../promo && npm run loop`. Without them the cover shows the screenshot.
+- `public/archive/` holds public-domain engravings and photographs from Wikimedia Commons, with their
+  credits in `credits.json`; the footer's imprint reads it. The 4:5 plates in "How it works" are cut
+  from them.

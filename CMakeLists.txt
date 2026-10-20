@@ -49,6 +49,17 @@ set(SNAPTUNE_SOURCES
     Source/ui/TunerGauge.cpp
     Source/ui/MainView.cpp)
 
+# The brand's typefaces (SIL OFL, licences beside them in Source/fonts), compiled in so the window
+# looks the same on every system.
+juce_add_binary_data(SnapTuneFonts
+    HEADER_NAME SnapTuneFonts.h
+    NAMESPACE SnapTuneFonts
+    SOURCES
+        Source/fonts/Rokkitt-ExtraBold.ttf
+        Source/fonts/Literata-Regular.ttf
+        Source/fonts/Literata-SemiBold.ttf)
+set_target_properties(SnapTuneFonts PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
 juce_add_plugin(SnapTune
     COMPANY_NAME "Nico Fernandez"
     BUNDLE_ID "com.nicofernandez.snaptune"
@@ -87,6 +98,7 @@ target_compile_definitions(SnapTune
 
 target_link_libraries(SnapTune
     PRIVATE
+        SnapTuneFonts
         juce::juce_audio_utils
         juce::juce_dsp
     PUBLIC
@@ -114,6 +126,7 @@ if(SNAPTUNE_BUILD_TESTS)
 
     target_link_libraries(SnapTuneTests
         PRIVATE
+            SnapTuneFonts
             juce::juce_audio_utils
             juce::juce_dsp
         PUBLIC

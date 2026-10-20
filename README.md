@@ -192,8 +192,9 @@ The host test loads the built VST3/AU, and checks that switching mode while runn
 ## License
 
 SnapTune is free software under the [GNU Affero General Public License v3.0](LICENSE). It is built
-with [JUCE](https://juce.com), used under the same AGPLv3 terms. "Auto-Tune" is a trademark of Antares
-Audio Technologies; SnapTune is not affiliated with Antares.
+with [JUCE](https://juce.com), used under the same AGPLv3 terms. The interface is set in Rokkitt and
+Literata, both under the SIL Open Font License 1.1 (licences in `Source/fonts`). "Auto-Tune" is a
+trademark of Antares Audio Technologies; SnapTune is not affiliated with Antares.
 
 ## References
 

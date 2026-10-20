@@ -21,7 +21,6 @@ public:
     /** Also applied to each note, which is what the pointer and VoiceOver land on. */
     void setTooltip (const juce::String& newTooltip) override;
 
-    void paint (juce::Graphics&) override;
     void resized() override;
 
 private:

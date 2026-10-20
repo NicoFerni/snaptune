@@ -1,77 +1,30 @@
 "use client";
 
-import { useId, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
+import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent } from "react";
 import { KNOBS, fromProportion, toProportion, type KnobId } from "./model";
 import { arcPath, fontSize, palette, pointOn } from "./palette";
 
 // Port of SnapLookAndFeel::drawRotarySlider: the large Retune Speed knob ("hero") and the small ones.
+// Flat: no gradients, glows or shadows, as in the plugin.
 
 const startAngle = Math.PI * 1.25;
 const endAngle = Math.PI * 2.75;
 const pixelsForFullDrag = 240;
 
-// Colour::withMultipliedBrightness (0.75f) of the arc colours, for the start of the value gradient.
-const dimmed: Record<string, string> = {
-  [palette.accent]: "#2db48f",
-  [palette.textDim]: "#737b88",
-  [palette.text]: "#b3b6b9",
-  [palette.outlineBright]: "#272e39",
-};
-
-function ValueArc(props: {
-  gradientId: string;
-  cx: number;
-  cy: number;
-  radius: number;
-  thickness: number;
-  angle: number;
-  bipolar: boolean;
-  colour: string;
-  glowAlpha: number;
-  emphasised: boolean;
-}) {
-  const { gradientId, cx, cy, radius, thickness, angle, bipolar, colour, glowAlpha, emphasised } = props;
+function ValueArc(props: { cx: number; cy: number; radius: number; thickness: number; angle: number; bipolar: boolean; colour: string; emphasised: boolean }) {
+  const { cx, cy, radius, thickness, angle, bipolar, colour, emphasised } = props;
   const origin = bipolar ? (startAngle + endAngle) * 0.5 : startAngle;
-  const value = arcPath(cx, cy, radius, Math.min(origin, angle), Math.max(origin, angle));
 
   return (
-    <g fill="none" strokeLinecap="round">
-      <defs>
-        <linearGradient id={gradientId} gradientUnits="userSpaceOnUse" x1={cx - radius} y1={cy + radius} x2={cx + radius} y2={cy - radius}>
-          <stop offset={0} stopColor={dimmed[colour] ?? colour} />
-          <stop offset={1} stopColor={colour} />
-        </linearGradient>
-      </defs>
-      <path d={arcPath(cx, cy, radius, startAngle, endAngle)} stroke={emphasised ? palette.outlineBright : palette.outline} strokeWidth={thickness} />
-      {Math.abs(angle - origin) >= 0.01 && (
-        <>
-          {glowAlpha > 0 && <path d={value} stroke={`url(#${gradientId})`} strokeOpacity={glowAlpha} strokeWidth={thickness * 2.6} />}
-          <path d={value} stroke={`url(#${gradientId})`} strokeWidth={thickness} />
-        </>
-      )}
+    <g fill="none" strokeLinecap="butt">
+      <path d={arcPath(cx, cy, radius, startAngle, endAngle)} stroke={emphasised ? "#3a6e4c" : palette.lineBright} strokeWidth={thickness} />
+      {Math.abs(angle - origin) >= 0.01 && <path d={arcPath(cx, cy, radius, Math.min(origin, angle), Math.max(origin, angle))} stroke={colour} strokeWidth={thickness} />}
     </g>
   );
 }
 
-function KnobBody({ id, cx, cy, radius, emphasised }: { id: string; cx: number; cy: number; radius: number; emphasised: boolean }) {
-  return (
-    <g>
-      <defs>
-        <linearGradient id={`${id}-fill`} x1={0} y1={0} x2={0} y2={1}>
-          <stop offset={0} stopColor="#272e3a" />
-          <stop offset={1} stopColor="#13171e" />
-        </linearGradient>
-        <linearGradient id={`${id}-rim`} gradientUnits="userSpaceOnUse" x1={0} y1={cy - radius} x2={0} y2={cy}>
-          <stop offset={0} stopColor="#fff" stopOpacity={emphasised ? 0.22 : 0.14} />
-          <stop offset={1} stopColor="#fff" stopOpacity={0} />
-        </linearGradient>
-      </defs>
-      {/* Soft shadow under the cap. */}
-      <circle cx={cx} cy={cy + radius * 0.08} r={radius + 1} fill="#000" fillOpacity={0.35} />
-      <circle cx={cx} cy={cy} r={radius} fill={`url(#${id}-fill)`} />
-      <circle cx={cx} cy={cy} r={radius - 0.5} fill="none" stroke={`url(#${id}-rim)`} strokeWidth={1} />
-    </g>
-  );
+function KnobBody({ cx, cy, radius, emphasised }: { cx: number; cy: number; radius: number; emphasised: boolean }) {
+  return <circle cx={cx} cy={cy} r={radius - 0.5} fill={palette.raised} stroke={emphasised ? "rgb(180 190 164 / 0.6)" : palette.lineBright} strokeWidth={1} />;
 }
 
 type Props = {
@@ -86,7 +39,6 @@ type Props = {
 
 export function Knob({ param, value, onChange, hero = false, disabled = false, className = "", style }: Props) {
   const def = KNOBS[param];
-  const id = useId();
   const drag = useRef<{ x: number; y: number; proportion: number } | null>(null);
   const [hover, setHover] = useState(false);
   const [dragging, setDragging] = useState(false);
@@ -144,7 +96,7 @@ export function Knob({ param, value, onChange, hero = false, disabled = false, c
   let drawing;
 
   if (hero) {
-    // 180 x 128: tick ring, glowing teal arc, the value inside, FAST / SLOW at the ends.
+    // 180 x 128: a tick ring to read against, the value arc in gold, the value inside, Fast / Slow at the ends.
     const cx = 90;
     const cy = 64;
     const radius = 58;
@@ -161,47 +113,42 @@ export function Knob({ param, value, onChange, hero = false, disabled = false, c
           const major = i % 5 === 0;
           const p = pointOn(cx, cy, radius - (major ? 1 : 3), a);
           const q = pointOn(cx, cy, radius + 3, a);
-          const lit = a <= angle + 0.001;
-          return (
-            <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={lit ? palette.accent : palette.outlineBright} strokeOpacity={lit ? 0.7 : 1} strokeWidth={major ? 1.6 : 1} />
-          );
+          return <line key={i} x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={major ? palette.textDim : palette.lineBright} strokeOpacity={major ? 0.7 : 1} strokeWidth={major ? 1.4 : 1} />;
         })}
-        <ValueArc gradientId={`${id}-arc`} cx={cx} cy={cy} radius={arcRadius} thickness={7} angle={angle} bipolar={false} colour={palette.accent} glowAlpha={0.18} emphasised={emphasised} />
+        <ValueArc cx={cx} cy={cy} radius={arcRadius} thickness={5} angle={angle} bipolar={false} colour={palette.accent} emphasised={emphasised} />
         {focusRing && <circle cx={cx} cy={cy} r={radius + 4} fill="none" stroke={palette.accent} strokeWidth={2} />}
-        <KnobBody id={id} cx={cx} cy={cy} radius={bodyRadius} emphasised={emphasised} />
-        {/* Handle riding the end of the value arc. */}
-        <circle cx={handle.x} cy={handle.y} r={8.5} fill={palette.accent} fillOpacity={0.3} />
+        <KnobBody cx={cx} cy={cy} radius={bodyRadius} emphasised={emphasised} />
         <circle cx={handle.x} cy={handle.y} r={4.5} fill={palette.text} />
-        <text x={cx} y={cy} dy="0.35em" textAnchor="middle" fontSize={fontSize(18)} fontWeight={700} fill={palette.text}>
+        <text x={cx} y={cy} dy="0.35em" textAnchor="middle" fontSize={fontSize(18)} fontWeight={600} fill={palette.text}>
           {text}
         </text>
-        <g className="st-caption-svg" fill={palette.textFaint} textAnchor="middle">
+        <g fontSize={fontSize(12)} fill={palette.textDim} textAnchor="middle">
           <text x={startPoint.x - 4} y={startPoint.y + 12} dy="0.35em">
-            FAST
+            Fast
           </text>
           <text x={endPoint.x + 4} y={endPoint.y + 12} dy="0.35em">
-            SLOW
+            Slow
           </text>
         </g>
       </svg>
     );
   } else {
-    // 84 x 92: neutral arc (teal is kept for the output pitch and Retune Speed), value underneath.
+    // 84 x 92: neutral arc (gold is kept for the output pitch and Retune Speed), value underneath.
     const cx = 42;
     const cy = 35;
     const radius = 33;
     const bodyRadius = radius - 11;
-    const arcColour = disabled ? palette.outlineBright : emphasised ? palette.text : palette.textDim;
+    const arcColour = disabled ? palette.lineBright : emphasised ? palette.text : palette.textDim;
     const p = pointOn(cx, cy, bodyRadius * 0.35, angle);
-    const q = pointOn(cx, cy, bodyRadius * 0.78, angle);
+    const q = pointOn(cx, cy, bodyRadius * 0.82, angle);
 
     drawing = (
       <svg viewBox="0 0 84 92" className="block h-full w-full overflow-visible" aria-hidden="true">
-        <ValueArc gradientId={`${id}-arc`} cx={cx} cy={cy} radius={radius - 3} thickness={4.5} angle={angle} bipolar={!!def.bipolar} colour={arcColour} glowAlpha={0} emphasised={emphasised} />
+        <ValueArc cx={cx} cy={cy} radius={radius - 3} thickness={4} angle={angle} bipolar={!!def.bipolar} colour={arcColour} emphasised={emphasised} />
         {focusRing && <circle cx={cx} cy={cy} r={radius + 1} fill="none" stroke={palette.accent} strokeWidth={2} />}
-        <KnobBody id={id} cx={cx} cy={cy} radius={bodyRadius} emphasised={emphasised} />
-        <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={disabled ? palette.textFaint : palette.text} strokeWidth={2.6} strokeLinecap="round" />
-        <text x={42} y={83} dy="0.35em" textAnchor="middle" fontSize={fontSize(12.5)} fontWeight={700} fill={emphasised ? palette.text : palette.textDim}>
+        <KnobBody cx={cx} cy={cy} radius={bodyRadius} emphasised={emphasised} />
+        <line x1={p.x} y1={p.y} x2={q.x} y2={q.y} stroke={disabled ? palette.textFaint : palette.text} strokeWidth={2.4} strokeLinecap="butt" />
+        <text x={42} y={83} dy="0.35em" textAnchor="middle" fontSize={fontSize(13)} fontWeight={600} fill={emphasised ? palette.text : palette.textDim}>
           {text}
         </text>
       </svg>
