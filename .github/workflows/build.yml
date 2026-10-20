@@ -18,6 +18,9 @@ concurrency:
   group: build-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  SNAPTUNE_NO_TELEMETRY: 1   # loading the plugin in CI must not count as a session (Source/Telemetry.h)
+
 defaults:
   run:
     shell: bash   # explicit bash enables -o pipefail, so a failing command in a pipe fails the step

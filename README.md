@@ -8,6 +8,7 @@
 **Open-source real-time pitch correction for your DAW.** From the robotic hard-tune snap to
 transparent correction, with a formant-preserving Studio mode and a 2.7 ms Live mode for tracking.
 VST3 + Audio Unit for macOS (Apple Silicon and Intel), VST3 for Windows (64-bit).
+Try it in your browser at **[getsnaptune.com](https://getsnaptune.com)**.
 
 ![SnapTune](docs/screenshot.png)
 
@@ -109,6 +110,18 @@ number, add a **MIDI Out** channel on the same port, write the melody in its pia
 - **An update doesn't show up.** Your DAW keeps the old plugin loaded until it restarts: quit it
   completely and open it again after rebuilding.
 
+## Usage data
+
+Once per DAW session SnapTune sends an anonymous ping so I can see which versions, systems and DAWs
+it runs on, and whether sessions end in a crash: the plugin version, OS name, CPU type (arm64/x64),
+the DAW's name, the plugin format, and a random install id. Nothing about your audio, your projects
+or your settings is sent, and no IP address is stored (only the country). The code is in
+`Source/Telemetry.cpp`.
+
+To turn it off, create an empty file named `no-telemetry` in the SnapTune folder
+(`~/Library/Application Support/SnapTune` on a Mac, `%APPDATA%\SnapTune` on Windows), or set the
+environment variable `SNAPTUNE_NO_TELEMETRY=1`.
+
 ## How it works
 
 1. **Pitch detection: YIN** (de Cheveigné & Kawahara, 2002). Every 2.7 ms the plugin computes the
@@ -140,7 +153,7 @@ number, add a **MIDI Out** channel on the same port, write the melody in its pia
 ```
 Source/dsp/     PitchDetector (YIN) and AutoTuneEngine (both modes); no UI code
 Source/ui/      LookAndFeel, tuner gauge, pitch graph, note pills, main view
-Source/         plugin processor, parameters, presets, editor shell
+Source/         plugin processor, parameters, presets, editor shell, usage pings (Telemetry)
 tests/          offline test runner (DSP suite, plugin host test, file processing, UI snapshots)
 packaging/      install notes and release text shipped with each release
 .github/        CI: builds, tests and packages every push; tags publish a release
