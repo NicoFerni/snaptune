@@ -1,5 +1,14 @@
 Real-time pitch correction: VST3, Audio Unit and a standalone app for macOS (universal, Apple Silicon + Intel), and VST3 and a standalone app for Windows (64-bit).
 
+### What's new in 1.2
+
+- **Windows:** VST3 and a standalone app for Windows 10 or later (64-bit), with an installer.
+- **Installers:** a .pkg for macOS and a setup .exe for Windows put everything in place.
+- **Anonymous usage pings:** once per DAW session SnapTune sends its version, OS, CPU type, DAW name, plugin format and a random install id, so crashes and compatibility problems show up. No audio, projects or settings are sent. To turn it off, see [Usage data](https://github.com/NicoFerni/snaptune#usage-data) in the README.
+- The version shown in the plugin window now matches the release.
+
+Try it in your browser first at [getsnaptune.com](https://getsnaptune.com).
+
 ### Install on macOS
 
 1. Download **SnapTune-…-macOS.pkg** below and open it.
