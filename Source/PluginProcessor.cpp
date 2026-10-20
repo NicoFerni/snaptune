@@ -24,6 +24,8 @@ SnapTuneProcessor::SnapTuneProcessor()
 
     for (int pc = 0; pc < 12; ++pc)
         notes[(size_t) pc] = apvts.getRawParameterValue (ids::note (pc));
+
+    telemetry->pluginCreated (wrapperType);
 }
 
 SnapTuneProcessor::~SnapTuneProcessor()

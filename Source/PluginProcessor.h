@@ -1,5 +1,6 @@
 #pragma once
 
+#include "Telemetry.h"
 #include "dsp/AutoTuneEngine.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
@@ -58,6 +59,8 @@ private:
     std::atomic<float>* mode = nullptr;
     std::atomic<int> latencyToReport { 0 };
     std::array<std::atomic<float>*, 12> notes {};
+
+    juce::SharedResourcePointer<snaptune::Telemetry> telemetry;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (SnapTuneProcessor)
 };

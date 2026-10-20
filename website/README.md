@@ -1,16 +1,36 @@
 # SnapTune website
 
-The download page for SnapTune: Next.js, exported as static HTML.
+The download page for SnapTune, plus the plugin's usage-ping API and a private admin panel. Next.js on Vercel.
 
 ```sh
 npm install
 npm run dev      # http://localhost:3000, shows placeholders for missing demo media
-npm run build    # static site in out/
+npm run build
 ```
 
 - The version and download link come from `project(SnapTune VERSION …)` in `../CMakeLists.txt`, so a release needs no change here.
 - Ko-fi link and the Apple Developer Program goal live in `lib/site.ts`. Update `raised` by hand; the progress bar stays hidden at 0.
 - Set `SITE_URL` (e.g. `https://snaptune.example`) when building outside Vercel so the social preview image gets an absolute URL.
+
+## Admin panel and usage pings
+
+`/admin` shows plugin usage (installs, active installs, sessions per day, unclean exits, OS, DAW, version,
+format, country), downloads per release and OS, and GitHub issues. The plugin posts one ping per DAW
+session to `/api/ping` (`app/api/ping/route.ts`, sender in `../Source/Telemetry.cpp`).
+
+Vercel environment variables:
+
+| Variable | What it does |
+| --- | --- |
+| `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis, set by adding Upstash from the Vercel Marketplace. Without it the panel shows only GitHub data and pings get a 503. |
+| `ADMIN_PASSWORD` | Password for `/admin` (HTTP Basic auth, any user name; `proxy.ts`). Without it `/admin` is a 404. |
+| `GITHUB_TOKEN` | Optional. Raises GitHub's API limit (60 requests/hour per IP without it; the panel caches for 5 minutes). |
+
+"Unclean exit" means a session whose SnapTune never shut down: the DAW or the plugin crashed, or the DAW
+was killed. Some DAWs exit without unloading plugins, which also counts, so watch for clusters on one
+version or host rather than the raw number.
+
+To test a plugin build against a local server: `SNAPTUNE_TELEMETRY_URL=http://localhost:3000/api/ping`.
 
 ## The playable plugin window
 

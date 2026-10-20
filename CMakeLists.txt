@@ -33,6 +33,7 @@ set(SNAPTUNE_SOURCES
     Source/dsp/PitchDetector.cpp
     Source/dsp/AutoTuneEngine.cpp
     Source/PluginProcessor.cpp
+    Source/Telemetry.cpp
     Source/PluginEditor.cpp
     Source/ui/SnapLookAndFeel.cpp
     Source/ui/PitchGraph.cpp
@@ -70,6 +71,8 @@ target_compile_definitions(SnapTune
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
         JUCE_VST3_CAN_REPLACE_VST2=0
+        # Anonymous usage pings for the website's admin panel (Source/Telemetry.h). Off in the tests.
+        SNAPTUNE_TELEMETRY=1
         # Only note on/off is used for MIDI target notes; without this the VST3 wrapper adds
         # 2048 hidden "MIDI CC" parameters that clutter FL Studio's automation list.
         JUCE_VST3_EMULATE_MIDI_CC_WITH_PARAMETERS=0)
