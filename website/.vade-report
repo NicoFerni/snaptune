@@ -1,0 +1,61 @@
+# Vercel Speed Insights Implementation
+
+## Summary
+Successfully installed and configured Vercel Speed Insights for this Next.js project following the latest official documentation from Vercel.
+
+## Changes Made
+
+### 1. Package Installation
+- Installed `@vercel/speed-insights` version 2.0.0
+- Added to dependencies in `package.json`
+- Updated `package-lock.json` with the new dependency tree
+
+### 2. Code Changes
+**Modified: `app/layout.tsx`**
+- Added import statement: `import { SpeedInsights } from "@vercel/speed-insights/next";`
+- Added `<SpeedInsights />` component in the `<body>` tag, right after the existing `<Analytics />` component
+
+## Implementation Details
+
+### Framework-Specific Configuration
+This project uses Next.js with the App Router architecture. Following the official Vercel documentation:
+- Used the Next.js-specific import path: `@vercel/speed-insights/next`
+- Placed the component in the root layout file (`app/layout.tsx`) within the body element
+- No additional configuration was required
+
+### Integration Pattern
+The SpeedInsights component was added alongside the existing Analytics component, maintaining consistency with the project's existing Vercel integrations:
+```tsx
+<body className="min-h-full flex flex-col font-sans">
+  {children}
+  <Analytics />
+  <SpeedInsights />
+</body>
+```
+
+## Verification Steps Completed
+
+✅ **Build Verification**: Successfully ran `npm run build` with no errors
+✅ **Linting**: Passed `npm run lint` with no issues  
+✅ **Type Safety**: TypeScript compilation successful
+✅ **Dependencies**: Updated lock file to ensure reproducible builds
+
+## How It Works
+
+Once deployed to Vercel, the Speed Insights component will:
+1. Automatically inject tracking scripts to measure Web Vitals and performance metrics
+2. Collect real user monitoring (RUM) data
+3. Send performance data to the Vercel dashboard for analysis
+4. Provide insights on Core Web Vitals including LCP, FID, CLS, FCP, and TTFB
+
+No manual configuration or environment variables are required. The integration is fully automatic when deployed to Vercel.
+
+## Files Modified
+- `website/app/layout.tsx` - Added SpeedInsights import and component
+- `website/package.json` - Added @vercel/speed-insights dependency
+- `website/package-lock.json` - Updated dependency lock file
+
+## Notes
+- The implementation follows the exact pattern used for the existing `@vercel/analytics` package already in the project
+- Speed Insights will begin collecting data immediately upon deployment to Vercel
+- No breaking changes were introduced; all existing functionality remains intact
