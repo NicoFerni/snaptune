@@ -211,6 +211,9 @@ jobs:
       - name: Load the built VST3 and LV2 in a host
         run: |
           xvfb-run -a ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3"
+          # The build also copied the LV2 to ~/.lv2; LV2 hosts read that folder first and would ignore
+          # the bundle under test as a duplicate.
+          rm -rf "$HOME/.lv2/SnapTune.lv2"
           xvfb-run -a ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host "$PWD/build/SnapTune_artefacts/Release/LV2/SnapTune.lv2"
 
       - name: Package
