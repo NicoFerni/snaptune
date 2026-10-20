@@ -4,41 +4,44 @@
 
 namespace snaptune
 {
+/** SnapTune's colours: bottle green and gold. The window's panels sit darker than its ground, text is
+    ivory in two strengths, and colour goes on data only: gold for the pitch that comes out (and the one
+    selected thing in a group), sage for the pitch as sung. */
 namespace palette
 {
-    inline const juce::Colour background { 0xff0a0c10 };
-    inline const juce::Colour backgroundLift { 0xff11151c };
-    inline const juce::Colour panel { 0xff12161d };
-    inline const juce::Colour panelRaised { 0xff1a1f28 };
-    inline const juce::Colour outline { 0xff242b36 };
-    inline const juce::Colour outlineBright { 0xff343d4c };
-    inline const juce::Colour grid { 0xff181d25 };
-    inline const juce::Colour text { 0xffeef2f7 };
-    inline const juce::Colour textDim { 0xff9aa4b5 };
-    inline const juce::Colour textFaint { 0xff7d879a };
-    inline const juce::Colour accent { 0xff3cf0bf };     // corrected pitch, active state
-    inline const juce::Colour accentDeep { 0xff10a07c };
-    inline const juce::Colour input { 0xffff8a5b };      // detected pitch
-    inline const juce::Colour midi { 0xffa996ff };       // held MIDI notes
+    inline const juce::Colour background { 0xff133621 }; // the window's ground
+    inline const juce::Colour panel { 0xff0e2a19 };      // panels and the graph's white-key lanes
+    inline const juce::Colour raised { 0xff1b462b };     // controls
+    inline const juce::Colour line { 0xff234d34 };       // panel edges and dividers
+    inline const juce::Colour lineBright { 0xff2f5f40 }; // control edges, inactive tracks
+    inline const juce::Colour grid { 0xff173a24 };       // the graph's row lines
+    inline const juce::Colour laneBlack { 0xff0b2314 };  // the graph's black-key lanes
+    inline const juce::Colour text { 0xffefe8cf };       // ivory
+    inline const juce::Colour textDim { 0xffb4bea4 };    // labels; 4.5:1 or better on every surface
+    inline const juce::Colour textFaint { 0xff8e9c87 };  // placeholders and disabled controls only
+    inline const juce::Colour accent { 0xfff4d96c };     // gold: corrected pitch, the selection
+    inline const juce::Colour input { 0xff9cc0a4 };      // sage: detected pitch
+    inline const juce::Colour held { 0xffefe8cf };       // held MIDI notes
 } // namespace palette
 
+/** Literata, the text face, with tabular figures (Source/fonts). */
 juce::Font uiFont (float height, bool bold = false);
 
-/** Small uppercase labels: bold with extra letter spacing. 11 pt stays at or above the 10 pt macOS
+/** Rokkitt ExtraBold, the display face: the wordmark and the tuner's note name. */
+juce::Font displayFont (float height);
+
+/** Labels above and beside controls: sentence case, regular weight. 12.5 stays above the 10 pt macOS
     minimum down to the smallest window size (0.91x). */
-juce::Font captionFont (float height = 11.0f);
+juce::Font labelFont (float height = 12.5f);
 
 /** Keyboard focus ring drawn around a control's bounds. */
 void drawFocusRing (juce::Graphics&, juce::Rectangle<float> bounds, float radius);
 
-/** Rounded panel with a faint top highlight. */
-void drawPanel (juce::Graphics&, juce::Rectangle<float> bounds, float radius = 14.0f);
+/** A flat panel, one step darker than the ground, with a 1px edge. */
+void drawPanel (juce::Graphics&, juce::Rectangle<float> bounds, float radius = 6.0f);
 
-/** The SnapTune mark: a wave that snaps onto steps. */
+/** The SnapTune mark: a cent sign drawn as a tuner, an arc with the needle through it, green on a gold tile. */
 void drawLogo (juce::Graphics&, juce::Rectangle<float> bounds);
-
-/** Strokes a path twice with the given fill: a wide translucent pass for the glow, then the line. */
-void strokeWithGlow (juce::Graphics&, const juce::Path&, const juce::FillType&, float width, float glowWidth, float glowAlpha);
 
 /** Knobs read these component properties:
       "hero"       large style with the value inside and end labels

@@ -27,41 +27,33 @@ void NotePills::Pill::paintButton (juce::Graphics& g, bool hover, bool)
     const auto pill = getLocalBounds().toFloat().reduced (0.5f);
     const bool inScale = getToggleState();
     const bool sharp = isSharp (pitchClass);
-    const float radius = 8.0f;
+    const float radius = 4.0f;
 
-    // Sharps sit on a darker base, a nod to the black keys of a piano.
-    g.setColour (sharp ? Colour (0xff0d1015) : palette::panelRaised);
+    // Notes in the scale sit on the control tone; the rest sink into the panel. Sharps are darker
+    // still, a nod to the black keys of a piano.
+    g.setColour (inScale ? palette::raised : (sharp ? palette::laneBlack : palette::panel));
     g.fillRoundedRectangle (pill, radius);
-
-    if (isTarget)
-    {
-        g.setGradientFill (ColourGradient (palette::accent, 0.0f, pill.getY(), palette::accentDeep, 0.0f, pill.getBottom(), false));
-        g.fillRoundedRectangle (pill, radius);
-    }
-    else if (inScale)
-    {
-        g.setColour (palette::accent.withAlpha (hover ? 0.2f : 0.12f));
-        g.fillRoundedRectangle (pill, radius);
-        g.setColour (palette::accent.withAlpha (0.55f));
-        g.drawRoundedRectangle (pill, radius, 1.0f);
-    }
-    else
-    {
-        g.setColour (hover ? palette::outlineBright : palette::outline);
-        g.drawRoundedRectangle (pill, radius, 1.0f);
-    }
+    g.setColour (hover ? palette::textDim.withAlpha (0.6f) : (inScale ? palette::lineBright : palette::line));
+    g.drawRoundedRectangle (pill, radius, 1.0f);
 
     if (hasKeyboardFocus (false))
         drawFocusRing (g, pill, radius);
 
-    g.setColour (isTarget ? palette::background : (inScale ? palette::accent : palette::textFaint));
+    // The note being tuned to right now: gold, with a bar along its foot.
+    g.setColour (isTarget ? palette::accent : (inScale ? palette::text : palette::textFaint));
     g.setFont (uiFont (sharp ? 12.0f : 14.0f, true));
     g.drawText (getButtonText(), pill, Justification::centred);
 
+    if (isTarget)
+    {
+        g.setColour (palette::accent);
+        g.fillRect (pill.withTop (pill.getBottom() - 2.0f).reduced (radius, 0.0f));
+    }
+
     if (isHeld)
     {
-        g.setColour (palette::midi);
-        g.fillEllipse (Rectangle<float> (6.0f, 6.0f).withCentre ({ pill.getRight() - 7.0f, pill.getY() + 7.0f }));
+        g.setColour (palette::held);
+        g.fillEllipse (Rectangle<float> (5.0f, 5.0f).withCentre ({ pill.getRight() - 6.5f, pill.getY() + 6.5f }));
     }
 }
 
@@ -96,9 +88,6 @@ void NotePills::setState (uint16_t newAllowed, uint16_t newHeld, int newTarget)
         const bool isTarget = pc == target;
         const bool isHeld = ((held >> pc) & 1u) != 0;
 
-        if (isTarget != pill->isTarget)
-            repaint();
-
         if (isTarget != pill->isTarget || isHeld != pill->isHeld)
         {
             pill->isTarget = isTarget;
@@ -119,16 +108,6 @@ void NotePills::setTooltip (const juce::String& newTooltip)
     {
         pill->setTooltip (newTooltip);
         pill->setHelpText (newTooltip);
-    }
-}
-
-void NotePills::paint (juce::Graphics& g)
-{
-    // The target's glow spills into the gaps, outside its own bounds.
-    if (auto* pill = pills[target])
-    {
-        g.setColour (palette::accent.withAlpha (0.18f));
-        g.fillRoundedRectangle (pill->getBounds().toFloat().expanded (3.0f), 11.0f);
     }
 }
 

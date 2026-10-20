@@ -15,21 +15,24 @@ void ModeSwitch::Segment::paintButton (juce::Graphics& g, bool highlighted, bool
 {
     using namespace juce;
 
+    // The selected mode reads brighter and carries the one gold line that marks a selection, as wide as its label.
     const auto bounds = getLocalBounds().toFloat();
     const bool on = getToggleState();
+    const auto font = uiFont (13.0f, true);
+
+    if (hasKeyboardFocus (false))
+        drawFocusRing (g, bounds.reduced (1.0f), 4.0f);
+
+    g.setColour (on || highlighted ? palette::text : palette::textDim);
+    g.setFont (font);
+    g.drawText (getButtonText(), bounds, Justification::centred);
 
     if (on)
     {
+        const float width = GlyphArrangement::getStringWidth (font, getButtonText());
         g.setColour (palette::accent);
-        g.fillRoundedRectangle (bounds.reduced (2.0f), 4.5f);
+        g.fillRect (Rectangle<float> (bounds.getCentreX() - width * 0.5f, bounds.getCentreY() + 9.0f, width, 1.0f));
     }
-
-    if (hasKeyboardFocus (false))
-        drawFocusRing (g, bounds.reduced (1.0f), 5.0f);
-
-    g.setColour (on ? palette::background : (highlighted ? palette::text : palette::textDim));
-    g.setFont (uiFont (12.5f, true));
-    g.drawText (getButtonText(), bounds, Justification::centred);
 }
 
 ModeSwitch::ModeSwitch (juce::RangedAudioParameter& parameter)
@@ -74,10 +77,10 @@ void ModeSwitch::setTooltip (const juce::String& newTooltip)
 void ModeSwitch::paint (juce::Graphics& g)
 {
     const auto bounds = getLocalBounds().toFloat().reduced (0.5f);
-    g.setColour (palette::panelRaised);
-    g.fillRoundedRectangle (bounds, 6.0f);
-    g.setColour (palette::outline);
-    g.drawRoundedRectangle (bounds, 6.0f, 1.0f);
+    g.setColour (palette::raised);
+    g.fillRoundedRectangle (bounds, 4.0f);
+    g.setColour (palette::lineBright);
+    g.drawRoundedRectangle (bounds, 4.0f, 1.0f);
 }
 
 void ModeSwitch::resized()

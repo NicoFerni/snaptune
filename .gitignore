@@ -1,3 +1,5 @@
 build/
 external/JUCE/
 .DS_Store
+.env
+.taste-skill/
