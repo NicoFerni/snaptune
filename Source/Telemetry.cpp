@@ -1,3 +1,6 @@
+#include "Telemetry.h"
+
+// After Telemetry.h, so JUCE_WINDOWS is defined.
 #if JUCE_WINDOWS
  #ifndef NOMINMAX
   #define NOMINMAX
@@ -11,8 +14,6 @@
  #include <csignal>
  #include <unistd.h>
 #endif
-
-#include "Telemetry.h"
 
 // Only the plugin target defines SNAPTUNE_TELEMETRY=1, so the test runner never phones home.
 #ifndef SNAPTUNE_TELEMETRY
