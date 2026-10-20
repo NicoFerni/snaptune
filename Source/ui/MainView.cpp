@@ -7,7 +7,8 @@ namespace snaptune
 {
 namespace
 {
-    constexpr const char* versionText = "v1.1";
+    // From project(VERSION) in CMakeLists.txt.
+    constexpr const char* versionText = "v" SNAPTUNE_DISPLAY_VERSION;
     constexpr int margin = 20;
 
     // Knob order in `knobs`.

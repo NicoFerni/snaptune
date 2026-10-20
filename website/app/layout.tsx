@@ -5,10 +5,8 @@ import "./globals.css";
 const description =
   "Free, open-source pitch correction plugin (VST3 and Audio Unit) for Mac and Windows. Hard-tune your vocals, and hear it while you record with 2.7 ms of delay. Tested in FL Studio.";
 
-// Absolute base for the Open Graph image. Vercel sets VERCEL_PROJECT_PRODUCTION_URL; elsewhere set SITE_URL.
-const siteUrl =
-  process.env.SITE_URL ??
-  (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : "http://localhost:3000");
+// Absolute base for the link-preview image and URL. Set SITE_URL to host the site somewhere else.
+const siteUrl = process.env.SITE_URL ?? "https://getsnaptune.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -17,14 +15,14 @@ export const metadata: Metadata = {
   openGraph: {
     title: "SnapTune: free pitch correction plugin for Mac and Windows",
     description,
-    images: [{ url: "/screenshot.png", width: 1600, height: 1024, alt: "The SnapTune plugin window" }],
+    url: "/",
+    siteName: "SnapTune",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
     title: "SnapTune: free pitch correction plugin for Mac and Windows",
     description,
-    images: ["/screenshot.png"],
   },
 };
 
