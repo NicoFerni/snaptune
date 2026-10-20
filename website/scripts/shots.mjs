@@ -4,8 +4,8 @@
 //   cmake --build build --target SnapTuneTests   (from the repo root)
 //   npm run shots                                 (from website/)
 //
-// Writes public/shots/*.webp, lib/shots.json (sizes for the page), public/screenshot.png (social
-// preview) and ../docs/screenshot.png (README).
+// Writes public/shots/*.webp, lib/shots.json (sizes for the page), public/screenshot.png (the
+// window in the link preview, app/opengraph-image.tsx) and ../docs/screenshot.png (README).
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
@@ -51,7 +51,7 @@ for (const [name, { region, cssWidth }] of Object.entries(shots)) {
 
 writeFileSync(join(import.meta.dirname, "..", "lib", "shots.json"), JSON.stringify(manifest, null, 2) + "\n");
 
-// Social preview (Open Graph wants PNG or JPEG) and the README image.
+// The window for the link preview (ImageResponse takes PNG or JPEG) and the README image.
 await sharp(source).resize({ width: 1600, kernel: "lanczos3" }).png({ compressionLevel: 9 }).toFile(join(import.meta.dirname, "..", "public", "screenshot.png"));
 await sharp(source).resize({ width: 2000, kernel: "lanczos3" }).png({ compressionLevel: 9 }).toFile(join(root, "docs", "screenshot.png"));
 console.log("screenshot.png (1600) and docs/screenshot.png (2000)");

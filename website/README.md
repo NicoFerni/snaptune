@@ -10,7 +10,7 @@ npm run build
 
 - The version and download link come from `project(SnapTune VERSION …)` in `../CMakeLists.txt`, so a release needs no change here.
 - Ko-fi link and the Apple Developer Program goal live in `lib/site.ts`. Update `raised` by hand; the progress bar stays hidden at 0.
-- Set `SITE_URL` (e.g. `https://snaptune.example`) when building outside Vercel so the social preview image gets an absolute URL.
+- The link preview (`app/opengraph-image.tsx`) is rendered at build time from `public/screenshot.png`, so `npm run shots` refreshes it too. Links point at `https://getsnaptune.com`; set `SITE_URL` to host the site elsewhere.
 
 ## Admin panel and usage pings
 

@@ -29,6 +29,13 @@ else()
     FetchContent_MakeAvailable(JUCE)
 endif()
 
+# The version chip in the plugin window: "1.2" for 1.2.0, "1.2.1" for a patch, like the website.
+if(PROJECT_VERSION_PATCH EQUAL 0)
+    set(SNAPTUNE_DISPLAY_VERSION "${PROJECT_VERSION_MAJOR}.${PROJECT_VERSION_MINOR}")
+else()
+    set(SNAPTUNE_DISPLAY_VERSION "${PROJECT_VERSION}")
+endif()
+
 set(SNAPTUNE_SOURCES
     Source/dsp/PitchDetector.cpp
     Source/dsp/AutoTuneEngine.cpp
@@ -73,6 +80,7 @@ target_compile_definitions(SnapTune
         JUCE_VST3_CAN_REPLACE_VST2=0
         # Anonymous usage pings for the website's admin panel (Source/Telemetry.h). Off in the tests.
         SNAPTUNE_TELEMETRY=1
+        SNAPTUNE_DISPLAY_VERSION="${SNAPTUNE_DISPLAY_VERSION}"
         # Only note on/off is used for MIDI target notes; without this the VST3 wrapper adds
         # 2048 hidden "MIDI CC" parameters that clutter FL Studio's automation list.
         JUCE_VST3_EMULATE_MIDI_CC_WITH_PARAMETERS=0)
@@ -101,7 +109,8 @@ if(SNAPTUNE_BUILD_TESTS)
             JUCE_USE_CURL=0
             JUCE_PLUGINHOST_VST3=1
             JUCE_PLUGINHOST_AU=1
-            JUCE_MODAL_LOOPS_PERMITTED=1)
+            JUCE_MODAL_LOOPS_PERMITTED=1
+            SNAPTUNE_DISPLAY_VERSION="${SNAPTUNE_DISPLAY_VERSION}")
 
     target_link_libraries(SnapTuneTests
         PRIVATE
