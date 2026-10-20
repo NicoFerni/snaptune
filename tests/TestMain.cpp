@@ -1075,9 +1075,6 @@ void testBlockSizesAndCpu()
     for (int i = 0; i < 4; ++i)
         longInput.insert (longInput.end(), input.begin(), input.end());
 
-    // Timed the way the plugin runs it: processBlock flushes denormals to zero, which x86 processors
-    // otherwise compute very slowly (some far more than others).
-    const juce::ScopedNoDenormals noDenormals;
     const double audioSeconds = (double) longInput.size() / sampleRate;
     double studioSeconds = 0.0, liveSeconds = 0.0;
     runEngine (longInput, sampleRate, hardTune(), {}, 256, &studioSeconds);
