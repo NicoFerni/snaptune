@@ -5,14 +5,14 @@ import { isSharp, maskContains, noteLabel, pitchClass } from "./model";
 import { fontSize, palette } from "./palette";
 
 // Port of Source/ui/PitchGraph: piano-roll pitch history, one lane per semitone (in-scale lanes lit),
-// the detected pitch dashed coral and the corrected pitch teal, scrolling right to left.
+// the detected pitch dashed sage and the corrected pitch gold, scrolling right to left.
 //
 // The note range stays put while you sing. It only slides when the voice has been out of view for a
 // moment; dragging moves it by hand and locks it, double-click follows again.
 
 const capacity = 4096;
 const keyboardWidth = 46;
-const cornerRadius = 13;
+const cornerRadius = 5;
 
 export class GraphModel {
   readonly input = new Float32Array(capacity);
@@ -131,28 +131,25 @@ const Rows = memo(function Rows({ low, span, width, height, mask, liveTarget }: 
     const black = isSharp(pitchClass(note));
     const inScale = maskContains(mask, note);
     const isC = pitchClass(note) === 0;
-    const keyBase = black ? "#0b0d11" : "#1c222b";
+    // The keyboard: the notes in the scale are lit ivory keys, the one being tuned to is gold.
+    const keyFill = note === liveTarget ? palette.accent : inScale ? palette.raised : black ? palette.laneBlack : palette.panel;
 
     rows.push(
       <g key={note}>
-        <rect x={keyboardWidth} y={yTop} width={width - keyboardWidth} height={rowHeight} fill={black ? "#0d1015" : "#11151b"} />
-        {inScale && <rect x={keyboardWidth} y={yTop} width={width - keyboardWidth} height={rowHeight} fill={palette.accent} fillOpacity={0.035} />}
-        <rect x={0} y={yTop} width={keyboardWidth - 1} height={rowHeight} fill={note === liveTarget ? palette.accent : keyBase} />
-        {inScale && note !== liveTarget && (
-          <rect x={0} y={yTop} width={keyboardWidth - 1} height={rowHeight} fill={palette.accent} fillOpacity={black ? 0.22 : 0.14} />
-        )}
+        <rect x={keyboardWidth} y={yTop} width={width - keyboardWidth} height={rowHeight} fill={black ? palette.laneBlack : palette.panel} />
+        {inScale && <rect x={keyboardWidth} y={yTop} width={width - keyboardWidth} height={rowHeight} fill={palette.text} fillOpacity={0.025} />}
+        <rect x={0} y={yTop} width={keyboardWidth - 1} height={rowHeight} fill={keyFill} />
         {/* Row separators, with a stronger line under every C. */}
-        <rect x={0} y={yTop + rowHeight - 1} width={width} height={1} fill={isC ? palette.outline : palette.grid} />
+        <rect x={0} y={yTop + rowHeight - 1} width={width} height={1} fill={isC ? palette.line : palette.grid} />
         {(inScale || isC) && rowHeight > 11 && (
           <text
             x={keyboardWidth - 7}
             y={yTop + rowHeight / 2}
             dy="0.35em"
             textAnchor="end"
-            fontSize={fontSize(Math.min(11, rowHeight * 0.55))}
-            fontWeight={700}
-            fill={note === liveTarget ? palette.background : inScale ? palette.accent : palette.textFaint}
-            fillOpacity={note !== liveTarget && inScale ? 0.85 : 1}
+            fontSize={fontSize(Math.min(11.5, rowHeight * 0.58))}
+            fontWeight={600}
+            fill={note === liveTarget ? palette.background : inScale ? palette.text : palette.textDim}
           >
             {noteLabel(note)}
           </text>
@@ -164,7 +161,7 @@ const Rows = memo(function Rows({ low, span, width, height, mask, liveTarget }: 
   return <>{rows}</>;
 });
 
-function buildPath(m: GraphModel, corrected: boolean, count: number, stride: number, plotRight: number, dx: number, noteToY: (n: number) => number) {
+function buildPath(m: GraphModel, corrected: boolean, count: number, stride: number, plotRight: number, dx: number, noteToY: (n: number) => number, outputFrom: number) {
   let d = "";
   let penDown = false;
   let previous = 0;
@@ -172,7 +169,7 @@ function buildPath(m: GraphModel, corrected: boolean, count: number, stride: num
   for (let age = count - 1; age >= 0; --age) {
     const i = m.at(age);
 
-    if (!m.voiced[i]) {
+    if (!m.voiced[i] || (corrected && m.totalFrames - 1 - age < outputFrom)) {
       penDown = false;
       continue;
     }
@@ -198,12 +195,14 @@ type Props = {
   height: number;
   /** Bumped by the owner whenever the model changed; the graph has no state of its own. */
   version: number;
+  /** The output line is only drawn from this frame on (the promo video bypasses SnapTune before it). */
+  outputFrom?: number;
   onChange: () => void;
   className?: string;
   style?: CSSProperties;
 };
 
-export function PitchGraph({ model: m, mask, width, height, onChange, className, style }: Props) {
+export function PitchGraph({ model: m, mask, width, height, onChange, className, style, outputFrom = 0 }: Props) {
   const id = useId();
   const drag = useRef<{ startLow: number; startY: number; rowHeight: number } | null>(null);
 
@@ -213,10 +212,12 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
   const high = low + m.span;
   const noteToY = (note: number) => height - ((note - low) / (high - low)) * height;
 
+  const shown = (age: number) => m.totalFrames - 1 - age >= outputFrom;
+
   let liveTarget = -1;
   for (let age = 0; age < Math.trunc(m.framesPerSecond * 0.15) && age < m.totalFrames; ++age)
     if (m.voiced[m.at(age)]) {
-      liveTarget = m.target[m.at(age)];
+      if (shown(age)) liveTarget = m.target[m.at(age)];
       break;
     }
 
@@ -231,14 +232,14 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
   // Pitch curves: thin out to ~one point per pixel, and fade them toward the past.
   const count = Math.min(m.totalFrames, visible);
   const stride = Math.max(1, Math.floor(1 / Math.max(dx, 0.01)));
-  const sung = buildPath(m, false, count, stride, width, dx, noteToY);
-  const output = buildPath(m, true, count, stride, width, dx, noteToY);
+  const sung = buildPath(m, false, count, stride, width, dx, noteToY, outputFrom);
+  const output = buildPath(m, true, count, stride, width, dx, noteToY, outputFrom);
 
   // "Now" marker on the newest voiced frame, with the note it is tuned to.
   let marker = null;
   const nowAge = m.latestVoiced(0.15);
 
-  if (nowAge >= 0 && nowAge < count) {
+  if (nowAge >= 0 && nowAge < count && shown(nowAge)) {
     const i = m.at(nowAge);
     const dot = { x: width - nowAge * dx - 4, y: noteToY(m.output[i]) };
     let tagY = dot.y - 22 - 10;
@@ -246,12 +247,11 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
 
     marker = (
       <g>
-        <circle cx={dot.x} cy={dot.y} r={9} fill={palette.accent} fillOpacity={0.2} />
         <circle cx={dot.x} cy={dot.y} r={4} fill={palette.accent} />
         {m.target[i] >= 0 && (
           <g>
-            <rect x={dot.x - 24 - 20} y={tagY} width={40} height={20} rx={6} fill={palette.background} fillOpacity={0.85} stroke={palette.accent} strokeOpacity={0.6} />
-            <text x={dot.x - 24} y={tagY + 10} dy="0.35em" textAnchor="middle" fontSize={fontSize(11.5)} fontWeight={700} fill={palette.accent}>
+            <rect x={dot.x - 24 - 20} y={tagY} width={40} height={20} rx={3} fill={palette.panel} stroke={palette.accent} strokeOpacity={0.7} />
+            <text x={dot.x - 24} y={tagY + 10} dy="0.35em" textAnchor="middle" fontSize={fontSize(12)} fontWeight={600} fill={palette.accent}>
               {noteLabel(m.target[i])}
             </text>
           </g>
@@ -277,12 +277,12 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
 
       arrow = (
         <g>
-          <rect x={cx - 29} y={cy - 11} width={58} height={22} rx={6} fill={palette.background} fillOpacity={0.9} stroke={palette.accent} />
+          <rect x={cx - 29} y={cy - 11} width={58} height={22} rx={3} fill={palette.panel} stroke={palette.accent} />
           <path
             d={above ? `M${ax - 4} ${cy + 2.5}L${ax + 4} ${cy + 2.5}L${ax} ${cy - 3.5}Z` : `M${ax - 4} ${cy - 2.5}L${ax + 4} ${cy - 2.5}L${ax} ${cy + 3.5}Z`}
             fill={palette.accent}
           />
-          <text x={cx - 29 + 20} y={cy} dy="0.35em" fontSize={fontSize(11.5)} fontWeight={700} fill={palette.accent}>
+          <text x={cx - 29 + 20} y={cy} dy="0.35em" fontSize={fontSize(12)} fontWeight={600} fill={palette.accent}>
             {noteLabel(note)}
           </text>
         </g>
@@ -315,7 +315,7 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
       className={className}
       style={style}
       role="img"
-      aria-label="Pitch graph. Dashed coral: what you sang. Solid teal: what comes out."
+      aria-label="Pitch graph. Dashed sage: what you sang. Solid gold: what comes out."
       data-tip="Drag to move the note range (it then stays put). Double-click to follow the singer again."
       onPointerDown={onPointerDown}
       onPointerMove={onPointerMove}
@@ -333,27 +333,27 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
         <clipPath id={`${id}-plot`}>
           <rect x={plotX} width={plotW} height={height} />
         </clipPath>
-        {(["coral", "teal"] as const).map((name) => (
+        {/* Both curves fade toward the past. */}
+        {(["sage", "gold"] as const).map((name) => (
           <linearGradient key={name} id={`${id}-${name}`} gradientUnits="userSpaceOnUse" x1={plotX} x2={plotX + plotW * 0.4} y1={0} y2={0}>
-            <stop offset={0} stopColor={name === "coral" ? palette.input : palette.accent} stopOpacity={0} />
-            <stop offset={1} stopColor={name === "coral" ? palette.input : palette.accent} stopOpacity={name === "coral" ? 0.85 : 1} />
+            <stop offset={0} stopColor={name === "sage" ? palette.input : palette.accent} stopOpacity={0} />
+            <stop offset={1} stopColor={name === "sage" ? palette.input : palette.accent} stopOpacity={name === "sage" ? 0.85 : 1} />
           </linearGradient>
         ))}
       </defs>
 
       <g clipPath={`url(#${id}-clip)`}>
         <Rows low={low} span={m.span} width={width} height={height} mask={mask} liveTarget={liveTarget} />
-        <rect x={plotX - 1} width={1} height={height} fill={palette.outline} />
+        <rect x={plotX - 1} width={1} height={height} fill={palette.line} />
 
         {gridLines.map((x, k) => (
-          <rect key={k} x={x} width={1} height={height} fill="#fff" fillOpacity={0.025} />
+          <rect key={k} x={x} width={1} height={height} fill={palette.text} fillOpacity={0.035} />
         ))}
 
         <g clipPath={`url(#${id}-plot)`} fill="none" strokeLinejoin="round">
           {/* The sung line is dashed so the two curves differ by more than colour. */}
-          <path d={sung} stroke={fade("coral")} strokeWidth={1.6} strokeDasharray="5 4" />
-          <path d={output} stroke={fade("teal")} strokeWidth={9} strokeOpacity={0.16} strokeLinecap="round" />
-          <path d={output} stroke={fade("teal")} strokeWidth={2.4} strokeLinecap="round" />
+          <path d={sung} stroke={fade("sage")} strokeWidth={1.6} strokeDasharray="5 4" />
+          <path d={output} stroke={fade("gold")} strokeWidth={2.4} strokeLinecap="round" />
         </g>
 
         {marker}
@@ -361,11 +361,11 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
 
         {!sung && (
           <g textAnchor="middle">
-            <text x={plotX + plotW / 2} y={height / 2 - 9} dy="0.35em" fontSize={fontSize(11)} fontWeight={700} letterSpacing="0.095em" fill={palette.textDim}>
-              PRESS PLAY OR SING
+            <text x={plotX + plotW / 2} y={height / 2 - 10} dy="0.35em" fontSize={fontSize(14)} fontWeight={600} fill={palette.text}>
+              Press play, or sing
             </text>
-            <text x={plotX + plotW / 2} y={height / 2 + 11} dy="0.35em" fontSize={fontSize(12.5)} fill={palette.textFaint}>
-              the output pitch will draw here
+            <text x={plotX + plotW / 2} y={height / 2 + 12} dy="0.35em" fontSize={fontSize(12.5)} fill={palette.textDim}>
+              Its pitch and the tuned pitch will draw here.
             </text>
           </g>
         )}
@@ -373,14 +373,14 @@ export function PitchGraph({ model: m, mask, width, height, onChange, className,
         {/* Legend at the top left, clear of the out-of-range arrow on the right, on a backing so curves
             near the top row pass behind it rather than through the text. */}
         <g>
-          <rect x={legendX} y={8} width={140} height={22} rx={6} fill={palette.background} fillOpacity={0.85} stroke={palette.outline} />
+          <rect x={legendX} y={8} width={146} height={22} rx={3} fill={palette.panel} stroke={palette.line} />
           <rect x={legendX + 10} y={18} width={5} height={2} fill={palette.input} />
           <rect x={legendX + 19} y={18} width={5} height={2} fill={palette.input} />
-          <text x={legendX + 30} y={19} dy="0.35em" fontSize={fontSize(11.5)} fill={palette.textDim}>
+          <text x={legendX + 30} y={19} dy="0.35em" fontSize={fontSize(12)} fill={palette.textDim}>
             Sung
           </text>
-          <rect x={legendX + 65.2} y={17.5} width={14} height={3} rx={1.5} fill={palette.accent} />
-          <text x={legendX + 85.2} y={19} dy="0.35em" fontSize={fontSize(11.5)} fill={palette.textDim}>
+          <rect x={legendX + 68} y={17.5} width={14} height={3} rx={1.5} fill={palette.accent} />
+          <text x={legendX + 88} y={19} dy="0.35em" fontSize={fontSize(12)} fill={palette.textDim}>
             Output
           </text>
         </g>

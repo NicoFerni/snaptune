@@ -1,7 +1,7 @@
 /* The SnapTune window (components/demo). --u is one plugin pixel. On a wide column it is the plugin's
    own 1000 x 640 layout scaled to fit: every .st-at element sits at its MainView::resized() bounds,
    given as --x --y --w --h. Narrower, the same panels stack at the plugin's real size. Colours are
-   SnapLookAndFeel's palette. */
+   SnapLookAndFeel's palette; type is the plugin's: Literata, and Rokkitt for the wordmark and note. */
 
 .st-demo {
   container-type: inline-size;
@@ -9,19 +9,19 @@
 
 .st-window {
   --u: 1px;
-  /* JUCE font heights are ascent + descent; SF Pro's em is 1/1.19 of that. */
-  --f: calc(var(--u) / 1.19);
+  /* JUCE font heights are ascent + descent; Literata's em is 1/1.485 of that. */
+  --f: calc(var(--u) / 1.485);
   position: relative;
   display: flex;
   flex-direction: column;
   gap: 12px;
   padding: 16px 12px 12px;
-  border-radius: 22px;
+  border-radius: 8px;
   overflow: hidden;
-  background:
-    radial-gradient(circle 300px at 175px 232px, rgb(60 240 191 / 0.07), transparent),
-    linear-gradient(#11151c, #0a0c10);
-  color: #eef2f7;
+  background: #133621;
+  color: #efe8cf;
+  font-family: var(--font-text), Georgia, serif;
+  font-variant-numeric: tabular-nums;
   font-size: calc(14 * var(--f));
   line-height: 1.2;
   letter-spacing: normal;
@@ -37,7 +37,7 @@
 }
 
 .st-window :focus-visible {
-  outline: 2px solid #3cf0bf;
+  outline: 2px solid #f4d96c;
   outline-offset: -2px;
 }
 
@@ -46,49 +46,30 @@
   outline: none;
 }
 
-/* Captions: bold, uppercase, widely spaced ("RETUNE SPEED"). */
+/* Labels: sentence case, regular weight ("Retune speed"). */
 .st-caption {
   display: block;
-  font-size: calc(11 * var(--f));
-  font-weight: 700;
-  line-height: calc(15 * var(--u));
-  letter-spacing: 0.095em;
-  text-transform: uppercase;
-  color: #7d879a;
+  font-size: calc(12.5 * var(--f));
+  font-weight: 400;
+  line-height: calc(16 * var(--u));
+  color: #b4bea4;
   white-space: nowrap;
 }
 
 .st-caption.st-dim {
-  color: #9aa4b5;
-}
-
-.st-caption-svg {
-  font-size: 9.25px;
-  font-weight: 700;
-  letter-spacing: 0.095em;
+  color: #b4bea4;
 }
 
 .st-studio-only {
-  color: #7d879a;
+  color: #8e9c87;
 }
 
-/* Panels: a soft top-lit gradient, an outline and a faint highlight along the top edge. */
+/* Panels: flat, one step darker than the ground, with a 1px edge. */
 .st-panel {
   position: relative;
-  border: 1px solid #242b36;
-  border-radius: calc(14 * var(--u));
-  background: linear-gradient(#1f232a, #12161d calc(80 * var(--u)));
-}
-
-.st-panel::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: calc(14 * var(--u));
-  right: calc(14 * var(--u));
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgb(255 255 255 / 0.07), transparent);
-  pointer-events: none;
+  border: 1px solid #234d34; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
+  border-radius: calc(6 * var(--u));
+  background: #0e2a19;
 }
 
 /* Header ---------------------------------------------------------------------------------------- */
@@ -126,28 +107,19 @@
 }
 
 .st-wordmark {
-  font-size: calc(24 * var(--f));
-  font-weight: 700;
+  font-family: var(--font-display), Georgia, serif;
+  font-size: calc(27 * var(--u) / 1.137);
+  font-weight: 800;
   line-height: calc(32 * var(--u));
+  color: #f4d96c;
   white-space: nowrap;
-}
-
-.st-wordmark span {
-  color: #3cf0bf;
 }
 
 .st-chip {
   display: flex;
   align-items: center;
-  justify-content: center;
-  width: calc(42 * var(--u));
-  height: calc(19 * var(--u));
-  border: 1px solid #343d4c;
-  border-radius: calc(9.5 * var(--u));
-  color: #9aa4b5;
-  font-size: calc(11 * var(--f));
-  font-weight: 700;
-  letter-spacing: 0.095em;
+  color: #b4bea4;
+  font-size: calc(12.5 * var(--f));
 }
 
 .st-latency {
@@ -160,7 +132,7 @@
 
 .st-latency-value {
   font-size: calc(15 * var(--f));
-  font-weight: 700;
+  font-weight: 600;
   line-height: calc(20 * var(--u));
   font-variant-numeric: tabular-nums;
 }
@@ -177,25 +149,24 @@
   width: 100%;
   height: 100%;
   padding: 0 calc(26 * var(--u)) 0 calc(12 * var(--u));
-  border: 1px solid #242b36;
-  border-radius: calc(8 * var(--u));
-  background: #1a1f28;
-  color: #eef2f7;
+  border: 1px solid #2f5f40;
+  border-radius: calc(4 * var(--u));
+  background: #1b462b;
+  color: #efe8cf;
   font-size: calc(14 * var(--f));
-  font-weight: 700;
+  font-weight: 600;
   text-overflow: ellipsis;
   cursor: pointer;
 }
 
 .st-combo select:hover {
-  border-color: #343d4c;
-  background: #2b3038;
+  border-color: rgb(180 190 164 / 0.6);
 }
 
 .st-combo select option,
 .st-combo select optgroup {
-  background: #1a1f28;
-  color: #eef2f7;
+  background: #1b462b;
+  color: #efe8cf;
   font-weight: 400;
 }
 
@@ -206,36 +177,38 @@
   width: calc(10 * var(--u));
   height: calc(7 * var(--u));
   transform: translateY(-50%);
-  color: #9aa4b5;
+  color: #b4bea4;
   pointer-events: none;
 }
 
-/* Studio / Live. */
+/* Studio / Live: the selected mode reads brighter and carries the one gold line that marks a
+   selection, as wide as its label. */
 .st-mode {
   display: flex;
   height: calc(30 * var(--u));
-  border: 1px solid #242b36;
-  border-radius: calc(6 * var(--u));
-  background: #1a1f28;
+  border: 1px solid #2f5f40; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
+  border-radius: calc(4 * var(--u));
+  background: #1b462b;
 }
 
 .st-mode button {
   flex: 1;
-  margin: calc(1.5 * var(--u));
-  border-radius: calc(4.5 * var(--u));
-  color: #9aa4b5;
-  font-size: calc(12.5 * var(--f));
-  font-weight: 700;
+  color: #b4bea4;
+  font-size: calc(13 * var(--f));
+  font-weight: 600;
+  text-underline-offset: calc(7 * var(--u));
+  text-decoration-thickness: 1px;
   cursor: pointer;
 }
 
 .st-mode button:hover {
-  color: #eef2f7;
+  color: #efe8cf;
 }
 
 .st-mode button[aria-pressed="true"] {
-  background: #3cf0bf;
-  color: #0a0c10;
+  color: #efe8cf;
+  text-decoration-line: underline;
+  text-decoration-color: #f4d96c;
 }
 
 /* Scale notes. */
@@ -244,104 +217,111 @@
   gap: calc(5 * var(--u));
 }
 
+/* Notes in the scale sit on the control tone; the rest sink into the panel. Sharps are darker
+   still, a nod to the black keys of a piano. */
 .st-pills button {
   position: relative;
   flex: 1;
   min-width: 0;
-  border: 1px solid #242b36;
-  border-radius: calc(8 * var(--u));
-  background-color: #1a1f28;
-  color: #7d879a;
+  border: 1px solid #234d34; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
+  border-radius: calc(4 * var(--u));
+  background-color: #0e2a19;
+  color: #8e9c87;
   font-size: calc(14 * var(--f));
-  font-weight: 700;
+  font-weight: 600;
   cursor: pointer;
 }
 
-/* Sharps sit on a darker base, a nod to the black keys of a piano. */
 .st-pills button[data-sharp] {
-  background-color: #0d1015;
+  background-color: #0b2314;
   font-size: calc(12 * var(--f));
 }
 
 .st-pills button:hover {
-  border-color: #343d4c;
+  border-color: rgb(180 190 164 / 0.6);
 }
 
 .st-pills button[aria-pressed="true"] {
-  border-color: rgb(60 240 191 / 0.55);
-  background-image: linear-gradient(rgb(60 240 191 / 0.12), rgb(60 240 191 / 0.12));
-  color: #3cf0bf;
+  border-color: #2f5f40;
+  background-color: #1b462b;
+  color: #efe8cf;
 }
 
-.st-pills button[aria-pressed="true"]:hover {
-  background-image: linear-gradient(rgb(60 240 191 / 0.2), rgb(60 240 191 / 0.2));
-}
-
-/* The note being tuned to, with its glow spilling into the gaps. */
+/* The note being tuned to right now: gold, with a bar along its foot. */
 .st-pills button[data-target] {
-  border-color: transparent;
-  background-image: linear-gradient(#3cf0bf, #10a07c);
-  color: #0a0c10;
-  box-shadow: 0 0 0 calc(3 * var(--u)) rgb(60 240 191 / 0.18);
+  color: #f4d96c;
+}
+
+.st-pills button[data-target]::after {
+  content: "";
+  position: absolute;
+  right: calc(4 * var(--u));
+  bottom: 0;
+  left: calc(4 * var(--u));
+  height: calc(2 * var(--u));
+  background: #f4d96c;
 }
 
 .st-held {
   position: absolute;
   top: calc(4 * var(--u));
   right: calc(4 * var(--u));
-  width: calc(6 * var(--u));
-  height: calc(6 * var(--u));
+  width: calc(5 * var(--u));
+  height: calc(5 * var(--u));
   border-radius: 50%;
-  background: #a996ff;
+  background: #efe8cf;
 }
 
-/* MIDI notes switch. */
+/* MIDI notes: a box to tick, and when it's on, the gold line under the label that marks a selection. */
 .st-toggle {
   display: flex;
   align-items: center;
   gap: calc(8 * var(--u));
   padding-left: calc(1 * var(--u));
-  color: #9aa4b5;
+  color: #b4bea4;
   font-size: calc(13 * var(--f));
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
+  text-underline-offset: calc(7 * var(--u));
+  text-decoration-thickness: 1px;
   cursor: pointer;
 }
 
 .st-toggle:hover,
 .st-toggle[aria-checked="true"] {
-  color: #eef2f7;
+  color: #efe8cf;
+}
+
+.st-toggle[aria-checked="true"] .st-toggle-label {
+  text-decoration-line: underline;
+  text-decoration-color: #f4d96c;
 }
 
 .st-toggle-pill {
   position: relative;
   flex-shrink: 0;
-  width: calc(32 * var(--u));
-  height: calc(18 * var(--u));
-  border-radius: calc(9 * var(--u));
-  background: #242b36;
-  transition: background-color 0.15s;
-}
-
-.st-toggle-pill::after {
-  content: "";
-  position: absolute;
-  top: calc(3 * var(--u));
-  left: calc(3 * var(--u));
-  width: calc(12 * var(--u));
-  height: calc(12 * var(--u));
-  border-radius: 50%;
-  background: #9aa4b5;
-  transition: transform 0.15s;
+  width: calc(16 * var(--u));
+  height: calc(16 * var(--u));
+  border: 1px solid #2f5f40; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
+  border-radius: calc(3 * var(--u));
+  background: #1b462b;
 }
 
 .st-toggle[aria-checked="true"] .st-toggle-pill {
-  background: #a996ff;
+  border-color: #efe8cf;
+  background: #efe8cf;
 }
 
 .st-toggle[aria-checked="true"] .st-toggle-pill::after {
-  background: #0a0c10;
-  transform: translateX(calc(14 * var(--u)));
+  content: "";
+  position: absolute;
+  top: calc(2.5 * var(--u));
+  left: calc(5 * var(--u));
+  width: calc(4 * var(--u));
+  height: calc(8 * var(--u));
+  border: solid #133621;
+  border-width: 0 calc(2 * var(--u)) calc(2 * var(--u)) 0;
+  transform: rotate(40deg);
 }
 
 /* Knobs: drag up or right to turn them up. */
@@ -371,12 +351,12 @@
 
 .st-divider {
   display: none;
-  background: #242b36;
+  background: #234d34;
 }
 
 .st-help {
   display: block;
-  color: #7d879a;
+  color: #b4bea4;
   font-size: calc(11.5 * var(--f));
   line-height: calc(15 * var(--u));
 }
@@ -386,7 +366,7 @@
   inset: 0;
   width: 100%;
   height: 100%;
-  border-radius: calc(13 * var(--u));
+  border-radius: calc(5 * var(--u));
   cursor: grab;
   touch-action: pan-y;
 }
@@ -472,7 +452,7 @@
 
 .st-voice-field {
   padding-top: 14px;
-  border-top: 1px solid #242b36;
+  border-top: 1px solid #234d34; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
 }
 
 /* Medium: tuner and graph side by side, one row of notes and knobs. */
@@ -545,17 +525,15 @@
 }
 
 /* Wide: the plugin's own layout -------------------------------------------------------------------- */
-@container (min-width: 840px) {
+@container (min-width: 760px) {
   .st-window {
     --u: calc(100cqw / 1000);
     --f: calc(var(--u) / 1.19);
     display: block;
     aspect-ratio: 1000 / 640;
     padding: 0;
-    border-radius: 26px;
-    background:
-      radial-gradient(circle calc(300 * var(--u)) at calc(175 * var(--u)) calc(232 * var(--u)), rgb(60 240 191 / 0.07), transparent),
-      linear-gradient(#11151c, #0a0c10);
+    border-radius: 8px;
+    background: #133621;
   }
 
   .st-header,
@@ -619,10 +597,11 @@
   z-index: 10;
   max-width: 282px;
   padding: 8px 11px;
-  border: 1px solid #343d4c;
-  border-radius: 7px;
-  background: #1a1f28;
-  color: #eef2f7;
+  border: 1px solid #2f5f40; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
+  border-radius: 4px;
+  background: #1b462b;
+  color: #efe8cf;
+  font-family: var(--font-text), Georgia, serif;
   font-size: 13px;
   line-height: 1.35;
   letter-spacing: normal;
@@ -649,10 +628,10 @@
   align-items: flex-end;
   justify-content: center;
   padding-bottom: 10px;
-  border: 1px solid #0a0c10;
-  border-radius: 0 0 8px 8px;
-  background: linear-gradient(#dfe4ec, #f4f6f9);
-  color: #7d879a;
+  border: 1px solid #133621; /* taste-skill-ignore: the plugin draws this line (SnapLookAndFeel) */
+  border-radius: 0 0 4px 4px;
+  background: #efe8cf;
+  color: #4d5c48;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -665,18 +644,18 @@
   width: 26px;
   height: 60%;
   padding-bottom: 8px;
-  border-radius: 0 0 6px 6px;
-  background: linear-gradient(#20252e, #0b0d11);
-  color: #7d879a;
+  border-radius: 0 0 3px 3px;
+  background: #0b2314;
+  color: #b4bea4;
   font-size: 10px;
 }
 
 .st-pkey[aria-pressed="true"] {
-  background: #a996ff;
-  color: #0a0c10;
+  background: #f4d96c;
+  color: #133621;
 }
 
 .st-pkey:focus-visible {
-  outline: 2px solid #3cf0bf;
+  outline: 2px solid #f4d96c;
   outline-offset: -3px;
 }

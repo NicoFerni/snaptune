@@ -1,29 +1,27 @@
+// The SnapTune mark: a cent sign drawn as a tuner, an arc with the needle through it. SnapTune
+// measures how far you sang from the note in cents, and costs none. Drawn on a 48-unit grid with
+// square ends, like the Rokkitt capitals of the wordmark. Source/ui/SnapLookAndFeel.cpp draws the same
+// shape in the plugin.
+
+export const CENT_ARC = "M33.54 15.17A13 13 0 1 0 33.54 32.83";
+
+/** The mark on its gold tile, for the plugin's header, the favicon and other small places. */
 export function LogoMark({ className = "h-8 w-8" }: { className?: string }) {
   return (
-    <svg viewBox="0 0 32 32" className={className} aria-hidden="true">
-      <defs>
-        <linearGradient id="logo-bg" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#4bf0c0" />
-          <stop offset="1" stopColor="#1fb98c" />
-        </linearGradient>
-      </defs>
-      <rect width="32" height="32" rx="8" fill="url(#logo-bg)" />
-      <path
-        d="M6 18.5c2.2 0 2.6-5 4.8-5s2.4 5 4.6 5h1.6c2.2 0 2.6-5 4.8-5h4.2"
-        fill="none"
-        stroke="#0b1418"
-        strokeWidth="2.6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <rect width="48" height="48" rx="6" fill="#f4d96c" />
+      <path d={CENT_ARC} fill="none" stroke="#133621" strokeWidth="5.5" />
+      <rect x="21.25" y="6" width="5.5" height="36" fill="#133621" />
     </svg>
   );
 }
 
-export function Wordmark() {
+/** The mark alone, in the current text colour, for printing on a sheet. */
+export function Cent({ className }: { className?: string }) {
   return (
-    <span className="text-lg font-semibold tracking-tight">
-      Snap<span className="text-teal">Tune</span>
-    </span>
+    <svg viewBox="0 0 48 48" className={className} aria-hidden="true">
+      <path d={CENT_ARC} fill="none" stroke="currentColor" strokeWidth="5.5" />
+      <rect x="21.25" y="6" width="5.5" height="36" fill="currentColor" />
+    </svg>
   );
 }

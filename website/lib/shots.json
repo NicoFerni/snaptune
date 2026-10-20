@@ -1,22 +1,27 @@
 {
+  "tuner": {
+    "src": "/shots/tuner.webp",
+    "width": 1400,
+    "height": 1467
+  },
+  "keys": {
+    "src": "/shots/keys.webp",
+    "width": 1400,
+    "height": 1509
+  },
+  "voice": {
+    "src": "/shots/voice.webp",
+    "width": 1400,
+    "height": 924
+  },
   "graph": {
     "src": "/shots/graph.webp",
-    "width": 2200,
-    "height": 1131
+    "width": 1400,
+    "height": 1175
   },
-  "gauge": {
-    "src": "/shots/gauge.webp",
-    "width": 1080,
-    "height": 605
-  },
-  "retune": {
-    "src": "/shots/retune.webp",
-    "width": 1080,
-    "height": 489
-  },
-  "notes": {
-    "src": "/shots/notes.webp",
-    "width": 1280,
-    "height": 89
+  "modes": {
+    "src": "/shots/modes.webp",
+    "width": 1400,
+    "height": 1273
   }
 }

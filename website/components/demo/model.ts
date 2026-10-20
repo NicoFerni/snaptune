@@ -245,7 +245,7 @@ export const TIPS = {
   scale: "Which notes the voice may land on. Pick Chromatic if you don't know the key.",
   pills: "Lit notes are in the scale; the solid one is being tuned to right now. Click to add or remove a note (switches to Custom).",
   midi: "Tune to the notes held on the MIDI input instead of the scale. Here, hold keys on the keyboard below the window.",
-  gauge: "Coral: what you sang. Teal: what comes out. Centre: the note it is tuning to.",
+  gauge: "Sage: what you sang. Gold: what comes out. Centre: the note it is tuning to.",
   graph: "Drag to move the note range (it then stays put). Double-click to follow the singer again.",
   voice: "The range the pitch detector listens in. Pick Low Male for deep voices.",
 };

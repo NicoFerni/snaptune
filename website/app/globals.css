@@ -1,27 +1,43 @@
 @import "tailwindcss";
 
-/* The plugin's own palette (Source/ui/SnapLookAndFeel.h). Coral is the pitch you sang, teal is the
-   corrected pitch, violet is MIDI; the page keeps those meanings. The plugin draws text in the
-   system font (SF Pro on a Mac), so the page does too. */
+/* SnapTune's colours: bottle green and gold, with ivory for paper. The page is set like the manual of a
+   precision instrument: green ground, gold ink, and its pieces of stationery (the cover, the receipt,
+   the letter, the reply card) as gold or ivory sheets with green ink. Type: Rokkitt capitals for
+   display, Literata for reading (both loaded in app/layout.tsx). */
 @theme inline {
-  --color-bg: #0a0c10;
-  --color-panel: #12161d;
-  --color-panel-2: #1a1f28;
-  --color-line: #242b36;
-  --color-line-bright: #343d4c;
-  --color-ink: #eef2f7;
-  --color-muted: #9aa4b5;
-  --color-faint: #7d879a;
-  --color-teal: #3cf0bf;
-  --color-teal-deep: #10a07c;
-  --color-coral: #ff8a5b;
-  --color-violet: #a996ff;
-  --font-sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
-  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --color-bg: #133621;
+  --color-surface: #1a4429;
+  --color-deep: #0e2a19;
+  --color-ink: #f4d96c;
+  --color-muted: #b3a55e;
+  --color-accent: #f4d96c;
+  --color-accent-ink: #133621;
+  --color-paper: #efe8cf;
+  --color-paper-ink: #133621;
+  --color-sage: #9cc0a4;
+
+  /* Names the admin panel was written with, mapped onto the brand. */
+  --color-panel: #1a4429;
+  --color-panel-2: #1b462b;
+  --color-line: #234d34;
+  --color-line-bright: #2f5f40;
+  --color-faint: #b3a55e;
+  --color-teal: #f4d96c;
+  --color-teal-deep: #b3a55e;
+  --color-coral: #f0a37f;
+
+  --font-sans: var(--font-text), Georgia, serif;
+  --font-display: var(--font-rokkitt), Georgia, serif;
+}
+
+:root {
+  --font-text: var(--font-literata);
+  --font-display: var(--font-rokkitt);
 }
 
 html {
   color-scheme: dark;
+  background: var(--color-bg);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -30,56 +46,14 @@ html {
   }
 }
 
-/* Apple's product-page rhythm: 17 px body with SF's tight text tracking. */
 body {
   background: var(--color-bg);
   color: var(--color-ink);
-  font-size: 17px;
-  line-height: 1.47;
-  letter-spacing: -0.022em;
-}
-
-/* Display headlines: semibold, tight, short line height. */
-.headline {
-  font-weight: 600;
-  letter-spacing: -0.028em;
-  line-height: 1.07;
-  text-wrap: balance;
+  font-size: 18px;
+  line-height: 1.55;
 }
 
 ::selection {
-  background: color-mix(in oklab, var(--color-teal) 35%, transparent);
-}
-
-/* The plugin's small labels: bold, uppercase, widely spaced ("RETUNE SPEED") */
-.caption {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--color-muted);
-}
-
-/* The frosted nav goes solid when the visitor asks for less transparency. */
-@media (prefers-reduced-transparency: reduce) {
-  .local-nav {
-    background: var(--color-bg);
-    backdrop-filter: none;
-  }
-}
-
-details > summary {
-  list-style: none;
-}
-details > summary::-webkit-details-marker {
-  display: none;
-}
-details[open] .faq-icon {
-  transform: rotate(45deg);
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .faq-icon {
-    transition: none;
-  }
+  background: var(--color-ink);
+  color: var(--color-bg);
 }
