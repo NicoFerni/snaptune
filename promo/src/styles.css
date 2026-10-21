@@ -1,0 +1,54 @@
+/* The parts of Tailwind's preflight the website's demo window was built on. */
+*,
+::before,
+::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  border: 0 solid;
+}
+
+button,
+select {
+  font: inherit;
+  letter-spacing: inherit;
+  color: inherit;
+  background-color: transparent;
+  border-radius: 0;
+}
+
+svg {
+  display: block;
+  vertical-align: middle;
+}
+
+/* Utilities the demo's knob uses. */
+.block {
+  display: block;
+}
+
+.h-full {
+  height: 100%;
+}
+
+.w-full {
+  width: 100%;
+}
+
+.overflow-visible {
+  overflow: visible;
+}
+
+/* The frame: bottle green, gold ink. The window's demo.css reads its faces from these two variables,
+   the same names the website sets. */
+:root {
+  --font-text: "Literata";
+  --font-display: "Rokkitt";
+}
+
+.promo {
+  background: #133621;
+  color: #f4d96c;
+  font-family: "Literata", Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+}

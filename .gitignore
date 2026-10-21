@@ -3,3 +3,16 @@ external/JUCE/
 .DS_Store
 .env
 .taste-skill/
+
+# Promo video (promo/): dependencies, renders and the soundtrack `npm run audio` writes
+promo/node_modules/
+promo/out/
+promo/public/soundtrack.wav
+promo/.agents/
+promo/.claude/
+promo/skills-lock.json
+
+# Brand kit: the rendered videos come from promo/; launch drafts stay private
+brand/video/*.mp4
+brand/product-hunt/
+SnapTune-reddit-posts.md
