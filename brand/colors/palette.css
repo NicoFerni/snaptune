@@ -1,0 +1,9 @@
+:root {
+  --snaptune-green: #133621; /* Bottle green: The ground: the site's background and the plugin's window. */
+  --snaptune-gold: #f4d96c; /* Gold: The accent: titles and text on green, cover cards, the selected note. */
+  --snaptune-ivory: #efe8cf; /* Ivory: Paper: the letter, the receipt, the back of the card; the plugin's text. */
+  --snaptune-surface: #1a4429; /* Surface: One tone above the ground, for a section's field. */
+  --snaptune-deep: #0e2a19; /* Deep: One tone below: the plugin's panels, the letter's table. */
+  --snaptune-muted: #b3a55e; /* Muted gold: Secondary text on green, only at reading sizes. */
+  --snaptune-sage: #9cc0a4; /* Sage: The sung pitch in the plugin's tuner and graph. */
+}

@@ -1,0 +1,47 @@
+{
+  "brand": {
+    "green": {
+      "name": "Bottle green",
+      "hex": "#133621",
+      "use": "The ground: the site's background and the plugin's window."
+    },
+    "gold": {
+      "name": "Gold",
+      "hex": "#f4d96c",
+      "use": "The accent: titles and text on green, cover cards, the selected note."
+    },
+    "ivory": {
+      "name": "Ivory",
+      "hex": "#efe8cf",
+      "use": "Paper: the letter, the receipt, the back of the card; the plugin's text."
+    },
+    "surface": {
+      "name": "Surface",
+      "hex": "#1a4429",
+      "use": "One tone above the ground, for a section's field."
+    },
+    "deep": {
+      "name": "Deep",
+      "hex": "#0e2a19",
+      "use": "One tone below: the plugin's panels, the letter's table."
+    },
+    "muted": {
+      "name": "Muted gold",
+      "hex": "#b3a55e",
+      "use": "Secondary text on green, only at reading sizes."
+    },
+    "sage": {
+      "name": "Sage",
+      "hex": "#9cc0a4",
+      "use": "The sung pitch in the plugin's tuner and graph."
+    }
+  },
+  "plugin": {
+    "raised": "#1b462b",
+    "line": "#234d34",
+    "lineBright": "#2f5f40",
+    "textDim": "#b4bea4",
+    "textFaint": "#8e9c87",
+    "laneBlack": "#0b2314"
+  }
+}

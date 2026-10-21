@@ -1,0 +1,17 @@
+{
+  "name": "snaptune-promo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "audio": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/render-audio.ts",
+    "studio": "remotion studio src/index.ts",
+    "render": "npm run audio && remotion render src/index.ts Promo out/snaptune-promo.mp4",
+    "loop": "remotion render src/index.ts Loop ../website/public/media/snaptune-loop.mp4 --crf 26 && remotion still src/index.ts Loop ../website/public/media/snaptune-loop.jpg --frame=48 --image-format jpeg --jpeg-quality 82"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.533",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.533"
+  }
+}
