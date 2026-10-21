@@ -168,12 +168,54 @@
 
 .cover-card {
   position: relative;
+  grid-row: 1;
   grid-column: 4 / 10;
   aspect-ratio: 5 / 7;
   padding: 56px;
   background: var(--color-ink);
   color: var(--color-accent-ink);
   text-align: center;
+}
+
+/* Marginalia either side of the card, set against it like notes in a book's outer margin. */
+.cover-margin {
+  grid-row: 1;
+  align-self: start;
+  display: grid;
+  row-gap: 40px;
+  padding-top: clamp(80px, 9vw, 140px);
+  color: var(--color-ink);
+}
+
+.cover-margin-left {
+  grid-column: 1 / 4;
+  justify-self: end;
+  padding-right: clamp(16px, 2vw, 40px);
+  text-align: right;
+}
+
+.cover-margin-right {
+  grid-column: 10 / 13;
+  justify-self: start;
+  padding-left: clamp(16px, 2vw, 40px);
+}
+
+.cover-margin dt {
+  font-size: var(--step-small);
+  color: var(--color-muted);
+}
+
+.cover-margin dd {
+  margin-top: 6px;
+  font-size: var(--step-body);
+  line-height: 1.3;
+}
+
+.cover-margin .margin-figure {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(1.75rem, 1rem + 1.6vw, 2.75rem);
+  line-height: 1;
 }
 
 /* Scalloped inner corners: discs of the field's colour over each corner. */
@@ -239,6 +281,13 @@
   align-items: center;
   margin-top: 24px;
   font-size: var(--step-small);
+}
+
+/* The margins carry these facts on a wide screen; the line comes back when they are hidden. */
+@media (min-width: 901px) {
+  .cover-details {
+    display: none;
+  }
 }
 
 .cover-details li + li::before {
@@ -516,19 +565,24 @@
   line-height: 1.55;
 }
 
+/* The whole shot at its own proportions, as large as the sheet allows: never cropped. */
 .sheet-picture {
   grid-column: 7 / 13;
   grid-row: 2;
-  overflow: hidden;
-  background: #0e2a19;
+  display: flex;
+  justify-content: flex-end;
+  align-items: flex-start;
+  min-height: 0;
+  padding-bottom: 56px;
 }
 
 .sheet-picture img {
   display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  object-position: var(--focus, center top);
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
 }
 
 /* What it costs: the total, and the slip that adds up to it. */
@@ -1061,6 +1115,10 @@
     padding-top: 40px;
   }
 
+  .cover-margin {
+    display: none;
+  }
+
   .cover-card {
     grid-column: 1 / -1;
     aspect-ratio: auto;
@@ -1108,8 +1166,12 @@
   .sheet-picture {
     grid-column: 1 / -1;
     grid-row: 2;
-    aspect-ratio: 4 / 3;
-    margin-inline: calc(-1 * var(--margin));
+    justify-content: center;
+    padding-bottom: 0;
+  }
+
+  .sheet-picture img {
+    max-height: 60svh;
   }
 
   .sheet-text {
