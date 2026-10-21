@@ -57,14 +57,28 @@ export async function redis(...commands: (string | number)[][]): Promise<unknown
   });
 }
 
-export async function readTelemetry(): Promise<{ installs: Install[]; events: TelemetryEvent[] }> {
+/** An install as read back, with the anonymous id it's stored under. */
+export type StoredInstall = Install & { id: string };
+
+export async function readTelemetry(): Promise<{ installs: StoredInstall[]; events: TelemetryEvent[] }> {
   const [hash, list] = await redis(["HGETALL", "installs"], ["LRANGE", "events", 0, MAX_EVENTS - 1]);
 
   // HGETALL comes back as a flat [field, value, field, value, …] array.
   const fields = (hash as string[]) ?? [];
-  const installs: Install[] = [];
-  for (let i = 1; i < fields.length; i += 2) installs.push(JSON.parse(fields[i]));
+  const installs: StoredInstall[] = [];
+  for (let i = 1; i < fields.length; i += 2) installs.push({ ...JSON.parse(fields[i]), id: fields[i - 1] });
 
   const events = ((list as string[]) ?? []).map((e) => JSON.parse(e) as TelemetryEvent);
   return { installs, events };
+}
+
+// GitHub only reports each release file's total downloads, so the admin panel keeps one total per
+// day (hash `downloads`: YYYY-MM-DD -> total) each time it's opened, to draw downloads over time.
+export async function snapshotDownloads(total: number): Promise<[string, number][]> {
+  const today = new Date().toISOString().slice(0, 10);
+  const [, all] = await redis(["HSET", "downloads", today, String(total)], ["HGETALL", "downloads"]);
+  const fields = (all as string[]) ?? [];
+  const days: [string, number][] = [];
+  for (let i = 0; i < fields.length; i += 2) days.push([fields[i], Number(fields[i + 1])]);
+  return days.sort((a, b) => a[0].localeCompare(b[0]));
 }
