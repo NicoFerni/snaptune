@@ -21,7 +21,7 @@ import "./landing.css";
 
 type Shot = keyof typeof shots;
 
-const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNode; shot: Shot; alt: string; focus?: string }[] = [
+const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNode; shot: Shot; alt: string }[] = [
   {
     name: "Robot to natural",
     field: "gold",
@@ -49,7 +49,6 @@ const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNod
     text: "The dashed line is what you sang and the solid one is what comes out, on lanes for the notes in your key. The tuner says which note, and how many cents off.",
     shot: "graph",
     alt: "The pitch graph: the sung pitch dashed, the output pitch solid on the note lanes",
-    focus: "left center",
   },
   {
     name: "Two speeds",
@@ -248,6 +247,35 @@ export default async function Home() {
         </header>
 
         <section className="cover" aria-labelledby="title">
+          {/* Marginalia: the spec plate split across the empty columns either side of the card. */}
+          <dl className="cover-margin cover-margin-left" data-rise style={{ ["--i" as string]: 4 }}>
+            <div>
+              <dt>Edition</dt>
+              <dd className="margin-figure">No.&nbsp;{shortVersion}</dd>
+            </div>
+            <div>
+              <dt>Price</dt>
+              <dd className="margin-figure">0¢</dd>
+            </div>
+            <div>
+              <dt>Licence</dt>
+              <dd>AGPL, source on GitHub</dd>
+            </div>
+          </dl>
+          <dl className="cover-margin cover-margin-right" data-rise style={{ ["--i" as string]: 5 }}>
+            <div>
+              <dt>Account needed</dt>
+              <dd className="margin-figure">None</dd>
+            </div>
+            <div>
+              <dt>Formats</dt>
+              <dd>VST3, AU and LV2</dd>
+            </div>
+            <div>
+              <dt>Systems</dt>
+              <dd>Mac, Windows and Linux</dd>
+            </div>
+          </dl>
           <div className="cover-card">
             {["tl", "tr", "bl", "br"].map((c) => (
               <span key={c} className={`corner corner-${c}`} aria-hidden="true" />
@@ -299,7 +327,7 @@ export default async function Home() {
           </h2>
           <div className="sheets">
             {sheets.map((s, i) => (
-              <article key={s.name} className={`sheet field-${s.field}`} style={{ ["--i" as string]: i, ["--focus" as string]: s.focus }}>
+              <article key={s.name} className={`sheet field-${s.field}`} style={{ ["--i" as string]: i }}>
                 <h3 className="sheet-name">{s.name}</h3>
                 <p className="sheet-text" data-reveal>
                   {s.text}
