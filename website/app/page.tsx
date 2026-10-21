@@ -147,10 +147,11 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
     a: (
       <>
         I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I
-        haven’t tried each one. If yours gives you trouble, <a href={links.issues}>open an issue</a> and say which DAW and version.
+        haven’t tried each one. If yours gives you trouble, <a href={links.issues}>open an issue</a> or write to{" "}
+        <a href={links.support}>support@getsnaptune.com</a>, and say which DAW and version.
       </>
     ),
-    text: "I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I haven’t tried each one.",
+    text: "I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I haven’t tried each one. If yours gives you trouble, write to support@getsnaptune.com and say which DAW and version.",
   },
   {
     q: "Studio or Live?",
@@ -377,7 +378,8 @@ export default async function Home() {
             <p>SnapTune is free and open source, and one person makes it: me.</p>
             <p>
               I test it in FL Studio. Every build also passes Apple’s Audio Unit validation, and other DAWs that load VST3 or AU should work, but I
-              haven’t tried them all. If yours gives you trouble, <a href={links.issues}>open an issue</a> and tell me the DAW and its version.
+              haven’t tried them all. If yours gives you trouble, <a href={links.issues}>open an issue</a> or email{" "}
+              <a href={links.support}>support@getsnaptune.com</a>, and tell me the DAW and its version.
             </p>
             <p>
               On a Mac the installer opens with a warning the first time, because SnapTune isn’t notarized yet. That takes Apple’s developer
@@ -464,6 +466,7 @@ export default async function Home() {
             ))}
             <a href={links.repo}>Source on GitHub</a>
             <a href={links.issues}>Report a bug</a>
+            <a href={links.support}>support@getsnaptune.com</a>
             <a href={kofi.url}>Ko-fi</a>
             <a href={links.license}>AGPL-3.0 licence</a>
           </div>

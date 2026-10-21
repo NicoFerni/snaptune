@@ -22,5 +22,6 @@ place and needs no Terminal. To install by hand from this zip instead:
 3. Quit your DAW completely, open it again and rescan plugins
    (FL Studio: Options > Manage plugins > Find installed plugins).
 
+Help: support@getsnaptune.com
 Docs and source: https://github.com/NicoFerni/snaptune
 License: GNU AGPL v3 (see LICENSE). Built with JUCE.
