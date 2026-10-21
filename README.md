@@ -145,6 +145,11 @@ To turn it off, create an empty file named `no-telemetry` in the SnapTune folder
 `~/.config/SnapTune` on Linux), or set the environment variable `SNAPTUNE_NO_TELEMETRY=1`. On Linux
 the ping goes out only if libcurl is installed; SnapTune doesn't need it otherwise.
 
+When the window opens, SnapTune also asks `getsnaptune.com/api/version` for the latest release, at
+most once a day, and shows "SnapTune x.y is out" in the header when there's a newer one; clicking it
+opens the download page. Nothing is sent with that request, and the same opt-out turns it off
+(`Source/UpdateCheck.cpp`).
+
 ## How it works
 
 1. **Pitch detection: YIN** (de Cheveigné & Kawahara, 2002). Every 2.7 ms the plugin computes the

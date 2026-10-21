@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../PluginProcessor.h"
+#include "../UpdateCheck.h"
 #include "ModeSwitch.h"
 #include "NotePills.h"
 #include "PitchGraph.h"
@@ -38,6 +39,14 @@ private:
         void focusLost (FocusChangeType) override { repaint(); }
     };
 
+    /** "SnapTune 2.1 is out": a gold pill in the header, shown once a newer version is released.
+        Clicking it opens the website's download section. */
+    struct UpdateButton final : public juce::Button
+    {
+        UpdateButton() : juce::Button ("Update") {}
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+    };
+
     struct Knob
     {
         FocusSlider slider;
@@ -46,6 +55,7 @@ private:
     };
 
     void timerCallback() override;
+    void showUpdateIfAny();
     void consumeFrames (const PitchFrame* frames, int count);
     void refreshState();
     void toggleNote (int pitchClass);
@@ -72,6 +82,10 @@ private:
     FocusSlider retuneKnob;
     std::unique_ptr<SliderAttachment> retuneAttachment;
     std::vector<std::unique_ptr<Knob>> knobs;
+
+    juce::SharedResourcePointer<UpdateCheck> updates;
+    UpdateButton updateButton;
+    int updateCheckCountdown = 0;
 
     TunerGauge gauge;
     PitchGraph graph;

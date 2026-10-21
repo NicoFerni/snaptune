@@ -41,6 +41,7 @@ set(SNAPTUNE_SOURCES
     Source/dsp/AutoTuneEngine.cpp
     Source/PluginProcessor.cpp
     Source/Telemetry.cpp
+    Source/UpdateCheck.cpp
     Source/PluginEditor.cpp
     Source/ui/SnapLookAndFeel.cpp
     Source/ui/PitchGraph.cpp

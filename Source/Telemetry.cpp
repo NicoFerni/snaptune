@@ -23,6 +23,23 @@
 namespace snaptune
 {
 
+juce::File snapTuneDataDir()
+{
+    const auto base = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
+
+   #if JUCE_MAC
+    return base.getChildFile ("Application Support/SnapTune");
+   #else
+    return base.getChildFile ("SnapTune");
+   #endif
+}
+
+bool networkDisabled()
+{
+    return juce::SystemStats::getEnvironmentVariable ("SNAPTUNE_NO_TELEMETRY", {}).isNotEmpty()
+        || snapTuneDataDir().getChildFile ("no-telemetry").exists();
+}
+
 Telemetry::Telemetry() : juce::Thread ("SnapTune telemetry") {}
 
 Telemetry::~Telemetry()
@@ -66,17 +83,6 @@ bool isProcessAlive (int pid)
    #endif
 }
 
-juce::File snapTuneDataDir()
-{
-    const auto base = juce::File::getSpecialLocation (juce::File::userApplicationDataDirectory);
-
-   #if JUCE_MAC
-    return base.getChildFile ("Application Support/SnapTune");
-   #else
-    return base.getChildFile ("SnapTune");
-   #endif
-}
-
 juce::String installId (const juce::File& dir)
 {
     const auto file = dir.getChildFile ("install-id");
@@ -109,7 +115,7 @@ void Telemetry::pluginCreated (juce::AudioProcessor::WrapperType wrapperType)
     if (started.exchange (true))
         return;
 
-    if (juce::SystemStats::getEnvironmentVariable ("SNAPTUNE_NO_TELEMETRY", {}).isNotEmpty())
+    if (networkDisabled())
         return;
 
     // JUCE's build tools load the plugin to write its LV2 and VST3 descriptions: not a session.
@@ -120,7 +126,7 @@ void Telemetry::pluginCreated (juce::AudioProcessor::WrapperType wrapperType)
 
     dataDir = snapTuneDataDir();
 
-    if (dataDir.createDirectory().failed() || dataDir.getChildFile ("no-telemetry").exists())
+    if (dataDir.createDirectory().failed())
         return;
 
     auto session = std::make_unique<juce::DynamicObject>();
