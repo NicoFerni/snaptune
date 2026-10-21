@@ -3,21 +3,21 @@ import { join } from "node:path";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
+import { Downloads } from "@/components/Downloads";
 import { HowRow, type Moment } from "@/components/HowRow";
 import { Cent, LogoMark } from "@/components/Logo";
 import { Motion } from "@/components/Motion";
 import { SnapTuneDemo } from "@/components/demo/SnapTuneDemo";
 import { guides } from "@/lib/guides";
+import { latestRelease } from "@/lib/release";
 import { JsonLd, faqPage, softwareApplication } from "@/lib/seo";
 import shots from "@/lib/shots.json";
-import { hasPublicFile, kofi, links, version } from "@/lib/site";
+import { hasPublicFile, kofi, links } from "@/lib/site";
 import "./landing.css";
 
 // The page is set like the manual that ships with a precision instrument: a gold cover, a playable
 // plate, a sheet per feature, a receipt, the method with its 19th-century ancestors, a letter from the
 // maker, notes at the back and a reply card.
-
-const shortVersion = version.replace(/\.0$/, "");
 
 type Shot = keyof typeof shots;
 
@@ -217,13 +217,16 @@ function SheetPicture({ shot, alt }: { shot: Shot; alt: string }) {
   return <Image src={src} width={width} height={height} alt={alt} sizes="(min-width: 900px) 50vw, 100vw" />;
 }
 
-export default function Home() {
+export default async function Home() {
+  const release = await latestRelease();
+  const { version } = release;
+  const shortVersion = version.replace(/\.0$/, "");
   const hasLoop = hasPublicFile("/media/snaptune-loop.mp4");
   const credits = pictureCredits();
 
   return (
     <>
-      <JsonLd data={softwareApplication} />
+      <JsonLd data={softwareApplication(release)} />
       <JsonLd data={faqPage(faqs.map((f) => ({ q: f.q, a: f.text ?? String(f.a) })))} />
       <Motion />
       <main id="top" className="manual">
@@ -434,21 +437,10 @@ export default function Home() {
               Install it
             </h2>
             <p>
-              Version {version}. On a Mac: the VST3, the Audio Unit and a standalone app. On Windows: the VST3 and the app. On Linux: the VST3, the
-              LV2 and the app, with an install script. Then restart your DAW and rescan.
+              Version {version}. On a Mac: the VST3, the Audio Unit and a standalone app. On Windows: the VST3 and the app.
+              {release.linux && " On Linux: the VST3, the LV2 and the app, with an install script."} Then restart your DAW and rescan.
             </p>
-            <a href={links.mac} className="bar">
-              Download for Mac
-            </a>
-            <a href={links.windows} className="bar">
-              Download for Windows
-            </a>
-            <a href={links.linux} className="bar">
-              Download for Linux
-            </a>
-            <a href={links.releases} className="reply-link">
-              Or every file, to install by hand
-            </a>
+            <Downloads release={release} />
           </div>
         </section>
 

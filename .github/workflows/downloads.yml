@@ -1,0 +1,30 @@
+name: Downloads
+
+# Checks that every download button on getsnaptune.com downloads an installer (website/scripts/
+# check-downloads.mjs). Runs every three hours, after each release (once the site has picked it up)
+# and by hand. A failed run emails the repository's owner.
+
+on:
+  schedule:
+    - cron: "17 */3 * * *"
+  workflow_run:
+    workflows: [Build]
+    types: [completed]
+  workflow_dispatch:
+
+jobs:
+  check:
+    # After Build, only for a release tag: other runs don't change the downloads.
+    if: github.event_name != 'workflow_run' || startsWith(github.event.workflow_run.head_branch, 'v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Let the site pick up the new release
+        if: github.event_name == 'workflow_run'
+        run: sleep 660 # the pages re-read the release every 10 minutes (website/lib/release.ts)
+
+      - name: Check every download
+        run: node website/scripts/check-downloads.mjs https://getsnaptune.com

@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { Downloads } from "@/components/Downloads";
 import { LogoMark } from "@/components/Logo";
 import { guides, type Guide } from "@/lib/guides";
+import { latestRelease } from "@/lib/release";
 import { JsonLd, faqPage, softwareApplication } from "@/lib/seo";
-import { links, version } from "@/lib/site";
+import { links } from "@/lib/site";
 import "@/app/landing.css";
 import "@/app/guide.css";
 
@@ -23,12 +25,13 @@ export function guideMetadata(guide: Guide): Metadata {
   };
 }
 
-export function GuidePage({ guide }: { guide: Guide }) {
+export async function GuidePage({ guide }: { guide: Guide }) {
+  const release = await latestRelease();
   const others = guides.filter((g) => g.slug !== guide.slug);
 
   return (
     <>
-      <JsonLd data={softwareApplication} />
+      <JsonLd data={softwareApplication(release)} />
       <JsonLd data={faqPage(guide.faqs)} />
       <main className="manual guide">
         <header className="nav">
@@ -84,19 +87,8 @@ export function GuidePage({ guide }: { guide: Guide }) {
             <h2 id="download-title" className="heading">
               Get SnapTune
             </h2>
-            <p>Version {version}, free. Restart your DAW and rescan after installing.</p>
-            <a href={links.mac} className="bar">
-              Download for Mac
-            </a>
-            <a href={links.windows} className="bar">
-              Download for Windows
-            </a>
-            <a href={links.linux} className="bar">
-              Download for Linux
-            </a>
-            <a href={links.releases} className="reply-link">
-              Or every file, to install by hand
-            </a>
+            <p>Version {release.version}, free. Restart your DAW and rescan after installing.</p>
+            <Downloads release={release} />
           </div>
         </section>
 
