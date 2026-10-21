@@ -467,6 +467,7 @@ export default async function Home() {
             <a href={links.repo}>Source on GitHub</a>
             <a href={links.issues}>Report a bug</a>
             <a href={links.support}>support@getsnaptune.com</a>
+            <a href={links.x}>@getsnaptune on X</a>
             <a href={kofi.url}>Ko-fi</a>
             <a href={links.license}>AGPL-3.0 licence</a>
           </div>

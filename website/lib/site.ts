@@ -23,6 +23,7 @@ export const links = {
   readme: `${repo}#readme`,
   issues: `${repo}/issues`,
   support: "mailto:support@getsnaptune.com",
+  x: "https://x.com/getsnaptune",
   license: `${repo}/blob/main/LICENSE`,
 };
 
