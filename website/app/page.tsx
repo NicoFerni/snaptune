@@ -1,11 +1,14 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { HowRow, type Moment } from "@/components/HowRow";
 import { Cent, LogoMark } from "@/components/Logo";
 import { Motion } from "@/components/Motion";
 import { SnapTuneDemo } from "@/components/demo/SnapTuneDemo";
+import { guides } from "@/lib/guides";
+import { JsonLd, faqPage, softwareApplication } from "@/lib/seo";
 import shots from "@/lib/shots.json";
 import { hasPublicFile, kofi, links, version } from "@/lib/site";
 import "./landing.css";
@@ -102,7 +105,8 @@ const moments: Moment[] = [
   },
 ];
 
-const faqs: { q: string; a: ReactNode }[] = [
+// `text` is the answer as plain text, for search engines, where `a` has links in it.
+const faqs: { q: string; a: ReactNode; text?: string }[] = [
   {
     q: "Is it actually free?",
     a: (
@@ -110,6 +114,17 @@ const faqs: { q: string; a: ReactNode }[] = [
         Yes. It’s open source under the <a href={links.license}>AGPL-3.0 licence</a>: no trial, no watermark, no account.
       </>
     ),
+    text: "Yes. It’s a free autotune plugin, open source under the AGPL-3.0 licence: no trial, no watermark, no account.",
+  },
+  {
+    q: "Is it a free autotune for FL Studio?",
+    a: (
+      <>
+        Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins, so it also works as a free alternative if yours
+        doesn’t include Pitcher. <Link href="/autotune-fl-studio">The FL Studio guide</Link> shows the setup.
+      </>
+    ),
+    text: "Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins, so it also works as a free alternative if yours doesn’t include Pitcher.",
   },
   {
     q: "It isn’t doing anything to my vocal.",
@@ -135,6 +150,7 @@ const faqs: { q: string; a: ReactNode }[] = [
         haven’t tried each one. If yours gives you trouble, <a href={links.issues}>open an issue</a> and say which DAW and version.
       </>
     ),
+    text: "I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I haven’t tried each one.",
   },
   {
     q: "Studio or Live?",
@@ -161,6 +177,7 @@ const faqs: { q: string; a: ReactNode }[] = [
         how to turn it off.
       </>
     ),
+    text: "Once per DAW session, an anonymous ping: the plugin’s version, the system, the DAW’s name, the format and a random install id, and whether the last session ended in a crash. Nothing about your audio or your projects.",
   },
   {
     q: "Is this Auto-Tune?",
@@ -206,6 +223,8 @@ export default function Home() {
 
   return (
     <>
+      <JsonLd data={softwareApplication} />
+      <JsonLd data={faqPage(faqs.map((f) => ({ q: f.q, a: f.text ?? String(f.a) })))} />
       <Motion />
       <main id="top" className="manual">
         {/* The cover: the nav sits on the field above it, the card runs past the fold. */}
@@ -234,11 +253,11 @@ export default function Home() {
               <span>Tune</span>
             </h1>
             <p className="cover-line" data-rise style={{ ["--i" as string]: 1 }}>
-              A free plugin that snaps your vocal onto the key, from robot to natural, with 2.7&nbsp;ms of delay while you record.</p>
+              A free autotune plugin that snaps your vocal onto the key, from robot to natural, with 2.7&nbsp;ms of delay while you record.</p>
             <ul className="cover-details" aria-label="At a glance" data-rise style={{ ["--i" as string]: 2 }}>
               <li>Version {shortVersion}</li>
               <li>Mac, Windows and Linux</li>
-              <li>VST3 and Audio Unit</li>
+              <li>VST3, AU and LV2</li>
               <li>Open source</li>
             </ul>
             <figure className="cover-plate" data-rise style={{ ["--i" as string]: 3 }}>
@@ -446,6 +465,11 @@ export default function Home() {
             <figure className="stamp">
               <Image src="/archive/phonautographe.jpg" width={1920} height={1074} alt="Engraving of the phonautograph" sizes="96px" />
             </figure>
+            {guides.map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`}>
+                {g.heading}
+              </Link>
+            ))}
             <a href={links.repo}>Source on GitHub</a>
             <a href={links.issues}>Report a bug</a>
             <a href={kofi.url}>Ko-fi</a>

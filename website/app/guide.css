@@ -1,0 +1,102 @@
+/* The guides: a single page of the manual, set as reading text on the green ground, closed by the
+   reply card on its gold field. Uses landing.css for the nav, headings, buttons and the card. */
+
+.guide-body {
+  max-width: 46rem;
+  margin: clamp(64px, 10vh, 120px) auto 0;
+  padding-inline: var(--margin);
+  font-size: var(--step-body);
+}
+
+.guide-title {
+  font-size: var(--step-head);
+}
+
+.guide-lead {
+  margin-top: 28px;
+  font-size: var(--step-lead);
+  line-height: 1.45;
+}
+
+.guide-plate {
+  margin: 56px 0 0;
+}
+
+.guide-plate img {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.guide-section {
+  margin-top: 64px;
+}
+
+.guide-section p + p {
+  margin-top: 16px;
+}
+
+.guide-section b {
+  font-weight: 600;
+}
+
+.guide-heading {
+  margin-bottom: 16px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: var(--step-lead);
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+}
+
+.guide-steps {
+  padding-left: 1.4em;
+  list-style: decimal;
+}
+
+.guide-steps li + li {
+  margin-top: 10px;
+}
+
+.guide-steps li::marker {
+  font-family: var(--font-display);
+  font-weight: 800;
+}
+
+.guide-download {
+  display: grid;
+  margin-top: var(--section-gap);
+  padding: 96px var(--margin);
+}
+
+.guide-download .reply-card {
+  width: min(36rem, 100%);
+  margin: 0 auto;
+  padding-bottom: 48px;
+}
+
+.guide-foot {
+  padding: 48px var(--margin) 64px;
+  font-size: var(--step-small);
+  color: var(--color-muted);
+}
+
+.guide-foot nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 28px;
+  margin-bottom: 20px;
+  font-size: var(--step-body);
+  color: var(--color-ink);
+}
+
+@media (max-width: 720px) {
+  .guide .nav-links {
+    display: none;
+  }
+
+  .guide-download .reply-card {
+    rotate: 0deg;
+    padding-inline: 24px;
+  }
+}

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Literata, Rokkitt } from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
+import { keywords, siteUrl } from "@/lib/seo";
 import "./globals.css";
 
 // The brand's two faces: Rokkitt capitals for display, Literata for reading (SIL OFL, also compiled
@@ -9,18 +10,22 @@ import "./globals.css";
 const rokkitt = Rokkitt({ subsets: ["latin"], weight: "800", variable: "--font-rokkitt" });
 const literata = Literata({ subsets: ["latin"], style: ["normal", "italic"], axes: ["opsz"], variable: "--font-literata" });
 
+// Written for search as much as for people: "free autotune" is what most people type when they
+// want this. The trademark notice is in the footer of every page.
+const title = "SnapTune: Free Autotune Plugin for FL Studio, Mac, Windows and Linux";
 const description =
-  "Free, open-source pitch correction plugin (VST3, Audio Unit and LV2) for Mac, Windows and Linux. Hard-tune your vocals, and hear it while you record with 2.7 ms of delay. Tested in FL Studio.";
-
-// Absolute base for the link-preview image and URL. Set SITE_URL to host the site somewhere else.
-const siteUrl = process.env.SITE_URL ?? "https://getsnaptune.com";
+  "Free, open-source autotune (pitch correction) plugin for vocals. Hard tune to natural, 2.7 ms live mode. VST3, AU and LV2. A free Pitcher alternative for FL Studio.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "SnapTune: free pitch correction plugin for Mac, Windows and Linux",
+  title,
   description,
+  keywords,
+  applicationName: "SnapTune",
+  authors: [{ name: "Nico Fernandez" }],
+  alternates: { canonical: "/" },
   openGraph: {
-    title: "SnapTune: free pitch correction plugin for Mac, Windows and Linux",
+    title,
     description,
     url: "/",
     siteName: "SnapTune",
@@ -28,7 +33,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SnapTune: free pitch correction plugin for Mac, Windows and Linux",
+    title,
     description,
   },
 };
