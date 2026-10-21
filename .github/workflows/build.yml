@@ -177,7 +177,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends ninja-build xvfb \
+          sudo apt-get install -y --no-install-recommends ninja-build xvfb openbox \
             libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev \
             libfreetype-dev libfontconfig1-dev \
             libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev
@@ -209,12 +209,17 @@ jobs:
         run: xvfb-run -a ./build/SnapTuneTests_artefacts/Release/SnapTuneTests
 
       - name: Load the built VST3 and LV2 in a host
+        # In a virtual display with a window manager, as on a desktop: the editor's window uses X11
+        # atoms that only exist once a window manager has registered them.
         run: |
-          xvfb-run -a ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3"
           # The build also copied the LV2 to ~/.lv2; LV2 hosts read that folder first and would ignore
           # the bundle under test as a duplicate.
           rm -rf "$HOME/.lv2/SnapTune.lv2"
-          xvfb-run -a ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host "$PWD/build/SnapTune_artefacts/Release/LV2/SnapTune.lv2"
+          xvfb-run -a sh -c '
+            openbox & sleep 2
+            tests=./build/SnapTuneTests_artefacts/Release/SnapTuneTests
+            "$tests" --host "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3" &&
+            "$tests" --host "$PWD/build/SnapTune_artefacts/Release/LV2/SnapTune.lv2"'
 
       - name: Package
         run: |
