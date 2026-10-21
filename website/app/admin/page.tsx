@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { readTelemetry, storageConfigured, type Install, type TelemetryEvent } from "@/lib/telemetry";
+import { readTelemetry, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub.
 // proxy.ts keeps it behind ADMIN_PASSWORD.
@@ -17,6 +17,7 @@ const DAY = 24 * 60 * 60 * 1000;
 type Release = { tag_name: string; published_at: string; assets: { name: string; download_count: number }[] };
 type Issue = { number: number; title: string; html_url: string; state: string; created_at: string; labels: { name: string }[]; pull_request?: unknown };
 type Repo = { stargazers_count: number; forks_count: number };
+type Runs = { workflow_runs: { name: string; conclusion: string | null; status: string; created_at: string; html_url: string }[] };
 
 async function github<T>(path: string): Promise<T | null> {
   const headers: HeadersInit = { Accept: "application/vnd.github+json" };
@@ -60,19 +61,34 @@ function percent(part: number, whole: number): string {
   return whole ? `${((part / whole) * 100).toFixed(1)} %` : "–";
 }
 
+/** Argentina time (UTC-3, no daylight saving), for the hour-of-day chart. */
+const LOCAL_OFFSET = -3;
+
 async function load() {
-  const [telemetry, releases, issues, repoInfo] = await Promise.all([
+  const [telemetry, releases, issues, repoInfo, checks, builds] = await Promise.all([
     storageConfigured ? readTelemetry().catch((e: Error) => e) : null,
     github<Release[]>("/releases?per_page=100"),
     github<Issue[]>("/issues?state=all&per_page=100"),
     github<Repo>(""),
+    github<Runs>("/actions/workflows/downloads.yml/runs?per_page=20"),
+    github<Runs>("/actions/workflows/build.yml/runs?branch=main&per_page=5"),
   ]);
-  return { telemetry, releases, issues, repoInfo, now: Date.now() };
+
+  const downloads = (releases ?? []).reduce((sum, r) => sum + r.assets.reduce((s, a) => s + a.download_count, 0), 0);
+  const history = storageConfigured && releases ? await snapshotDownloads(downloads).catch(() => null) : null;
+
+  return { telemetry, releases, issues, repoInfo, checks, builds, history, now: Date.now() };
+}
+
+/** The latest run that finished with a verdict: skipped runs say nothing, and cancelled ones were
+    only replaced by a newer push (the workflow cancels in-progress runs on the same branch). */
+function lastRun(runs: Runs | null) {
+  return runs?.workflow_runs.find((r) => r.status === "completed" && r.conclusion !== "skipped" && r.conclusion !== "cancelled") ?? null;
 }
 
 export default async function Admin() {
-  const { telemetry, releases, issues, repoInfo, now } = await load();
-  const installs: Install[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
+  const { telemetry, releases, issues, repoInfo, checks, builds, history, now } = await load();
+  const installs: StoredInstall[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
   const events: TelemetryEvent[] = telemetry && !(telemetry instanceof Error) ? telemetry.events : [];
 
   const active7 = installs.filter((i) => now - i.last < 7 * DAY);
@@ -94,6 +110,36 @@ export default async function Admin() {
   const reports = (issues ?? []).filter((i) => !i.pull_request);
   const openReports = reports.filter((i) => i.state === "open");
 
+  // Health.
+  const latest = releases?.[0];
+  const latestVersion = latest?.tag_name.replace(/^v/, "");
+  const onLatest = active30.filter((i) => i.version === latestVersion).length;
+  const downloadCheck = lastRun(checks);
+  const build = lastRun(builds);
+
+  // Growth: installs by the day they were first seen, and how many came back on another day.
+  const newPerDay = days.map((d) => ({ day: d, value: installs.filter((i) => day(i.first) === d).length }));
+  const daysUsed = new Map<string, Set<string>>();
+  for (const e of events) if (e.type === "launch") (daysUsed.get(e.install) ?? daysUsed.set(e.install, new Set()).get(e.install)!).add(day(e.t));
+  const returning = installs.filter((i) => (daysUsed.get(i.id)?.size ?? 0) > 1 || i.last - i.first > DAY).length;
+  const sessionsTotal = installs.reduce((sum, i) => sum + i.launches, 0);
+
+  // Downloads per day, from the daily totals the panel keeps.
+  const downloadsPerDay = (history ?? []).slice(1).map(([d, total], i) => ({ day: d, value: Math.max(0, total - history![i][1]) })).slice(-30);
+
+  // Stability by version: sessions and unclean exits, all recorded time.
+  const stability = countBy(events, (e) => e.version).map(([version]) => {
+    const sessions = events.filter((e) => e.version === version && e.type === "launch").length;
+    const crashes = events.filter((e) => e.version === version && e.type === "unclean_exit").length;
+    return [version, sessions, crashes, percent(crashes, sessions)] as React.ReactNode[];
+  });
+
+  // When people use it, by hour in Argentina.
+  const perHour = Array.from({ length: 24 }, (_, h) => ({
+    day: `${String(h).padStart(2, "0")}:00`,
+    value: launches30.filter((e) => (new Date(e.t).getUTCHours() + 24 + LOCAL_OFFSET) % 24 === h).length,
+  }));
+
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
@@ -114,6 +160,25 @@ export default async function Admin() {
       {telemetry instanceof Error && <Notice>Couldn&apos;t read telemetry: {telemetry.message}</Notice>}
       {(!releases || !issues) && <Notice>GitHub didn&apos;t answer (rate limit?). Set GITHUB_TOKEN to raise it.</Notice>}
 
+      <section className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <Stat label="Latest release" value={latest?.tag_name ?? "–"} note={latest ? `published ${ago(Date.parse(latest.published_at))}` : "no releases"} />
+        <Stat
+          label="Site downloads check"
+          value={downloadCheck ? (downloadCheck.conclusion === "success" ? "OK" : "Failing") : "–"}
+          note={downloadCheck ? `ran ${ago(Date.parse(downloadCheck.created_at))}` : "no run yet"}
+          alert={downloadCheck?.conclusion === "failure"}
+          href={downloadCheck?.html_url}
+        />
+        <Stat
+          label="Build on main"
+          value={build ? (build.conclusion === "success" ? "Passing" : "Failing") : "–"}
+          note={build ? `ran ${ago(Date.parse(build.created_at))}` : "no run yet"}
+          alert={build?.conclusion === "failure"}
+          href={build?.html_url}
+        />
+        <Stat label={`On ${latestVersion ?? "latest"}`} value={percent(onLatest, active30.length)} note={`${onLatest} of ${active30.length} active installs`} />
+      </section>
+
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Stat label="Installs" value={installs.length} note="unique, all time" />
         <Stat label="Active, 7 days" value={active7.length} note={`${active30.length} in 30 days`} />
@@ -128,7 +193,20 @@ export default async function Admin() {
         <Stat label="Open reports" value={openReports.length} note={`${reports.length} total`} alert={openReports.length > 0} />
         <Stat label="Stars" value={repoInfo?.stargazers_count ?? "–"} note={`${repoInfo?.forks_count ?? "–"} forks`} />
         <Stat label="Last ping" value={events[0] ? ago(events[0].t) : "–"} note={events[0] ? `${events[0].host}, ${events[0].os}` : "no data yet"} />
+        <Stat label="Download → install" value={percent(installs.length, downloads)} note="installs that pinged, per download" />
+        <Stat label="Returning" value={percent(returning, installs.length)} note={`${returning} used it on more than one day`} />
+        <Stat label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note="all time" />
+        <Stat label="Downloads, last day" value={downloadsPerDay.at(-1)?.value ?? "–"} note={history ? `tracked since ${history[0]?.[0] ?? "today"}` : "needs telemetry storage"} />
       </section>
+
+      <div className="grid gap-x-6 md:grid-cols-2">
+        <Panel title="New installs per day" note={`last 30 days, UTC; ${installs.length} in total`}>
+          <ValueBars data={newPerDay} />
+        </Panel>
+        <Panel title="Downloads per day" note="from a daily snapshot of GitHub's totals, taken when this panel opens">
+          {downloadsPerDay.length ? <ValueBars data={downloadsPerDay} /> : <p className="text-sm text-faint">Starts filling in tomorrow.</p>}
+        </Panel>
+      </div>
 
       <Panel title="Sessions per day" note="last 30 days, UTC. Coral: sessions that ended without a clean shutdown.">
         <DailyBars data={perDay} />
@@ -152,6 +230,15 @@ export default async function Admin() {
         </Panel>
         <Panel title="Downloads by OS" note="GitHub release assets, all versions">
           <Bars rows={countBy(assets, (a) => assetOs(a.name), (a) => a.download_count)} />
+        </Panel>
+      </div>
+
+      <div className="grid gap-x-6 md:grid-cols-2">
+        <Panel title="Stability by version" note="sessions and unclean exits, all recorded time">
+          <Table head={["Version", "Sessions", "Unclean exits", "Rate"]} rows={stability} empty="No data yet." />
+        </Panel>
+        <Panel title="Sessions by hour" note="last 30 days, Argentina time (UTC-3)">
+          <ValueBars data={perHour} />
         </Panel>
       </div>
 
@@ -220,12 +307,40 @@ function Notice({ children }: { children: React.ReactNode }) {
   return <p className="mb-4 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-sm">{children}</p>;
 }
 
-function Stat({ label, value, note, alert }: { label: string; value: number | string; note: string; alert?: boolean }) {
-  return (
-    <div className="rounded-xl border border-line bg-panel p-4">
+function Stat({ label, value, note, alert, href }: { label: string; value: number | string; note: string; alert?: boolean; href?: string }) {
+  const body = (
+    <>
       <p className="caption">{label}</p>
       <p className={`mt-1 text-3xl font-semibold tabular-nums ${alert ? "text-coral" : ""}`}>{value}</p>
       <p className="mt-1 truncate text-sm text-faint">{note}</p>
+    </>
+  );
+  return href ? (
+    <a href={href} className="block rounded-xl border border-line bg-panel p-4 hover:border-line-bright">
+      {body}
+    </a>
+  ) : (
+    <div className="rounded-xl border border-line bg-panel p-4">{body}</div>
+  );
+}
+
+// One series per chart: a bar per day (or hour), the value in the tooltip and the peak below.
+function ValueBars({ data }: { data: { day: string; value: number }[] }) {
+  const max = Math.max(1, ...data.map((d) => d.value));
+  return (
+    <div>
+      <div className="flex h-24 items-end gap-[2px]">
+        {data.map((d) => (
+          <div key={d.day} className="flex h-full flex-1 flex-col justify-end hover:opacity-80" title={`${d.day}: ${d.value}`}>
+            <div className="rounded-t-sm bg-teal-deep" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value ? 2 : 0 }} />
+          </div>
+        ))}
+      </div>
+      <div className="mt-2 flex justify-between text-xs text-faint">
+        <span>{data[0]?.day}</span>
+        <span>max {max}</span>
+        <span>{data[data.length - 1]?.day}</span>
+      </div>
     </div>
   );
 }
