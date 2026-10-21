@@ -1,8 +1,8 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
-// The version comes from the plugin's CMakeLists.txt, so a release only needs bumping there.
-// Read once at module scope: it's fixed for the whole build.
+// The version being built, from the plugin's CMakeLists.txt. Pages show the released version
+// (lib/release.ts); this is only the fallback when GitHub can't be reached.
 function readVersion(): string {
   try {
     const cmake = readFileSync(join(process.cwd(), "..", "CMakeLists.txt"), "utf8");
@@ -18,10 +18,8 @@ const repo = "https://github.com/NicoFerni/snaptune";
 
 export const links = {
   repo,
+  // The installers' own links come from the published release (lib/release.ts).
   releases: `${repo}/releases/latest`,
-  mac: `${repo}/releases/download/v${version}/SnapTune-${version}-macOS.pkg`,
-  windows: `${repo}/releases/download/v${version}/SnapTune-${version}-Windows-Setup.exe`,
-  linux: `${repo}/releases/download/v${version}/SnapTune-${version}-Linux.tar.gz`,
   readme: `${repo}#readme`,
   issues: `${repo}/issues`,
   license: `${repo}/blob/main/LICENSE`,

@@ -259,3 +259,17 @@ jobs:
             --title "SnapTune ${{ needs.version.outputs.name }}" \
             --notes-file packaging/release-notes.md \
             --verify-tag
+
+      - name: Check the release has every installer
+        # The website's buttons find the installers by these endings (website/lib/release.ts).
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets=$(gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name')
+          echo "$assets"
+          for ending in -macOS.pkg -Windows-Setup.exe -Linux.tar.gz; do
+            if ! grep -q -- "$ending\$" <<< "$assets"; then
+              echo "::error::The release has no file ending in $ending"
+              exit 1
+            fi
+          done

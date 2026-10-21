@@ -1,4 +1,5 @@
-import { links, version } from "@/lib/site";
+import type { Release } from "@/lib/release";
+import { links } from "@/lib/site";
 
 // Structured data (schema.org JSON-LD) that tells search engines what SnapTune is: a free audio
 // application, its systems, its download and its questions. No ratings or reviews: there aren't any
@@ -23,7 +24,7 @@ export const keywords = [
   "SnapTune",
 ];
 
-export const softwareApplication = {
+export const softwareApplication = (release: Release) => ({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   name: "SnapTune",
@@ -34,7 +35,7 @@ export const softwareApplication = {
   applicationCategory: "MultimediaApplication",
   applicationSubCategory: "Audio plugin",
   operatingSystem: "macOS, Windows, Linux",
-  softwareVersion: version,
+  softwareVersion: release.version,
   downloadUrl: links.releases,
   license: "https://www.gnu.org/licenses/agpl-3.0.html",
   isAccessibleForFree: true,
@@ -43,7 +44,7 @@ export const softwareApplication = {
   codeRepository: links.repo,
   image: `${siteUrl}/screenshot.png`,
   screenshot: `${siteUrl}/screenshot.png`,
-};
+});
 
 export function faqPage(faqs: { q: string; a: string }[]) {
   return {
