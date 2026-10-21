@@ -129,6 +129,8 @@ number, add a **MIDI Out** channel on the same port, write the melody in its pia
   live, raise **Tracking**; for deep voices choose **Voice: Low Male**.
 - **An update doesn't show up.** Your DAW keeps the old plugin loaded until it restarts: quit it
   completely and open it again after rebuilding.
+- **Something else.** [Open an issue](https://github.com/NicoFerni/snaptune/issues) or write to
+  [support@getsnaptune.com](mailto:support@getsnaptune.com), with your DAW, its version and your system.
 
 ## Usage data
 

@@ -16,5 +16,6 @@ by hand from this zip instead:
 The installer isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC":
 click More info > Run anyway.
 
+Help: support@getsnaptune.com
 Docs and source: https://github.com/NicoFerni/snaptune
 License: GNU AGPL v3 (see LICENSE.txt). Built with JUCE.

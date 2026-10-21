@@ -24,5 +24,6 @@ To uninstall, delete ~/.vst3/SnapTune.vst3, ~/.lv2/SnapTune.lv2, ~/.local/bin/Sn
 ~/.local/share/applications/snaptune.desktop and
 ~/.local/share/icons/hicolor/512x512/apps/snaptune.png.
 
+Help: support@getsnaptune.com
 Docs and source: https://github.com/NicoFerni/snaptune
 License: GNU AGPL v3 (see LICENSE). Built with JUCE.

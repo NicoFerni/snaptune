@@ -79,7 +79,7 @@ export const guides: Guide[] = [
       { q: "Is it really free?", a: "Yes. It’s open source under the AGPL-3.0 licence: no trial, no watermark, no account, and the source code is on GitHub." },
       {
         q: "Which DAWs does it work in?",
-        a: "Any DAW that loads VST3, Audio Unit or LV2 plugins. I test it in FL Studio, and every build passes Apple’s Audio Unit validation; I haven’t tried every other DAW, so if yours has trouble, open an issue on GitHub.",
+        a: "Any DAW that loads VST3, Audio Unit or LV2 plugins. I test it in FL Studio, and every build passes Apple’s Audio Unit validation; I haven’t tried every other DAW, so if yours has trouble, open an issue on GitHub or write to support@getsnaptune.com.",
       },
       { q: "Why does it do nothing to my vocal?", a: "It needs the vocal on its own track: a beat or a full mix has no single pitch to follow." },
       trademark,
@@ -183,7 +183,7 @@ export const guides: Guide[] = [
     faqs: [
       {
         q: "Which Linux DAWs does it work in?",
-        a: "Any host that loads LV2 or VST3, such as Reaper, Bitwig Studio, Ardour and Qtractor. The Linux builds are new and I haven’t tried them in a Linux DAW yet; if yours has trouble, open an issue on GitHub with the DAW and distribution.",
+        a: "Any host that loads LV2 or VST3, such as Reaper, Bitwig Studio, Ardour and Qtractor. The Linux builds are new and I haven’t tried them in a Linux DAW yet; if yours has trouble, open an issue on GitHub or write to support@getsnaptune.com with the DAW and distribution.",
       },
       { q: "How do I uninstall it?", a: "Delete ~/.lv2/SnapTune.lv2, ~/.vst3/SnapTune.vst3, ~/.local/bin/SnapTune, ~/.local/share/applications/snaptune.desktop and the icon, ~/.local/share/icons/hicolor/512x512/apps/snaptune.png." },
       trademark,
