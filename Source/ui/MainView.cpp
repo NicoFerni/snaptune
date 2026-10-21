@@ -58,6 +58,11 @@ MainView::MainView (SnapTuneProcessor& p)
                             "Live: about 3 ms, for hearing yourself tuned while you record.");
     addAndMakeVisible (*modeSwitch);
 
+    updateButton.setTooltip ("A newer SnapTune is out. Click to open the download page; quit your DAW before installing it.");
+    updateButton.onClick = [] { juce::URL ("https://getsnaptune.com/#install").launchInDefaultBrowser(); };
+    addChildComponent (updateButton);
+    updates->start();
+
     // Scale bar.
     setUpCombo (keyBox, "Key", keys, ids::key, keyAttachment, "The key of the song.");
     setUpCombo (scaleBox, "Scale", scales, ids::scale, scaleAttachment, "Which notes the voice may land on. Pick Chromatic if you don't know the key.");
@@ -159,6 +164,7 @@ void MainView::resized()
     presetBox.setBounds (232, 19, 196, 30);
     modeSwitch->setBounds (header.getRight() - 150, 19, 150, 30);
     latencyArea = { modeSwitch->getX() - 140, 14, 128, 40 };
+    updateButton.setBounds (presetBox.getRight() + 16, 21, updateButton.getWidth(), 26);
 
     scaleBar = { margin, 66, baseWidth - 2 * margin, 64 };
     keyBox.setBounds (scaleBar.getX() + 16, scaleBar.getY() + 26, 70, 30);
@@ -258,6 +264,55 @@ void MainView::timerCallback()
     const int count = audioProcessor.engine.popFrames (scratch.data(), (int) scratch.size());
     consumeFrames (scratch.data(), count);
     refreshState();
+
+    if (--updateCheckCountdown <= 0)
+    {
+        updateCheckCountdown = 60;
+        showUpdateIfAny();
+    }
+}
+
+void MainView::showUpdateIfAny()
+{
+    const auto newer = updates->getNewerVersion();
+
+    if (newer.isEmpty() || updateButton.isVisible())
+        return;
+
+    const auto shown = newer.endsWith (".0") ? newer.dropLastCharacters (2) : newer;
+    updateButton.setButtonText ("SnapTune " + shown + " is out");
+    updateButton.setTitle (updateButton.getButtonText() + ": open the download page");
+
+    // Sized to its words, and never into the latency readout.
+    const float textWidth = juce::GlyphArrangement::getStringWidth (uiFont (13.0f, true), updateButton.getButtonText());
+    updateButton.setSize (juce::jmin (latencyArea.getX() - 16 - updateButton.getX(), juce::roundToInt (textWidth) + 40), 26);
+    updateButton.setVisible (true);
+}
+
+void MainView::UpdateButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    using namespace juce;
+
+    const auto font = uiFont (13.0f, true);
+    const auto pill = getLocalBounds().toFloat().reduced (0.5f);
+
+    g.setColour (palette::accent.withAlpha (down ? 0.32f : highlighted ? 0.22f : 0.12f));
+    g.fillRoundedRectangle (pill, pill.getHeight() / 2.0f);
+    g.setColour (palette::accent);
+    g.drawRoundedRectangle (pill, pill.getHeight() / 2.0f, 1.0f);
+
+    // A small arrow up and out: it opens the browser.
+    const auto arrow = Rectangle<float> (pill.getRight() - 22.0f, pill.getCentreY() - 4.0f, 8.0f, 8.0f);
+    Path p;
+    p.startNewSubPath (arrow.getBottomLeft());
+    p.lineTo (arrow.getTopRight());
+    p.startNewSubPath (arrow.getX() + 2.5f, arrow.getY());
+    p.lineTo (arrow.getTopRight());
+    p.lineTo (arrow.getRight(), arrow.getY() + 5.5f);
+    g.strokePath (p, PathStrokeType (1.4f));
+
+    g.setFont (font);
+    g.drawText (getButtonText(), pill.withTrimmedLeft (14.0f).withTrimmedRight (26.0f), Justification::centredLeft);
 }
 
 void MainView::injectFrames (const PitchFrame* frames, int count)

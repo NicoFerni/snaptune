@@ -5,6 +5,14 @@
 namespace snaptune
 {
 
+/** Where SnapTune keeps its install id, session markers and the update check's answer:
+    ~/Library/Application Support/SnapTune, %APPDATA%\SnapTune or ~/.config/SnapTune. */
+juce::File snapTuneDataDir();
+
+/** True when the user opted out of pings and update checks: a file named "no-telemetry" in the
+    data folder, or the SNAPTUNE_NO_TELEMETRY environment variable. */
+bool networkDisabled();
+
 // Anonymous usage pings for the admin panel on the website (website/app/api/ping). Once per host
 // process, the first SnapTune instance sends the plugin version, OS, host and format, plus any
 // earlier sessions that ended without SnapTune being shut down (a crash of the plugin or the DAW).

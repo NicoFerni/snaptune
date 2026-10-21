@@ -9,6 +9,7 @@
 #include "Parameters.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
+#include "UpdateCheck.h"
 #include "dsp/AutoTuneEngine.h"
 #include "dsp/PitchDetector.h"
 
@@ -444,6 +445,15 @@ EngineSettings hardTune()
 }
 
 //==============================================================================
+void testVersionCompare()
+{
+    using snaptune::isNewerVersion;
+    const bool ok = isNewerVersion ("2.1.0", "2.0.0") && isNewerVersion ("2.0.1", "2.0.0") && isNewerVersion ("10.0.0", "9.9.9")
+                 && isNewerVersion ("2.1", "2.0.9") && ! isNewerVersion ("2.0.0", "2.0.0") && ! isNewerVersion ("1.9.9", "2.0.0")
+                 && ! isNewerVersion ("", "2.0.0") && ! isNewerVersion ("<html>", "2.0.0") && ! isNewerVersion ("2.0", "2.0.0");
+    check (ok, "Update notice: version comparison", "newer, equal, older, short and malformed versions");
+}
+
 void testDetector()
 {
     for (double hz : { 70.0, 98.0, 147.0, 220.0, 330.0, 523.25, 880.0, 1175.0 })
@@ -1480,6 +1490,7 @@ int main (int argc, char* argv[])
         outDir.createDirectory();
     }
 
+    testVersionCompare();
     testDetector();
     testHardTune (48000.0, outDir);
     testHardTune (44100.0, outDir);
