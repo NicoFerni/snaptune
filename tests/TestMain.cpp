@@ -1277,7 +1277,25 @@ int runHostTest (const juce::String& path)
         if (parameter->getName (64) == "Retune Speed")
             parameter->setValue (0.0f);
 
-    const int latency = instance->getLatencySamples();
+    // An LV2 plugin reports its latency through an output port it writes while it runs, so its host
+    // only learns the value after a block; VST3 and AU tell the host straight away. Run a couple of
+    // silent blocks, and let messages through, before asking.
+    const auto settledLatency = [&]
+    {
+        juce::AudioBuffer<float> silence (2, block);
+        juce::MidiBuffer none;
+
+        for (int i = 0; i < 3; ++i)
+        {
+            silence.clear();
+            instance->processBlock (silence, none);
+            juce::MessageManager::getInstance()->runDispatchLoopUntil (50);
+        }
+
+        return instance->getLatencySamples();
+    };
+
+    const int latency = settledLatency();
     check (latency == 3 * (int) std::ceil (sampleRate / 65.0), "Host: reported latency", juce::String (latency) + " samples");
 
     const auto voice = renderVoice (sampleRate, 5.7, melodyPitch (offKeyMelody));
@@ -1319,13 +1337,13 @@ int runHostTest (const juce::String& path)
 
     instance->processBlock (buffer, midi);
     juce::MessageManager::getInstance()->runDispatchLoopUntil (300);
-    const int announced = instance->getLatencySamples();
+    const int announced = settledLatency();
     check (announced > 0 && announced < latency / 10, "Host: latency change announced while running",
            juce::String (latency) + " -> " + juce::String (announced) + " samples, no restart needed");
 
     instance->releaseResources();
     instance->prepareToPlay (sampleRate, block);
-    const int liveLatency = instance->getLatencySamples();
+    const int liveLatency = settledLatency();
     std::vector<float> liveOutput;
 
     for (size_t pos = 0; pos < voice.size() + (size_t) liveLatency; pos += (size_t) block)

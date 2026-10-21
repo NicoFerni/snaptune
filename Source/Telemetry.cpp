@@ -112,6 +112,12 @@ void Telemetry::pluginCreated (juce::AudioProcessor::WrapperType wrapperType)
     if (juce::SystemStats::getEnvironmentVariable ("SNAPTUNE_NO_TELEMETRY", {}).isNotEmpty())
         return;
 
+    // JUCE's build tools load the plugin to write its LV2 and VST3 descriptions: not a session.
+    const auto process = juce::File (juce::PluginHostType::getHostPath()).getFileNameWithoutExtension();
+
+    if (process == "juce_lv2_helper" || process == "vst3_helper")
+        return;
+
     dataDir = snapTuneDataDir();
 
     if (dataDir.createDirectory().failed() || dataDir.getChildFile ("no-telemetry").exists())

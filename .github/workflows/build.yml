@@ -1,8 +1,8 @@
 name: Build
 
-# Every push and pull request: build the plugins on macOS (universal) and Windows (x64), run the tests,
-# and keep the zips and installers as artifacts. Pushing a tag like v1.2.0 also publishes them as a
-# GitHub Release.
+# Every push and pull request: build the plugins on macOS (universal), Windows (x64) and Linux (x64),
+# run the tests, and keep the zips, tarballs and installers as artifacts. Pushing a tag like v2.0.0
+# also publishes them as a GitHub Release.
 
 on:
   push:
@@ -164,9 +164,83 @@ jobs:
             dist/*.zip
             dist/*.exe
 
+  linux:
+    needs: version
+    # The oldest Ubuntu the runners offer, so the build runs on any distribution with its glibc (2.35)
+    # or newer.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends ninja-build xvfb openbox \
+            libasound2-dev libjack-jackd2-dev ladspa-sdk libcurl4-openssl-dev \
+            libfreetype-dev libfontconfig1-dev \
+            libx11-dev libxcomposite-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev
+
+      - name: Configure (downloads JUCE)
+        run: cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build VST3, LV2 and Standalone
+        run: cmake --build build --target SnapTune_VST3 SnapTune_LV2 SnapTune_Standalone
+
+      - name: Check the run-time dependencies
+        # libcurl, for the usage ping, is opened at run time when the system has it; the plugin must
+        # still load where it doesn't.
+        run: |
+          artefacts=build/SnapTune_artefacts/Release
+          for binary in "$artefacts"/VST3/SnapTune.vst3/Contents/x86_64-linux/SnapTune.so "$artefacts"/LV2/SnapTune.lv2/*.so "$artefacts"/Standalone/SnapTune; do
+            echo "$binary"
+            readelf -d "$binary" | grep NEEDED
+            if readelf -d "$binary" | grep -q -e libcurl -e libstdc++; then
+              echo "::error::$binary must not depend on libcurl or libstdc++"
+              exit 1
+            fi
+          done
+
+      - name: Build tests
+        run: cmake --build build --target SnapTuneTests
+
+      - name: DSP tests
+        run: xvfb-run -a ./build/SnapTuneTests_artefacts/Release/SnapTuneTests
+
+      - name: Load the built VST3 and LV2 in a host
+        # In a virtual display with a window manager, as on a desktop: the editor's window uses X11
+        # atoms that only exist once a window manager has registered them.
+        run: |
+          # The build also copied the LV2 to ~/.lv2; LV2 hosts read that folder first and would ignore
+          # the bundle under test as a duplicate.
+          rm -rf "$HOME/.lv2/SnapTune.lv2"
+          xvfb-run -a sh -c '
+            openbox & sleep 2
+            tests=./build/SnapTuneTests_artefacts/Release/SnapTuneTests
+            "$tests" --host "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3" &&
+            "$tests" --host "$PWD/build/SnapTune_artefacts/Release/LV2/SnapTune.lv2"'
+
+      - name: Package
+        run: |
+          artefacts=build/SnapTune_artefacts/Release
+          name=SnapTune-${{ needs.version.outputs.name }}-Linux
+          stage=dist/stage/$name
+          mkdir -p "$stage"
+          cp -R "$artefacts/VST3/SnapTune.vst3" "$artefacts/LV2/SnapTune.lv2" "$stage/"
+          cp "$artefacts/Standalone/SnapTune" "$stage/"
+          cp packaging/linux/install.sh packaging/linux/INSTALL.txt packaging/linux/snaptune.png LICENSE "$stage/"
+          chmod +x "$stage/install.sh" "$stage/SnapTune"
+          tar -C dist/stage -czf "dist/$name.tar.gz" "$name"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: SnapTune-${{ needs.version.outputs.name }}-Linux
+          path: dist/*.tar.gz
+
   release:
     if: startsWith(github.ref, 'refs/tags/v')
-    needs: [version, macos, windows]
+    needs: [version, macos, windows, linux]
     runs-on: ubuntu-latest
 
     steps:

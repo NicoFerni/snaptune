@@ -21,6 +21,7 @@ export const links = {
   releases: `${repo}/releases/latest`,
   mac: `${repo}/releases/download/v${version}/SnapTune-${version}-macOS.pkg`,
   windows: `${repo}/releases/download/v${version}/SnapTune-${version}-Windows-Setup.exe`,
+  linux: `${repo}/releases/download/v${version}/SnapTune-${version}-Linux.tar.gz`,
   readme: `${repo}#readme`,
   issues: `${repo}/issues`,
   license: `${repo}/blob/main/LICENSE`,

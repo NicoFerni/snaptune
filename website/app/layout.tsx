@@ -10,17 +10,17 @@ const rokkitt = Rokkitt({ subsets: ["latin"], weight: "800", variable: "--font-r
 const literata = Literata({ subsets: ["latin"], style: ["normal", "italic"], axes: ["opsz"], variable: "--font-literata" });
 
 const description =
-  "Free, open-source pitch correction plugin (VST3 and Audio Unit) for Mac and Windows. Hard-tune your vocals, and hear it while you record with 2.7 ms of delay. Tested in FL Studio.";
+  "Free, open-source pitch correction plugin (VST3, Audio Unit and LV2) for Mac, Windows and Linux. Hard-tune your vocals, and hear it while you record with 2.7 ms of delay. Tested in FL Studio.";
 
 // Absolute base for the link-preview image and URL. Set SITE_URL to host the site somewhere else.
 const siteUrl = process.env.SITE_URL ?? "https://getsnaptune.com";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
-  title: "SnapTune: free pitch correction plugin for Mac and Windows (VST3, AU)",
+  title: "SnapTune: free pitch correction plugin for Mac, Windows and Linux",
   description,
   openGraph: {
-    title: "SnapTune: free pitch correction plugin for Mac and Windows",
+    title: "SnapTune: free pitch correction plugin for Mac, Windows and Linux",
     description,
     url: "/",
     siteName: "SnapTune",
@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SnapTune: free pitch correction plugin for Mac and Windows",
+    title: "SnapTune: free pitch correction plugin for Mac, Windows and Linux",
     description,
   },
 };

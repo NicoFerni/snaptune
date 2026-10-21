@@ -7,7 +7,8 @@
 
 **Open-source real-time pitch correction for your DAW.** From the robotic hard-tune snap to
 transparent correction, with a formant-preserving Studio mode and a 2.7 ms Live mode for tracking.
-VST3 + Audio Unit for macOS (Apple Silicon and Intel), VST3 for Windows (64-bit).
+VST3 + Audio Unit for macOS (Apple Silicon and Intel), VST3 for Windows (64-bit), VST3 + LV2 for
+Linux (64-bit).
 Try it in your browser at **[getsnaptune.com](https://getsnaptune.com)**.
 
 ![SnapTune](docs/screenshot.png)
@@ -42,7 +43,15 @@ and a standalone app.
    click **More info > Run anyway**.
 2. Restart your DAW and rescan plugins.
 
-Each release also has a zip per platform for installing by hand; its INSTALL.txt has the steps.
+**Linux** (64-bit, glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora 36 or later):
+**SnapTune-…-Linux.tar.gz** has the VST3, the LV2 and a standalone app.
+
+1. Unpack it, open a terminal in the folder and run `./install.sh`. It installs for your user, no
+   sudo: the VST3 in `~/.vst3`, the LV2 in `~/.lv2` and the app in `~/.local/bin`.
+2. Restart your DAW and rescan plugins. The Linux builds are new; if your DAW has trouble,
+   [open an issue](https://github.com/NicoFerni/snaptune/issues) with the DAW and your distribution.
+
+For macOS and Windows there is also a zip for installing by hand; its INSTALL.txt has the steps.
 
 The macOS warning goes away once SnapTune is notarized, which needs the $99/year Apple Developer
 membership. If SnapTune is useful to you, you can [chip in on Ko-fi](https://ko-fi.com/nicofernandev).
@@ -63,6 +72,17 @@ JUCE 9.0.4 is downloaded automatically during the first configure. The build ins
 `~/Library/Audio/Plug-Ins/Components`; then rescan plugins in your DAW. `SnapTune.app` (Standalone,
 in `build/SnapTune_artefacts/Release/Standalone`) lets you try it with a microphone, no DAW needed;
 use headphones.
+
+On Linux (Ubuntu or Debian; other distributions have the same libraries under their own names), the
+build copies the VST3 to `~/.vst3` and the LV2 to `~/.lv2`:
+
+```sh
+sudo apt install cmake ninja-build g++ pkg-config libasound2-dev libjack-jackd2-dev ladspa-sdk \
+  libcurl4-openssl-dev libfreetype-dev libfontconfig1-dev libx11-dev libxcomposite-dev \
+  libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev libxi-dev
+cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build --target SnapTune_VST3 SnapTune_LV2 SnapTune_Standalone
+```
 
 On Windows, with Visual Studio 2022 or later and CMake, from a terminal run as administrator (the
 build copies the VST3 into `C:\Program Files\Common Files\VST3`):
@@ -119,8 +139,9 @@ or your settings is sent, and no IP address is stored (only the country). The co
 `Source/Telemetry.cpp`.
 
 To turn it off, create an empty file named `no-telemetry` in the SnapTune folder
-(`~/Library/Application Support/SnapTune` on a Mac, `%APPDATA%\SnapTune` on Windows), or set the
-environment variable `SNAPTUNE_NO_TELEMETRY=1`.
+(`~/Library/Application Support/SnapTune` on a Mac, `%APPDATA%\SnapTune` on Windows,
+`~/.config/SnapTune` on Linux), or set the environment variable `SNAPTUNE_NO_TELEMETRY=1`. On Linux
+the ping goes out only if libcurl is installed; SnapTune doesn't need it otherwise.
 
 ## How it works
 
