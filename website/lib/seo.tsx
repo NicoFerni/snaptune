@@ -42,6 +42,7 @@ export const softwareApplication = (release: Release) => ({
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
   author: { "@type": "Person", name: "Nico Fernandez" },
   codeRepository: links.repo,
+  sameAs: [links.repo, links.x],
   image: `${siteUrl}/screenshot.png`,
   screenshot: `${siteUrl}/screenshot.png`,
 });
