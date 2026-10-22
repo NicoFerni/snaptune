@@ -62,5 +62,6 @@ function defaults(
     cc: mode === "all" ? others(original.cc).join(", ") : "",
     subject: prefix(mode === "forward" ? "Fwd:" : "Re:", original.subject),
     original: { a: original.accountId, f: original.folderId, m: original.messageId },
+    forwarded: mode === "forward" ? original.attachments.map((a) => a.name) : undefined,
   };
 }

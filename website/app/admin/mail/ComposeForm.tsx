@@ -1,6 +1,7 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
+import { MAX_UPLOAD } from "@/lib/mail-limits";
 import { sendAction, type ComposeState } from "./actions";
 
 export type ComposeDefaults = {
@@ -11,12 +12,15 @@ export type ComposeDefaults = {
   cc: string;
   subject: string;
   original?: { a: string; f: string; m: string };
+  /** A forward's attachments, sent along unless unticked. */
+  forwarded?: string[];
 };
 
 const input = "w-full rounded-lg border border-line bg-deep px-3 py-2 text-sm text-ink placeholder:text-faint focus:border-line-bright focus:outline-none";
 
 export function ComposeForm({ defaults }: { defaults: ComposeDefaults }) {
   const [state, action, pending] = useActionState<ComposeState, FormData>(sendAction, {});
+  const [tooBig, setTooBig] = useState(false);
 
   return (
     <form action={action} className="space-y-3">
@@ -47,14 +51,31 @@ export function ComposeForm({ defaults }: { defaults: ComposeDefaults }) {
       </Row>
       <textarea name="body" rows={12} className={input} autoFocus={Boolean(defaults.to)} placeholder="Write here…" />
 
+      <Row label="Attach">
+        <input
+          type="file"
+          name="files"
+          multiple
+          className="text-sm text-muted file:mr-3 file:rounded-lg file:border file:border-line file:bg-deep file:px-3 file:py-1.5 file:text-ink"
+          onChange={(e) => setTooBig([...(e.target.files ?? [])].reduce((sum, f) => sum + f.size, 0) > MAX_UPLOAD)}
+        />
+      </Row>
+      {tooBig && <p className="text-sm text-coral">Over 4 MB together: this won&apos;t send. Send big files from Zoho.</p>}
+      {defaults.forwarded && defaults.forwarded.length > 0 && (
+        <label className="flex items-center gap-2 text-sm text-muted">
+          <input type="checkbox" name="keepAttachments" defaultChecked />
+          Include the original&apos;s attachments: {defaults.forwarded.join(", ")}
+        </label>
+      )}
+
       {state.error && <p className="rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-sm">{state.error}</p>}
 
       <div className="flex items-center gap-4">
-        <button disabled={pending} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
+        <button disabled={pending || tooBig} className="rounded-lg bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60">
           {pending ? "Sending…" : "Send"}
         </button>
         {defaults.mode !== "new" && (
-          <span className="text-sm text-faint">{defaults.mode === "forward" ? "The original goes below, without its attachments." : "The original is quoted below your text."}</span>
+          <span className="text-sm text-faint">{defaults.mode === "forward" ? "The original goes below your text." : "The original is quoted below your text."}</span>
         )}
       </div>
     </form>

@@ -14,6 +14,12 @@ export const metadata: Metadata = {
 
 const button = "rounded-lg border border-line px-3 py-1.5 text-sm hover:border-line-bright";
 
+function size(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
 export default async function Message({ params }: { params: Promise<{ account: string; folder: string; message: string }> }) {
   const { account, folder, message } = await params;
   const mail = await readMessage(account, folder, message).catch((e: Error) => e);
@@ -57,6 +63,20 @@ export default async function Message({ params }: { params: Promise<{ account: s
               </form>
             </div>
           </header>
+          {mail.attachments.length > 0 && (
+            <ul className="mb-4 flex flex-wrap gap-2 text-sm">
+              {mail.attachments.map((f) => (
+                <li key={f.attachmentId}>
+                  <a
+                    className={`${button} inline-block`}
+                    href={`/admin/mail/attachment?${ids}&id=${f.attachmentId}&name=${encodeURIComponent(f.name)}`}
+                  >
+                    📎 {f.name} <span className="text-faint">{size(f.size)}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
           {/* The sender wrote this HTML: no scripts, no same-origin access, links open in a new tab. */}
           <iframe
             title={mail.subject}
