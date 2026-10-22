@@ -23,8 +23,8 @@ const credentials: Credential[] = [""]
 export const mailConfigured = credentials.length > 0;
 export const webmail = `https://mail.${domain}/zm/`;
 
-/** The folders the panel shows, by Zoho's folderType. */
-export const FOLDERS = ["Inbox", "Sent", "Spam", "Trash"] as const;
+/** The folders the panel shows, by Zoho's folderType or, for the ones Zoho sorts automated mail into, by name. */
+export const FOLDERS = ["Inbox", "Notification", "Newsletter", "Sent", "Spam", "Trash"] as const;
 export type FolderType = (typeof FOLDERS)[number];
 
 export type MailAccount = { accountId: string; address: string; sendFrom: string[] };
