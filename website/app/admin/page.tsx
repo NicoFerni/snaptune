@@ -1,7 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readTelemetry, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
-// The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub.
+// The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
+// and the latest mail in the Zoho inboxes.
 // proxy.ts keeps it behind ADMIN_PASSWORD.
 
 export const dynamic = "force-dynamic";
@@ -65,19 +68,20 @@ function percent(part: number, whole: number): string {
 const LOCAL_OFFSET = -3;
 
 async function load() {
-  const [telemetry, releases, issues, repoInfo, checks, builds] = await Promise.all([
+  const [telemetry, releases, issues, repoInfo, checks, builds, mail] = await Promise.all([
     storageConfigured ? readTelemetry().catch((e: Error) => e) : null,
     github<Release[]>("/releases?per_page=100"),
     github<Issue[]>("/issues?state=all&per_page=100"),
     github<Repo>(""),
     github<Runs>("/actions/workflows/downloads.yml/runs?per_page=20"),
     github<Runs>("/actions/workflows/build.yml/runs?branch=main&per_page=5"),
+    mailConfigured ? readInboxes(8).catch((e: Error) => e) : null,
   ]);
 
   const downloads = (releases ?? []).reduce((sum, r) => sum + r.assets.reduce((s, a) => s + a.download_count, 0), 0);
   const history = storageConfigured && releases ? await snapshotDownloads(downloads).catch(() => null) : null;
 
-  return { telemetry, releases, issues, repoInfo, checks, builds, history, now: Date.now() };
+  return { telemetry, releases, issues, repoInfo, checks, builds, history, mail, now: Date.now() };
 }
 
 /** The latest run that finished with a verdict: skipped runs say nothing, and cancelled ones were
@@ -87,7 +91,9 @@ function lastRun(runs: Runs | null) {
 }
 
 export default async function Admin() {
-  const { telemetry, releases, issues, repoInfo, checks, builds, history, now } = await load();
+  const { telemetry, releases, issues, repoInfo, checks, builds, history, mail, now } = await load();
+  const messages = mail && !(mail instanceof Error) ? mail.messages : [];
+  const unread = messages.filter((m) => m.unread);
   const installs: StoredInstall[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
   const events: TelemetryEvent[] = telemetry && !(telemetry instanceof Error) ? telemetry.events : [];
 
@@ -151,6 +157,7 @@ export default async function Admin() {
           <a className="hover:text-ink" href="https://vercel.com/nicofernandev/snaptune/analytics">Site visits (Vercel) ↗</a>
           <a className="hover:text-ink" href={`https://github.com/${repo}/issues`}>Issues ↗</a>
           <a className="hover:text-ink" href={`https://github.com/${repo}/releases`}>Releases ↗</a>
+          <Link className="hover:text-ink" href="/admin/mail">Mail</Link>
         </nav>
       </header>
 
@@ -158,6 +165,7 @@ export default async function Admin() {
         <Notice>Telemetry storage isn&apos;t set up: add Upstash Redis to the Vercel project. Downloads and reports below still work.</Notice>
       )}
       {telemetry instanceof Error && <Notice>Couldn&apos;t read telemetry: {telemetry.message}</Notice>}
+      {mail instanceof Error && <Notice>Couldn&apos;t read mail: {mail.message}</Notice>}
       {(!releases || !issues) && <Notice>GitHub didn&apos;t answer (rate limit?). Set GITHUB_TOKEN to raise it.</Notice>}
 
       <section className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -255,6 +263,40 @@ export default async function Admin() {
           })}
           empty="None recorded."
         />
+      </Panel>
+
+      <Panel
+        title={unread.length ? `Mail · ${unread.length} unread` : "Mail"}
+        note={
+          mail && !(mail instanceof Error)
+            ? `latest ${messages.length} in ${mail.accounts.map((a) => a.address).join(" and ")}`
+            : "Zoho Mail inboxes"
+        }
+      >
+        {mailConfigured ? (
+          <>
+            <Table
+              head={["Received", "From", "Subject", "To"]}
+              rows={messages.map((m) => [
+                <span key="t" className="whitespace-nowrap">{ago(m.received)}</span>,
+                <span key="f" className={m.unread ? "font-semibold" : "text-muted"} title={m.fromAddress}>{m.from}</span>,
+                <Link key="s" href={`/admin/mail/${m.accountId}/${m.folderId}/${m.messageId}`} className="block max-w-xl hover:underline">
+                  <span className={m.unread ? "font-semibold text-teal" : "text-teal"}>{m.subject}</span>
+                  {m.attachment && <span className="ml-2 text-xs text-faint">📎</span>}
+                  <span className="block truncate text-faint">{m.summary}</span>
+                </Link>,
+                <span key="to" className="text-faint">{m.to.replace(/^.*<|>.*$/g, "") || m.inbox}</span>,
+              ])}
+              empty="The inboxes are empty."
+            />
+            <p className="mt-3 flex gap-4 text-sm">
+              <Link href="/admin/mail" className="text-teal hover:underline">Open the mailbox →</Link>
+              <Link href="/admin/mail/new" className="text-teal hover:underline">Write</Link>
+            </p>
+          </>
+        ) : (
+          <p className="text-sm text-faint">Not set up: add ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET and ZOHO_REFRESH_TOKEN to the Vercel project (see the README).</p>
+        )}
       </Panel>
 
       <Panel title="Reports" note="GitHub issues, newest first">

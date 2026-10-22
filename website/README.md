@@ -25,6 +25,27 @@ Vercel environment variables:
 | `KV_REST_API_URL`, `KV_REST_API_TOKEN` | Upstash Redis, set by adding Upstash from the Vercel Marketplace. Without it the panel shows only GitHub data and pings get a 503. |
 | `ADMIN_PASSWORD` | Password for `/admin` (HTTP Basic auth, any user name; `proxy.ts`). Without it `/admin` is a 404. |
 | `GITHUB_TOKEN` | Optional. Raises GitHub's API limit (60 requests/hour per IP without it; the panel caches for 5 minutes). |
+| `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET`, `ZOHO_REFRESH_TOKEN` | Optional. The latest mail in the Zoho inboxes, read-only (`lib/mail.ts`). Without them the Mail panel says so. |
+| `ZOHO_DOMAIN` | Optional. Zoho data centre, `zoho.com` by default (`zoho.eu`, `zoho.in`, …: whatever your Zoho Mail URL uses). |
+
+Mail: `/admin` shows the newest 8 inbox messages, and `/admin/mail` is the whole mailbox (Inbox, Sent,
+Spam, Trash) across every Zoho mailbox the token can open: read (in a sandboxed frame, no scripts), reply,
+reply all, forward (without attachments), write new mail, mark unread, move to the trash. Opening a
+message marks it read. Each Server Action checks `ADMIN_PASSWORD` again (`lib/admin-auth.ts`), since
+actions can be POSTed to directly. Attachments are only in Zoho for now.
+
+To get the token, at [api-console.zoho.com](https://api-console.zoho.com) add a **Self Client**, then under
+*Generate Code* use the scope `ZohoMail.accounts.READ,ZohoMail.folders.READ,ZohoMail.messages.ALL` and
+exchange the code within its lifetime:
+
+```sh
+curl -X POST "https://accounts.zoho.com/oauth/v2/token" \
+  -d grant_type=authorization_code -d client_id=… -d client_secret=… -d code=…
+```
+
+Copy `refresh_token` from the answer into Vercel. It covers the mailboxes of the Zoho user who generated
+the code, so `support@` shows up if it's an alias of that user or a mailbox shared with them; replies go
+out from whichever of your addresses the message was sent to.
 
 "Unclean exit" means a session whose SnapTune never shut down: the DAW or the plugin crashed, or the DAW
 was killed. Some DAWs exit without unloading plugins, which also counts, so watch for clusters on one
