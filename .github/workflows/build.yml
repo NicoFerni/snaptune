@@ -1,8 +1,9 @@
 name: Build
 
 # Every push and pull request: build the plugins on macOS (universal), Windows (x64) and Linux (x64),
-# run the tests, and keep the zips, tarballs and installers as artifacts. Pushing a tag like v2.0.0
-# also publishes them as a GitHub Release.
+# run the tests, and keep the zips, tarballs and installers as artifacts. A push to main whose
+# project(VERSION) in CMakeLists.txt has no release yet (bump it, merge, done) tags that commit and
+# publishes them as a GitHub Release; pushing a tag like v2.0.0 by hand does the same.
 
 on:
   push:
@@ -31,6 +32,7 @@ jobs:
     outputs:
       number: ${{ steps.version.outputs.number }}
       name: ${{ steps.version.outputs.name }}
+      release: ${{ steps.version.outputs.release }}
     steps:
       - uses: actions/checkout@v7
 
@@ -45,6 +47,12 @@ jobs:
               exit 1
             fi
             echo "name=$project_version" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF" == refs/heads/main ]] \
+               && [[ -z "$(git ls-remote --tags origin "refs/tags/v$project_version")" ]]; then
+            echo "Version $project_version has no tag yet: this push releases it"
+            echo "name=$project_version" >> "$GITHUB_OUTPUT"
+            echo "release=true" >> "$GITHUB_OUTPUT"
           else
             echo "name=$project_version-dev.${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
           fi
@@ -239,7 +247,7 @@ jobs:
           path: dist/*.tar.gz
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: needs.version.outputs.release == 'true'
     needs: [version, macos, windows, linux]
     runs-on: ubuntu-latest
 
@@ -252,20 +260,22 @@ jobs:
           merge-multiple: true
 
       - name: Publish release
+        # From main this also creates the tag on the commit that was built.
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.number }}
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* \
+          gh release create "$TAG" dist/* \
+            --target "$GITHUB_SHA" \
             --title "SnapTune ${{ needs.version.outputs.name }}" \
-            --notes-file packaging/release-notes.md \
-            --verify-tag
+            --notes-file packaging/release-notes.md
 
       - name: Check the release has every installer
         # The website's buttons find the installers by these endings (website/lib/release.ts).
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          assets=$(gh release view "$GITHUB_REF_NAME" --json assets -q '.assets[].name')
+          assets=$(gh release view "v${{ needs.version.outputs.number }}" --json assets -q '.assets[].name')
           echo "$assets"
           for ending in -macOS.pkg -Windows-Setup.exe -Linux.tar.gz; do
             if ! grep -q -- "$ending\$" <<< "$assets"; then
