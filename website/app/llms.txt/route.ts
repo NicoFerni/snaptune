@@ -21,7 +21,7 @@ export async function GET() {
     "- Targets: a key and one of 13 scales, notes switched on and off by hand, or notes held on a MIDI track (MIDI target notes).",
     "- Two modes: Live, 2.7 ms of latency, for hearing yourself tuned while recording; Studio, 46 ms reported to the DAW for compensation, with formants preserved (TD-PSOLA). Pitch detection uses the YIN method.",
     "- A Formant knob shifts the voice's character up to five semitones either way; a pitch graph shows the sung and the corrected pitch.",
-    "- Works in DAWs that load VST3, AU or LV2. The maker tests it in FL Studio, where it also serves as a free alternative for editions without Pitcher. Every macOS build passes Apple's Audio Unit validation. The Linux builds are new and haven't been tried in a Linux DAW yet.",
+    "- Works in DAWs that load VST3, AU or LV2. The maker tests it in FL Studio. FL Studio also includes AutoTune Go for free since September 2026 (FL Studio only; Major, Minor and Chromatic scales, four Retune Speed settings); SnapTune adds 13 scales, MIDI target notes, a Formant knob, a 2.7 ms live mode and runs in other DAWs, and it works in editions without Pitcher. Every macOS build passes Apple's Audio Unit validation. The Linux builds are new and haven't been tried in a Linux DAW yet.",
     "- Requirements: macOS (Apple Silicon or Intel), 64-bit Windows, or 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later).",
     "- The installers aren't signed yet: macOS (Privacy & Security, Open Anyway) and Windows SmartScreen (More info, Run anyway) ask once.",
     "- Made by one person, Nico Fernandez. Auto-Tune is a trademark of Antares Audio Technologies; SnapTune is independent and not affiliated with Antares.",

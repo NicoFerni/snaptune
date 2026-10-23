@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "shots": "node scripts/shots.mjs",
+    "indexnow": "node scripts/indexnow.mjs",
     "demo-frames": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/demo-frames.mjs"
   },
   "dependencies": {

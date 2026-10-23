@@ -5,7 +5,7 @@ import { Downloads } from "@/components/Downloads";
 import { LogoMark } from "@/components/Logo";
 import { guides, type Guide } from "@/lib/guides";
 import { latestRelease } from "@/lib/release";
-import { JsonLd, faqPage, softwareApplication } from "@/lib/seo";
+import { JsonLd, faqPage, shareImage, softwareApplication } from "@/lib/seo";
 import { links } from "@/lib/site";
 import "@/app/landing.css";
 import "@/app/guide.css";
@@ -20,8 +20,8 @@ export function guideMetadata(guide: Guide): Metadata {
     description: guide.description,
     keywords: guide.keywords,
     alternates: { canonical: `/${guide.slug}` },
-    openGraph: { title: guide.title, description: guide.description, url: `/${guide.slug}`, siteName: "SnapTune", type: "article" },
-    twitter: { card: "summary_large_image", title: guide.title, description: guide.description },
+    openGraph: { title: guide.title, description: guide.description, url: `/${guide.slug}`, siteName: "SnapTune", type: "article", modifiedTime: guide.updated, images: [shareImage] },
+    twitter: { card: "summary_large_image", site: "@getsnaptune", creator: "@getsnaptune", title: guide.title, description: guide.description, images: [shareImage] },
   };
 }
 

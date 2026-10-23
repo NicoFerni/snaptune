@@ -10,7 +10,7 @@ import { Motion } from "@/components/Motion";
 import { SnapTuneDemo } from "@/components/demo/SnapTuneDemo";
 import { guides } from "@/lib/guides";
 import { latestRelease } from "@/lib/release";
-import { JsonLd, faqPage, softwareApplication } from "@/lib/seo";
+import { JsonLd, faqPage, organization, softwareApplication, webSite } from "@/lib/seo";
 import shots from "@/lib/shots.json";
 import { hasPublicFile, kofi, links } from "@/lib/site";
 import "./landing.css";
@@ -119,11 +119,11 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
     q: "Is it a free autotune for FL Studio?",
     a: (
       <>
-        Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins, so it also works as a free alternative if yours
-        doesn’t include Pitcher. <Link href="/autotune-fl-studio">The FL Studio guide</Link> shows the setup.
+        Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins. FL Studio now also gives you AutoTune Go for
+        free; <Link href="/autotune-fl-studio">the FL Studio guide</Link> says how the two compare and shows the setup.
       </>
     ),
-    text: "Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins, so it also works as a free alternative if yours doesn’t include Pitcher.",
+    text: "Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins. FL Studio now also gives you AutoTune Go for free; SnapTune adds 13 scales, MIDI target notes, a Formant knob, a 2.7 ms live mode and works in other DAWs too.",
   },
   {
     q: "It isn’t doing anything to my vocal.",
@@ -226,6 +226,8 @@ export default async function Home() {
 
   return (
     <>
+      <JsonLd data={webSite} />
+      <JsonLd data={organization} />
       <JsonLd data={softwareApplication(release)} />
       <JsonLd data={faqPage(faqs.map((f) => ({ q: f.q, a: f.text ?? String(f.a) })))} />
       <Motion />

@@ -1,11 +1,12 @@
 import type { MetadataRoute } from "next";
 import { guides } from "@/lib/guides";
-import { siteUrl } from "@/lib/seo";
+import { homeUpdated, siteUrl } from "@/lib/seo";
 
+// The dates are when each page's text changed, kept by hand: Google ignores lastmod once it learns
+// that a site stamps every build as new.
 export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date();
   return [
-    { url: siteUrl, lastModified: now, changeFrequency: "weekly", priority: 1 },
-    ...guides.map((g) => ({ url: `${siteUrl}/${g.slug}`, lastModified: now, changeFrequency: "monthly" as const, priority: 0.8 })),
+    { url: siteUrl, lastModified: homeUpdated },
+    ...guides.map((g) => ({ url: `${siteUrl}/${g.slug}`, lastModified: g.updated })),
   ];
 }
