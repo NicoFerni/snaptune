@@ -7,6 +7,9 @@ import { links } from "@/lib/site";
 
 export const siteUrl = process.env.SITE_URL ?? "https://getsnaptune.com";
 
+/** When the home page's text last changed, for the sitemap. */
+export const homeUpdated = "2026-10-23";
+
 export const keywords = [
   "free autotune",
   "free autotune plugin",
@@ -23,6 +26,29 @@ export const keywords = [
   "open source autotune",
   "SnapTune",
 ];
+
+// The link preview from app/opengraph-image.tsx. A page that sets its own `openGraph` or `twitter`
+// replaces the layout's whole object, image included, so the guides pass this back in.
+export const shareImage = { url: "/opengraph-image", width: 1200, height: 630, alt: "SnapTune: free pitch correction plugin for Mac, Windows and Linux" };
+
+// The site and who makes it, so search shows "SnapTune" and its logo rather than the bare domain.
+export const webSite = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  name: "SnapTune",
+  url: siteUrl,
+};
+
+export const organization = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  name: "SnapTune",
+  url: siteUrl,
+  logo: `${siteUrl}/logo.png`,
+  email: "support@getsnaptune.com",
+  founder: { "@type": "Person", name: "Nico Fernandez" },
+  sameAs: [links.repo, links.x],
+};
 
 export const softwareApplication = (release: Release) => ({
   "@context": "https://schema.org",

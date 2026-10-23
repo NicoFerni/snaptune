@@ -5,6 +5,8 @@
 
 export type Guide = {
   slug: string;
+  /** When the page's text last changed, for the sitemap. */
+  updated: string;
   /** The <title>, about 60 characters. */
   title: string;
   /** The meta description, about 155 characters. */
@@ -24,6 +26,7 @@ const trademark = {
 export const guides: Guide[] = [
   {
     slug: "free-autotune",
+    updated: "2026-10-21",
     title: "Free Autotune Plugin (VST3, AU, LV2) for Mac, Windows, Linux",
     description:
       "SnapTune is a free autotune plugin: hard-tune or natural pitch correction for vocals, VST3, AU and LV2, open source, no trial and no account.",
@@ -87,9 +90,10 @@ export const guides: Guide[] = [
   },
   {
     slug: "autotune-fl-studio",
-    title: "Free Autotune for FL Studio: a Free Pitcher Alternative",
+    updated: "2026-10-23",
+    title: "Free Autotune for FL Studio: SnapTune vs AutoTune Go and Pitcher",
     description:
-      "How to get autotune in FL Studio for free with SnapTune: install, find it in the plugin list, put it on your vocal and set up hard tune or natural correction.",
+      "Free autotune in FL Studio: how SnapTune compares with AutoTune Go and Pitcher, how to install it, and how to set up hard tune or natural correction.",
     keywords: [
       "autotune fl studio free",
       "free autotune for fl studio",
@@ -99,10 +103,21 @@ export const guides: Guide[] = [
       "fl studio pitch correction free",
       "how to autotune in fl studio",
       "fl studio fruity edition autotune",
+      "autotune go fl studio",
+      "autotune go alternative",
+      "fl cloud autotune",
     ],
     heading: "Free autotune in FL Studio",
-    lead: "SnapTune is a free pitch correction plugin that I test in FL Studio. If your edition of FL Studio doesn’t include Pitcher, or you want a hard-tune sound with a live mode for recording, this is how to set it up.",
+    lead: "SnapTune is a free pitch correction plugin that I test in FL Studio. Since September 2026 FL Studio also gives every user AutoTune Go for free, so this page says how the two compare, and then how to set SnapTune up.",
     sections: [
+      {
+        heading: "SnapTune, AutoTune Go or Pitcher?",
+        paragraphs: [
+          "AutoTune Go comes with FL Cloud Free (Tools, Manage Cloud Plugins) and runs only inside FL Studio. Image-Line lists Major, Minor and Chromatic scales, four Retune Speed settings and automatic vocal range detection: a quick way to tune to the key of your beat.",
+          "Pitcher is FL Studio’s own real-time pitch corrector, in the editions that include it, and Newtone is its note-by-note editor.",
+          "SnapTune is a separate VST3 (and an Audio Unit on a Mac) for when you want more: 13 scales or notes picked by hand, a Retune Speed knob that runs from 0 ms up, Humanize, MIDI target notes, a Formant knob and a 2.7 ms Live mode to record through. It’s open source, and the same plugin loads in other DAWs if you ever move.",
+        ],
+      },
       {
         heading: "Install and find it",
         steps: [
@@ -135,6 +150,10 @@ export const guides: Guide[] = [
     ],
     faqs: [
       { q: "Does it work in FL Studio Fruity Edition?", a: "Yes. SnapTune is a separate plugin, so it loads in any FL Studio edition that loads third-party VST3 plugins." },
+      {
+        q: "Do I need it if I have AutoTune Go?",
+        a: "Not always. For a quick tune in a major or minor key, AutoTune Go is a fine start. SnapTune is for other scales, a melody from MIDI, the Formant knob, a live mode to record through, or the same plugin outside FL Studio. Both are free, so try them side by side.",
+      },
       { q: "Is it a replacement for Pitcher?", a: "For real-time tuning, yes: key and scale, retune speed from robotic to natural, MIDI target notes and a live mode. It isn’t a note-by-note editor like Newtone." },
       { q: "An update doesn’t show up in FL Studio.", a: "FL Studio keeps the old plugin loaded until it restarts. Quit it completely and open it again." },
       trademark,
@@ -142,6 +161,7 @@ export const guides: Guide[] = [
   },
   {
     slug: "autotune-linux",
+    updated: "2026-10-21",
     title: "Free Autotune for Linux: an LV2 and VST3 Pitch Correction Plugin",
     description:
       "SnapTune brings free autotune to Linux: an LV2 and VST3 pitch correction plugin for Reaper, Bitwig, Ardour and other DAWs, plus a standalone app.",

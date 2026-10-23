@@ -14,7 +14,7 @@ const literata = Literata({ subsets: ["latin"], style: ["normal", "italic"], axe
 // want this. The trademark notice is in the footer of every page.
 const title = "SnapTune: Free Autotune Plugin for FL Studio, Mac, Windows and Linux";
 const description =
-  "Free, open-source autotune (pitch correction) plugin for vocals. Hard tune to natural, 2.7 ms live mode. VST3, AU and LV2. A free Pitcher alternative for FL Studio.";
+  "Free, open-source autotune (pitch correction) plugin for vocals. Hard tune to natural, 2.7 ms live mode. VST3, AU and LV2, for FL Studio and other DAWs.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
