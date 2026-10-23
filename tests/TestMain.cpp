@@ -1039,8 +1039,12 @@ void testOctaveErrors()
         const double roomyScore = score (roomy, held);
         const double bleedScore = score (withBleed, held);
         check (leapScore > 0.97, "Follows octave leaps" + tag, "right octave " + juce::String (100.0 * leapScore, 1) + "% of the time");
-        check (roomyScore > 0.95, "No sub-harmonic jumps on a roomy, breathy voice" + tag, "right octave " + juce::String (100.0 * roomyScore, 1) + "% of the time");
-        check (bleedScore > 0.9, "No sub-harmonic jumps with bleed a fifth below" + tag, "right octave " + juce::String (100.0 * bleedScore, 1) + "% of the time");
+        // Live integrates over ~1.5 periods, so it is noisier. The breath noise also differs between
+        // standard libraries (libstdc++ vs libc++), so leave room. The old detector scores 53-56 % on
+        // the roomy voice and 27-28 % with bleed.
+        const double minimum = mode == LatencyMode::live ? 0.9 : 0.95;
+        check (roomyScore > minimum, "No sub-harmonic jumps on a roomy, breathy voice" + tag, "right octave " + juce::String (100.0 * roomyScore, 1) + "% of the time");
+        check (bleedScore > minimum - 0.05, "No sub-harmonic jumps with bleed a fifth below" + tag, "right octave " + juce::String (100.0 * bleedScore, 1) + "% of the time");
     }
 }
 
