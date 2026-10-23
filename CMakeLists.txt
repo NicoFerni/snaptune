@@ -10,7 +10,7 @@ endif()
 # Static MSVC runtime on Windows, so the plugin loads without the Visual C++ Redistributable installed.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
-project(SnapTune VERSION 2.0.0 LANGUAGES C CXX)
+project(SnapTune VERSION 2.1.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)

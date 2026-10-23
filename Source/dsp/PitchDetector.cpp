@@ -43,7 +43,7 @@ void PitchDetector::prepare (int newWindowSize, int newMaxLag)
     inverseScale = std::abs (spectrumA[0]) > 1.0e-9f ? 1.0f / spectrumA[0] : 1.0f;
 }
 
-PitchDetector::Result PitchDetector::analyse (const float* frame, float minPeriod, float maxPeriod, float threshold, int window)
+PitchDetector::Result PitchDetector::analyse (const float* frame, float minPeriod, float maxPeriod, float threshold, int window, float previousPeriod)
 {
     Result result;
     const int frameSize = getFrameSize();
@@ -127,6 +127,40 @@ PitchDetector::Result PitchDetector::analyse (const float* frame, float minPerio
             if (cmnd[(size_t) tau] < cmnd[(size_t) best])
                 best = tau;
     }
+
+    // A periodic signal is also periodic at every multiple of its period, so breath, room sound or
+    // other sources often push the pick to 2x-4x the tracked period (the note drops an octave or
+    // more). If the tracked period, or a whole fraction of the pick, still has a clear dip, the
+    // shortest such period is the voice.
+    auto dipNear = [&] (float period)
+    {
+        const int from = std::max (tauMin, (int) std::floor (0.94f * period));
+        const int to = std::min (tauMax, (int) std::ceil (1.06f * period));
+        int dip = -1;
+
+        for (int tau = from; tau <= to; ++tau)
+            if (dip < 0 || cmnd[(size_t) tau] < cmnd[(size_t) dip])
+                dip = tau;
+
+        const bool clear = dip > tauMin && dip < tauMax && cmnd[(size_t) dip] < cmnd[(size_t) best] + 0.2f
+                           && cmnd[(size_t) dip] <= cmnd[(size_t) dip - 1] && cmnd[(size_t) dip] <= cmnd[(size_t) dip + 1];
+        return clear ? dip : -1;
+    };
+
+    const int picked = best;
+
+    for (int k = 4; k >= 2; --k)
+    {
+        if (const int dip = dipNear ((float) picked / (float) k); dip > 0)
+        {
+            best = dip;
+            break;
+        }
+    }
+
+    if (previousPeriod > 0.0f && (float) best > 1.5f * previousPeriod)
+        if (const int dip = dipNear (previousPeriod); dip > 0)
+            best = dip;
 
     // Parabolic interpolation on the raw difference function for sub-sample accuracy.
     float period = (float) best;

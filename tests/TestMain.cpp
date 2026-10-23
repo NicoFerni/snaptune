@@ -976,6 +976,74 @@ void testRealWorldVoices()
     }
 }
 
+/** Fraction of the hops inside the notes (onsets trimmed) where the engine's detected pitch is
+    within a semitone of the sung one. Octave and sub-harmonic picks are what this catches. */
+double pitchAccuracy (const std::vector<PitchFrame>& frames, double sampleRate, const std::vector<SungNote>& notes)
+{
+    const double maxPeriod = std::ceil (sampleRate / 65.0);
+    const double hop = std::max (32.0, (double) std::lround (sampleRate / 375.0));
+    const double firstHop = std::ceil ((2.0 * maxPeriod + 2.0) / hop) * hop;
+    int inside = 0, right = 0;
+
+    for (size_t i = 0; i < frames.size(); ++i)
+    {
+        const double t = (firstHop + (double) i * hop - 0.75 * maxPeriod - hop) / sampleRate;
+
+        for (const auto& n : notes)
+        {
+            if (t >= n.start + 0.08 && t <= n.end - 0.02)
+            {
+                ++inside;
+                right += frames[i].voiced && std::abs (frames[i].inputNote - (n.note + n.cents / 100.0)) < 1.0 ? 1 : 0;
+            }
+        }
+    }
+
+    return inside > 0 ? (double) right / inside : 0.0;
+}
+
+void testOctaveErrors()
+{
+    const double sampleRate = 48000.0;
+
+    // Legato octave leaps both ways: the detector must follow them, not hold the old octave.
+    const std::vector<SungNote> leaps { { 0.10, 0.80, 57, 0 }, { 0.80, 1.50, 69, 0 }, { 1.50, 2.20, 57, 0 }, { 2.20, 2.90, 45, 0 }, { 2.90, 3.60, 57, 0 } };
+    const auto leapInput = renderVoice (sampleRate, 3.7, melodyPitch (leaps));
+
+    // A held note with breath, jitter and room sound: consecutive cycles differ enough that YIN
+    // without a guard often prefers 2-4 periods (the note reads an octave or more too low). Then the
+    // same voice over bleed a fifth below, 14 dB down (speaker spill, a backing vocal), which
+    // repeats every two voice periods.
+    const std::vector<SungNote> held { { 0.10, 2.90, 63, 0 } };
+    const auto roomy = renderRealisticVoice (sampleRate, 3.0, melodyPitch (held), { -12.0, 0.35, 0.012, 0.15, 0.3 });
+    const auto bleed = renderVoice (sampleRate, 3.0, [] (double t) { return t >= 0.05 && t < 2.95 ? midiToHz (63.0) * 2.0 / 3.0 : 0.0; });
+    auto withBleed = roomy;
+
+    for (size_t i = 0; i < withBleed.size(); ++i)
+        withBleed[i] += 0.1f * bleed[i];
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        const juce::String tag (mode == LatencyMode::live ? " [Live]" : " [Studio]");
+        auto settings = hardTune();
+        settings.mode = mode;
+
+        auto score = [&] (const std::vector<float>& input, const std::vector<SungNote>& notes)
+        {
+            std::vector<PitchFrame> frames;
+            runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+            return pitchAccuracy (frames, sampleRate, notes);
+        };
+
+        const double leapScore = score (leapInput, leaps);
+        const double roomyScore = score (roomy, held);
+        const double bleedScore = score (withBleed, held);
+        check (leapScore > 0.97, "Follows octave leaps" + tag, "right octave " + juce::String (100.0 * leapScore, 1) + "% of the time");
+        check (roomyScore > 0.95, "No sub-harmonic jumps on a roomy, breathy voice" + tag, "right octave " + juce::String (100.0 * roomyScore, 1) + "% of the time");
+        check (bleedScore > 0.9, "No sub-harmonic jumps with bleed a fifth below" + tag, "right octave " + juce::String (100.0 * bleedScore, 1) + "% of the time");
+    }
+}
+
 void testModeSwitch()
 {
     const double sampleRate = 48000.0;
@@ -1505,6 +1573,7 @@ int main (int argc, char* argv[])
     testLiveMode (outDir);
     testLowVoice();
     testRealWorldVoices();
+    testOctaveErrors();
     testModeSwitch();
     testGraphStaysStill();
     testBlockSizesAndCpu();
