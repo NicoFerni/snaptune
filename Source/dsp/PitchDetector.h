@@ -31,8 +31,10 @@ public:
 
     /** `frame` holds getFrameSize() samples, oldest first. The integration window is anchored at
         the newest end of the frame so the estimate describes the most recent audio. A shorter
-        `window` (0 = the prepared size) reacts faster at the cost of some robustness. */
-    Result analyse (const float* frame, float minPeriod, float maxPeriod, float threshold, int window = 0);
+        `window` (0 = the prepared size) reacts faster at the cost of some robustness.
+        `previousPeriod` (0 = none) is the period being tracked: when the pick lands on a multiple
+        of it and the signal is still periodic there, the tracked period wins (no sub-harmonic jump). */
+    Result analyse (const float* frame, float minPeriod, float maxPeriod, float threshold, int window = 0, float previousPeriod = 0.0f);
 
 private:
     int windowSize = 0, maxLag = 0, fftSize = 0;

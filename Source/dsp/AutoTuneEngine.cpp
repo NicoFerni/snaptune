@@ -487,7 +487,7 @@ void AutoTuneEngine::analyseHop()
         window = (int) juce::jlimit (0.35 * maxPeriod, (double) maxPeriod, 1.5 * reference);
     }
 
-    const auto result = detector.analyse (frame.data(), minPeriod, maxPeriodForVoice, pickThreshold, window);
+    const auto result = detector.analyse (frame.data(), minPeriod, maxPeriodForVoice, pickThreshold, window, wasVoiced ? stampPeriod : 0.0f);
 
     // Hysteresis on both the level gate and the periodicity threshold keeps the voicing
     // decision from chattering at the ends of notes.

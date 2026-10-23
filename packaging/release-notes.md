@@ -1,12 +1,10 @@
 Real-time pitch correction: VST3, Audio Unit and a standalone app for macOS (universal, Apple Silicon + Intel), VST3 and a standalone app for Windows (64-bit), and VST3, LV2 and a standalone app for Linux (64-bit).
 
-### What's new in 2.0
+### What's new in 2.1
 
-- **Linux:** VST3, LV2 and a standalone app for 64-bit Linux, with an install script. The Linux builds are new and haven't been tried in every DAW yet: if yours has trouble, please [open an issue](https://github.com/NicoFerni/snaptune/issues) with the DAW, its version and your distribution.
-- **A new look:** a new logo, bottle green and gold, and new type (Rokkitt and Literata) built into the plugin, so the window looks the same on every system.
-- **A new website** at [getsnaptune.com](https://getsnaptune.com), where you can play the plugin in your browser before installing it.
+- **Steadier tracking on real recordings:** with breath, room sound or something else leaking into the mic, SnapTune sometimes heard a held note an octave or more too low for a few hundredths of a second. The correction let go for that moment, which sounded like a slight stutter (most of all in Studio mode). It now keeps to the note you're singing, and still follows real octave leaps.
 
-Nothing about the sound changed, and sessions saved with 1.x open as before.
+Sessions saved with earlier versions open as before.
 
 ### Install on macOS
 
