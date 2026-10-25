@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { mailConfigured, readInboxes } from "@/lib/mail";
+import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
 import { readTelemetry, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
-// and the latest mail in the Zoho inboxes.
+// Google searches from Search Console, and the latest mail in the Zoho inboxes.
 // proxy.ts keeps it behind ADMIN_PASSWORD.
 
 export const dynamic = "force-dynamic";
@@ -68,7 +69,7 @@ function percent(part: number, whole: number): string {
 const LOCAL_OFFSET = -3;
 
 async function load() {
-  const [telemetry, releases, issues, repoInfo, checks, builds, mail] = await Promise.all([
+  const [telemetry, releases, issues, repoInfo, checks, builds, mail, search] = await Promise.all([
     storageConfigured ? readTelemetry().catch((e: Error) => e) : null,
     github<Release[]>("/releases?per_page=100"),
     github<Issue[]>("/issues?state=all&per_page=100"),
@@ -76,12 +77,13 @@ async function load() {
     github<Runs>("/actions/workflows/downloads.yml/runs?per_page=20"),
     github<Runs>("/actions/workflows/build.yml/runs?branch=main&per_page=5"),
     mailConfigured ? readInboxes(8).catch((e: Error) => e) : null,
+    searchConfigured ? readSearch().catch((e: Error) => e) : null,
   ]);
 
   const downloads = (releases ?? []).reduce((sum, r) => sum + r.assets.reduce((s, a) => s + a.download_count, 0), 0);
   const history = storageConfigured && releases ? await snapshotDownloads(downloads).catch(() => null) : null;
 
-  return { telemetry, releases, issues, repoInfo, checks, builds, history, mail, now: Date.now() };
+  return { telemetry, releases, issues, repoInfo, checks, builds, history, mail, search, now: Date.now() };
 }
 
 /** The latest run that finished with a verdict: skipped runs say nothing, and cancelled ones were
@@ -91,7 +93,7 @@ function lastRun(runs: Runs | null) {
 }
 
 export default async function Admin() {
-  const { telemetry, releases, issues, repoInfo, checks, builds, history, mail, now } = await load();
+  const { telemetry, releases, issues, repoInfo, checks, builds, history, mail, search, now } = await load();
   const messages = mail && !(mail instanceof Error) ? mail.messages : [];
   const unread = messages.filter((m) => m.unread);
   const installs: StoredInstall[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
@@ -132,6 +134,18 @@ export default async function Admin() {
 
   // Downloads per day, from the daily totals the panel keeps.
   const downloadsPerDay = (history ?? []).slice(1).map(([d, total], i) => ({ day: d, value: Math.max(0, total - history![i][1]) })).slice(-30);
+  const weekAgo = (history ?? []).filter(([d]) => d <= day(now - 7 * DAY)).at(-1) ?? history?.[0];
+  const downloads7 = weekAgo ? downloads - weekAgo[1] : null;
+
+  // Download → install since the daily snapshots began, so older downloads of builds that never
+  // pinged don't drag the rate down.
+  const tracked = history?.[0];
+  const downloadsTracked = tracked ? downloads - tracked[1] : 0;
+  const installsTracked = tracked ? installs.filter((i) => day(i.first) >= tracked[0]).length : 0;
+
+  const searchReport = search && !(search instanceof Error) ? search : null;
+  const searchClicks = searchReport?.perDay.reduce((sum, r) => sum + r.clicks, 0) ?? 0;
+  const searchImpressions = searchReport?.perDay.reduce((sum, r) => sum + r.impressions, 0) ?? 0;
 
   // Stability by version: sessions and unclean exits, all recorded time.
   const stability = countBy(events, (e) => e.version).map(([version]) => {
@@ -165,6 +179,7 @@ export default async function Admin() {
         <Notice>Telemetry storage isn&apos;t set up: add Upstash Redis to the Vercel project. Downloads and reports below still work.</Notice>
       )}
       {telemetry instanceof Error && <Notice>Couldn&apos;t read telemetry: {telemetry.message}</Notice>}
+      {search instanceof Error && <Notice>Couldn&apos;t read Search Console: {search.message}</Notice>}
       {mail instanceof Error && <Notice>Couldn&apos;t read mail: {mail.message}</Notice>}
       {(!releases || !issues) && <Notice>GitHub didn&apos;t answer (rate limit?). Set GITHUB_TOKEN to raise it.</Notice>}
 
@@ -201,10 +216,22 @@ export default async function Admin() {
         <Stat label="Open reports" value={openReports.length} note={`${reports.length} total`} alert={openReports.length > 0} />
         <Stat label="Stars" value={repoInfo?.stargazers_count ?? "–"} note={`${repoInfo?.forks_count ?? "–"} forks`} />
         <Stat label="Last ping" value={events[0] ? ago(events[0].t) : "–"} note={events[0] ? `${events[0].host}, ${events[0].os}` : "no data yet"} />
-        <Stat label="Download → install" value={percent(installs.length, downloads)} note="installs that pinged, per download" />
+        <Stat
+          label="Download → install"
+          value={tracked ? percent(installsTracked, downloadsTracked) : percent(installs.length, downloads)}
+          note={tracked ? `${installsTracked} of ${downloadsTracked} since ${tracked[0]}` : "installs that pinged, per download"}
+        />
         <Stat label="Returning" value={percent(returning, installs.length)} note={`${returning} used it on more than one day`} />
         <Stat label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note="all time" />
         <Stat label="Downloads, last day" value={downloadsPerDay.at(-1)?.value ?? "–"} note={history ? `tracked since ${history[0]?.[0] ?? "today"}` : "needs telemetry storage"} />
+        <Stat label="Downloads, 7 days" value={downloads7 ?? "–"} note={weekAgo ? `since ${weekAgo[0]}` : "needs telemetry storage"} />
+        <Stat label="Google clicks, 28 days" value={searchReport ? searchClicks : "–"} note={searchReport ? `${searchImpressions} impressions` : "Search Console not set up"} />
+        <Stat label="Google CTR, 28 days" value={searchReport ? percent(searchClicks, searchImpressions) : "–"} note="clicks per impression" />
+        <Stat
+          label="New installs, 7 days"
+          value={installs.filter((i) => now - i.first < 7 * DAY).length}
+          note={`${percent(installs.filter((i) => now - i.first < 7 * DAY).length, downloads7 ?? 0)} of downloads`}
+        />
       </section>
 
       <div className="grid gap-x-6 md:grid-cols-2">
@@ -215,6 +242,22 @@ export default async function Admin() {
           {downloadsPerDay.length ? <ValueBars data={downloadsPerDay} /> : <p className="text-sm text-faint">Starts filling in tomorrow.</p>}
         </Panel>
       </div>
+
+      <Panel title="Google search" note="Search Console, last 28 days. Position is the average rank in the results.">
+        {searchReport ? (
+          <>
+            <ValueBars data={searchReport.perDay.map((r) => ({ day: r.key, value: r.clicks, detail: `${r.clicks} clicks, ${r.impressions} impressions` }))} unit="clicks" />
+            <div className="mt-6 grid gap-6 md:grid-cols-2">
+              <Table head={["Query", "Clicks", "Impr.", "Pos."]} rows={searchRows(searchReport.queries)} empty="No searches yet." />
+              <Table head={["Page", "Clicks", "Impr.", "Pos."]} rows={searchRows(searchReport.pages, (p) => p.replace(/^https?:\/\/getsnaptune\.com/, "") || "/")} empty="No pages yet." />
+            </div>
+          </>
+        ) : (
+          <p className="text-sm text-faint">
+            {searchConfigured ? "Search Console didn't answer." : "Not set up: add GSC_CLIENT_ID, GSC_CLIENT_SECRET and GSC_REFRESH_TOKEN to the Vercel project."}
+          </p>
+        )}
+      </Panel>
 
       <Panel title="Sessions per day" note="last 30 days, UTC. Coral: sessions that ended without a clean shutdown.">
         <DailyBars data={perDay} />
@@ -234,7 +277,7 @@ export default async function Admin() {
           <Bars rows={countBy(active30, (i) => `${i.format} · ${i.arch}`)} />
         </Panel>
         <Panel title="Country" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => i.country).slice(0, 10)} />
+          <Bars rows={countBy(active30, (i) => i.country)} />
         </Panel>
         <Panel title="Downloads by OS" note="GitHub release assets, all versions">
           <Bars rows={countBy(assets, (a) => assetOs(a.name), (a) => a.download_count)} />
@@ -366,15 +409,32 @@ function Stat({ label, value, note, alert, href }: { label: string; value: numbe
   );
 }
 
-// One series per chart: a bar per day (or hour), the value in the tooltip and the peak below.
-function ValueBars({ data }: { data: { day: string; value: number }[] }) {
+function searchRows(rows: SearchRow[], label: (key: string) => string = (k) => k): React.ReactNode[][] {
+  return rows.map((r) => [<span key="k" className="block max-w-[16rem] truncate" title={r.key}>{label(r.key)}</span>, r.clicks, r.impressions, r.position.toFixed(1)]);
+}
+
+// The day and its numbers, shown at once over the hovered bar (the browser's own title tooltip
+// takes a second to appear and often doesn't).
+function Tip({ children }: { children: React.ReactNode }) {
+  return (
+    <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-line-bright bg-panel px-2 py-1 text-xs text-ink shadow-lg group-hover:block">
+      {children}
+    </span>
+  );
+}
+
+// One series per chart: a bar per day (or hour), the value on hover and the peak below.
+function ValueBars({ data, unit }: { data: { day: string; value: number; detail?: string }[]; unit?: string }) {
   const max = Math.max(1, ...data.map((d) => d.value));
   return (
     <div>
       <div className="flex h-24 items-end gap-[2px]">
         {data.map((d) => (
-          <div key={d.day} className="flex h-full flex-1 flex-col justify-end hover:opacity-80" title={`${d.day}: ${d.value}`}>
-            <div className="rounded-t-sm bg-teal-deep" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value ? 2 : 0 }} />
+          <div key={d.day} className="group relative flex h-full flex-1 flex-col justify-end hover:bg-line/40">
+            <Tip>
+              <span className="text-faint">{d.day}</span> · <span className="font-semibold tabular-nums">{d.detail ?? `${d.value}${unit ? ` ${unit}` : ""}`}</span>
+            </Tip>
+            <div className="rounded-t-sm bg-teal-deep group-hover:bg-teal" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value ? 2 : 0 }} />
           </div>
         ))}
       </div>
@@ -398,21 +458,25 @@ function Panel({ title, note, children }: { title: string; note?: string; childr
 }
 
 // One series, so a single hue: bar length is the value, and the number is printed beside it.
+// Ten rows show; a long tail (hosts, macOS versions) scrolls inside the panel.
 function Bars({ rows }: { rows: [string, number][] }) {
   if (rows.length === 0) return <p className="text-sm text-faint">No data yet.</p>;
   const max = Math.max(...rows.map(([, n]) => n));
   return (
-    <ul className="space-y-2">
-      {rows.map(([label, n]) => (
-        <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm" title={`${label}: ${n}`}>
-          <span className="truncate text-muted">{label}</span>
-          <span className="h-2.5 rounded-r bg-line">
-            <span className="block h-full rounded-r bg-teal-deep" style={{ width: `${(n / max) * 100}%` }} />
-          </span>
-          <span className="text-right tabular-nums">{n}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="max-h-[17.5rem] space-y-2 overflow-y-auto pr-1">
+        {rows.map(([label, n]) => (
+          <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm" title={`${label}: ${n}`}>
+            <span className="truncate text-muted">{label}</span>
+            <span className="h-2.5 rounded-r bg-line">
+              <span className="block h-full rounded-r bg-teal-deep" style={{ width: `${(n / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums">{n}</span>
+          </li>
+        ))}
+      </ul>
+      {rows.length > 10 && <p className="mt-3 text-xs text-faint">{rows.length} in total, scroll for the rest</p>}
+    </>
   );
 }
 
@@ -422,11 +486,11 @@ function DailyBars({ data }: { data: { day: string; launches: number; exits: num
     <div>
       <div className="flex h-32 items-end gap-[2px]">
         {data.map((d) => (
-          <div
-            key={d.day}
-            className="flex h-full flex-1 flex-col justify-end gap-[2px] hover:opacity-80"
-            title={`${d.day}: ${d.launches} sessions, ${d.exits} unclean exits`}
-          >
+          <div key={d.day} className="group relative flex h-full flex-1 flex-col justify-end gap-[2px] hover:bg-line/40">
+            <Tip>
+              <span className="text-faint">{d.day}</span> · <span className="font-semibold tabular-nums">{d.launches} sessions</span>
+              {d.exits > 0 && <span className="text-coral"> · {d.exits} unclean</span>}
+            </Tip>
             {d.exits > 0 && <div className="rounded-t-sm bg-coral" style={{ height: `${(d.exits / max) * 100}%` }} />}
             <div
               className={`bg-teal-deep ${d.exits > 0 ? "" : "rounded-t-sm"}`}
