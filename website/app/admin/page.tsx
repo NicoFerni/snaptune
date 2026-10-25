@@ -277,7 +277,7 @@ export default async function Admin() {
           <Bars rows={countBy(active30, (i) => `${i.format} · ${i.arch}`)} />
         </Panel>
         <Panel title="Country" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => i.country).slice(0, 10)} />
+          <Bars rows={countBy(active30, (i) => i.country)} />
         </Panel>
         <Panel title="Downloads by OS" note="GitHub release assets, all versions">
           <Bars rows={countBy(assets, (a) => assetOs(a.name), (a) => a.download_count)} />
@@ -458,21 +458,25 @@ function Panel({ title, note, children }: { title: string; note?: string; childr
 }
 
 // One series, so a single hue: bar length is the value, and the number is printed beside it.
+// Ten rows show; a long tail (hosts, macOS versions) scrolls inside the panel.
 function Bars({ rows }: { rows: [string, number][] }) {
   if (rows.length === 0) return <p className="text-sm text-faint">No data yet.</p>;
   const max = Math.max(...rows.map(([, n]) => n));
   return (
-    <ul className="space-y-2">
-      {rows.map(([label, n]) => (
-        <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm" title={`${label}: ${n}`}>
-          <span className="truncate text-muted">{label}</span>
-          <span className="h-2.5 rounded-r bg-line">
-            <span className="block h-full rounded-r bg-teal-deep" style={{ width: `${(n / max) * 100}%` }} />
-          </span>
-          <span className="text-right tabular-nums">{n}</span>
-        </li>
-      ))}
-    </ul>
+    <>
+      <ul className="max-h-[17.5rem] space-y-2 overflow-y-auto pr-1">
+        {rows.map(([label, n]) => (
+          <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm" title={`${label}: ${n}`}>
+            <span className="truncate text-muted">{label}</span>
+            <span className="h-2.5 rounded-r bg-line">
+              <span className="block h-full rounded-r bg-teal-deep" style={{ width: `${(n / max) * 100}%` }} />
+            </span>
+            <span className="text-right tabular-nums">{n}</span>
+          </li>
+        ))}
+      </ul>
+      {rows.length > 10 && <p className="mt-3 text-xs text-faint">{rows.length} in total, scroll for the rest</p>}
+    </>
   );
 }
 
