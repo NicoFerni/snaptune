@@ -41,6 +41,19 @@ function assetOs(name: string): string {
   return "Other";
 }
 
+// Plugin scanners, script runners and processes with random names load the plugin without being a
+// DAW anyone records in, so the Host panel counts them together.
+const NOT_DAWS = /^(pythonw?|vstscanner|vst3cat|pluginval|.*scanner.*|.*validator.*)$/i;
+
+function hostLabel(host: string): string {
+  if (!host) return "Unknown";
+  if (NOT_DAWS.test(host)) return "Other";
+  // One word with a run of six consonants, or digits in the middle of mixed case (not a trailing
+  // version like Audacity4): a generated name, not a product.
+  if (!/\s/.test(host) && (/[bcdfghjklmnpqrstvwxz]{6}/i.test(host) || (/\d[a-z]/i.test(host) && /[a-z]/.test(host) && /[A-Z]/.test(host)))) return "Other";
+  return host;
+}
+
 function countBy<T>(items: T[], key: (item: T) => string, weight: (item: T) => number = () => 1): [string, number][] {
   const counts = new Map<string, number>();
   for (const item of items) {
@@ -267,8 +280,8 @@ export default async function Admin() {
         <Panel title="Operating system" note="active installs, 30 days">
           <Bars rows={countBy(active30, (i) => i.os)} />
         </Panel>
-        <Panel title="Host" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => i.host)} />
+        <Panel title="Host" note="active installs, 30 days; scanners and unnamed processes as Other">
+          <Bars rows={countBy(active30, (i) => hostLabel(i.host))} />
         </Panel>
         <Panel title="Plugin version" note="active installs, 30 days">
           <Bars rows={countBy(active30, (i) => i.version)} />
