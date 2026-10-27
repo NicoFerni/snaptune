@@ -129,9 +129,12 @@ PitchDetector::Result PitchDetector::analyse (const float* frame, float minPerio
     }
 
     // A periodic signal is also periodic at every multiple of its period, so breath, room sound or
-    // other sources often push the pick to 2x-4x the tracked period (the note drops an octave or
-    // more). If the tracked period, or a whole fraction of the pick, still has a clear dip, the
-    // shortest such period is the voice.
+    // other sources often push the pick to 2x-4x the period (the note drops an octave or more). If a
+    // whole fraction of the pick still has a clear dip, the shortest such period is the voice. Clear
+    // means within 0.2 of the pick, and also relative to it: next to a clean fundamental, a breathy
+    // voice's third harmonic can dip within 0.2 of it too. Where the voice was already at that period,
+    // the loose test stands: bleed from a lower note makes the pick land on a common multiple of the
+    // two periods, much deeper than the voice's own dip.
     auto dipNear = [&] (float period)
     {
         const int from = std::max (tauMin, (int) std::floor (0.94f * period));
@@ -142,7 +145,9 @@ PitchDetector::Result PitchDetector::analyse (const float* frame, float minPerio
             if (dip < 0 || cmnd[(size_t) tau] < cmnd[(size_t) dip])
                 dip = tau;
 
-        const bool clear = dip > tauMin && dip < tauMax && cmnd[(size_t) dip] < cmnd[(size_t) best] + 0.2f
+        const bool tracked = previousPeriod > 0.0f && std::abs ((float) dip - previousPeriod) < 0.06f * previousPeriod;
+        const float limit = cmnd[(size_t) best] + (tracked ? 0.2f : std::min (0.2f, cmnd[(size_t) best] + 0.05f));
+        const bool clear = dip > tauMin && dip < tauMax && cmnd[(size_t) dip] < limit
                            && cmnd[(size_t) dip] <= cmnd[(size_t) dip - 1] && cmnd[(size_t) dip] <= cmnd[(size_t) dip + 1];
         return clear ? dip : -1;
     };
@@ -158,20 +163,37 @@ PitchDetector::Result PitchDetector::analyse (const float* frame, float minPerio
         }
     }
 
-    if (previousPeriod > 0.0f && (float) best > 1.5f * previousPeriod)
-        if (const int dip = dipNear (previousPeriod); dip > 0)
-            best = dip;
-
     // Parabolic interpolation on the raw difference function for sub-sample accuracy.
-    float period = (float) best;
-    const double a = difference[(size_t) best - 1], b = difference[(size_t) best], c = difference[(size_t) best + 1];
-    const double curvature = a - 2.0 * b + c;
+    auto refine = [this] (int tau)
+    {
+        const double a = difference[(size_t) tau - 1], b = difference[(size_t) tau], c = difference[(size_t) tau + 1];
+        const double curvature = a - 2.0 * b + c;
+        return (float) tau + (curvature > 0.0 ? (float) std::clamp (0.5 * (a - c) / curvature, -0.5, 0.5) : 0.0f);
+    };
 
-    if (curvature > 0.0)
-        period += (float) std::clamp (0.5 * (a - c) / curvature, -0.5, 0.5);
-
-    result.period = period;
+    result.period = refine (best);
     result.aperiodicity = cmnd[(size_t) best];
+
+    // The caller judges continuity (dropouts, octave jumps) on its own terms, so also report the
+    // deepest dip next to the tracked period.
+    if (previousPeriod > 0.0f)
+    {
+        const int from = std::max (tauMin + 1, (int) std::floor (0.94f * previousPeriod));
+        const int to = std::min (tauMax - 1, (int) std::ceil (1.06f * previousPeriod));
+        int dip = -1;
+
+        for (int tau = from; tau <= to; ++tau)
+            if (cmnd[(size_t) tau] <= cmnd[(size_t) tau - 1] && cmnd[(size_t) tau] <= cmnd[(size_t) tau + 1]
+                && (dip < 0 || cmnd[(size_t) tau] < cmnd[(size_t) dip]))
+                dip = tau;
+
+        if (dip > 0)
+        {
+            result.trackedPeriod = refine (dip);
+            result.trackedAperiodicity = cmnd[(size_t) dip];
+        }
+    }
+
     return result;
 }
 } // namespace snaptune

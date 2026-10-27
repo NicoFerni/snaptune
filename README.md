@@ -158,23 +158,39 @@ opens the download page. Nothing is sent with that request, and the same opt-out
    *first* dip below an absolute threshold. Taking the first dip rather than the deepest avoids octave
    errors, and parabolic interpolation gives sub-sample accuracy (< 0.1 cent on steady tones). `d(τ)` is
    computed with FFT cross-correlation plus prefix sums: three real FFTs per analysis. The original
-   Auto-Tune (US patent 5,973,252) also detects pitch by autocorrelation.
+   Auto-Tune (US patent 5,973,252) also detects pitch by autocorrelation. Within a note the period
+   being tracked carries the voice through brief dips in periodicity, and a sudden octave jump has to
+   beat it: a strong second harmonic or breath noise otherwise makes a note read an octave off for a
+   few hops.
 2. **Note selection.** The detected pitch is snapped to the nearest allowed note, with 0.12 semitone
-   hysteresis so a voice halfway between two notes doesn't flicker.
+   hysteresis so a voice halfway between two notes doesn't flicker. In Live mode, whose shorter
+   analysis is noisier, a breathy voice's note is chosen from a lightly smoothed pitch (at most ~8 ms
+   later). A dropout of up to 40 ms inside a note doesn't restart it: if the voice comes back on the
+   same pitch, the note resumes with its target and correction instead of gliding in again.
 3. **Retune speed.** The correction (target − detected) passes through a one-pole smoother whose time
    constant is a third of the retune time. At 0 ms it jumps instantly (the stair-step effect); slower
    settings act like a high-pass on the pitch curve, so vibrato passes through while drift is corrected.
-4. **Studio mode: TD-PSOLA.** Pitch marks are placed one period apart, locked to the same waveform peak
-   in every cycle. Two-period grains (asymmetric Hann windows) centred on the marks are overlap-added at
-   the corrected spacing. Because grains are re-spaced rather than resampled, the formants stay put.
-   Unpitched sounds pass through untouched. Grains need to see past the note they rebuild: for the
-   lowest note (65 Hz) that is 3 × 15.4 ms = 46 ms, reported to the host for compensation.
-5. **Live mode: pitch-synchronous resampling** (the original Auto-Tune method). The input is read through
-   a delay line at the corrected speed; when the read point drifts a full cycle it jumps back or forward
-   exactly one period (found by cross-correlation, crossfaded), so the delay stays under one period.
-   With no look-ahead, it analyses a shorter window and extrapolates the correction across the detector's
-   delay so vibrato is still caught. Formants move with the correction, which is inaudible for ±1
-   semitone tuning, so use Studio for big MIDI jumps.
+4. **Studio mode: TD-PSOLA.** Pitch marks are placed one period apart, each where its cycle best
+   matches the previous one (normalised cross-correlation) and pulled gently toward the same waveform
+   peak, so breath noise or the formant ripples of a low voice can't make a mark jump to a neighbouring
+   peak. When the detector briefly locks onto a harmonic or a sub-harmonic, the harmonics present in
+   the waveform decide which period the marks follow. Two-period grains (asymmetric Hann windows)
+   centred on the marks are overlap-added at the corrected spacing. Because grains are re-spaced rather
+   than resampled, the formants stay put. Unpitched sounds pass through uncorrected. Where the voice
+   turns unpitched, or the detector loses it for a moment mid-note, they keep the voiced grains'
+   alignment and return to the input's timing gradually (at once where it is quiet, or below 100% Mix),
+   so at 100% Mix the hand-over doesn't crossfade two copies of the voice a fraction of a period apart.
+   Grains need to see past the note they rebuild: for the lowest note (65 Hz) that is
+   3 × 15.4 ms = 46 ms, reported to the host for compensation.
+5. **Live mode: pitch-synchronous resampling** (the original Auto-Tune method). The input is read
+   through a delay line at the corrected speed; when the read point drifts a full cycle it jumps back or
+   forward exactly one period (found by cross-correlation, crossfaded), so the delay stays under one
+   period. Between notes it returns to the reported latency in near silence, or in breaths and
+   consonants once the pitch has been gone for ~20 ms; otherwise it keeps its delay (about a period at
+   most). With no look-ahead, it analyses a shorter window (1.5 periods, up to 2.5 for a breathy voice,
+   within ~5-15 ms) and extrapolates the correction across the detector's delay so vibrato is still
+   caught, scaling the extrapolation down when the estimate is noisy. Formants move with the correction,
+   which is inaudible for ±1 semitone tuning, so use Studio for big MIDI jumps.
 
 ## Project layout
 
@@ -206,13 +222,18 @@ auval -v aumf Snpt Ncfz
 ```
 
 The suite renders a synthetic singer (band-limited glottal source through formant resonators) singing an
-off-key melody and checks, with an independent pitch tracker, that in both modes:
+off-key melody and checks, with an independent pitch tracker, that (in both modes unless marked):
 - notes land within 1 cent
 - retune speed keeps or removes vibrato as intended
 - scales, fast glides and MIDI targets snap correctly
+- a breathy note held near the switching point keeps its target (a few note flips at most; the old
+  Live engine had 85)
+- a short dropout inside a note doesn't make the correction glide in again
 - formants stay in place
 - unpitched audio passes through bit-exact
-- low voices work, splices stay clean, and mode switching is safe
+- low voices work, splices stay clean, detached notes start cleanly (Live), and mode switching is safe
+- octave leaps are followed (also onto /u/, whose first formant sits on the low note's second harmonic)
+- a brief octave slip of the detector, or a fast leap up, leaves the grains whole (Studio)
 - output doesn't depend on block size, and CPU stays low
 
 The host test loads the built VST3/AU, and checks that switching mode while running tells the host the new latency.

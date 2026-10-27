@@ -21,6 +21,11 @@ public:
         float period = 0.0f;       // samples, sub-sample accurate; 0 when nothing was measured
         float aperiodicity = 1.0f; // cumulative-mean-normalised difference at that lag (0 = perfectly periodic)
         float rms = 0.0f;          // level of the integration window
+
+        // The deepest dip within +-6 % (about a semitone) of `previousPeriod`, whether or not it was
+        // picked (0 / 1 when there is none).
+        float trackedPeriod = 0.0f;
+        float trackedAperiodicity = 1.0f;
     };
 
     /** windowSize is YIN's integration window W; maxLag is the longest measurable period. */
@@ -32,8 +37,8 @@ public:
     /** `frame` holds getFrameSize() samples, oldest first. The integration window is anchored at
         the newest end of the frame so the estimate describes the most recent audio. A shorter
         `window` (0 = the prepared size) reacts faster at the cost of some robustness.
-        `previousPeriod` (0 = none) is the period being tracked: when the pick lands on a multiple
-        of it and the signal is still periodic there, the tracked period wins (no sub-harmonic jump). */
+        `previousPeriod` (0 = none) is the period being tracked: the result also reports the dip
+        next to it, and the caller decides between that and the pick. */
     Result analyse (const float* frame, float minPeriod, float maxPeriod, float threshold, int window = 0, float previousPeriod = 0.0f);
 
 private:
