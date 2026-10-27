@@ -789,6 +789,69 @@ void testLowVoice()
     }
 }
 
+void testLiveNoteOnsets()
+{
+    // Detached notes: as each one starts, the detector hears the old and the new pitch at once and
+    // reports unvoiced for a few ms. A splice back to the reported latency right there plays the
+    // first cycles of the note twice, so the attack rises, dips and rises again (a "bop"). Either
+    // defence alone keeps the onsets clean: no drift-back while a note may be starting, and a
+    // drift-back fade no longer than the delay.
+    const double sampleRate = 48000.0;
+    const std::pair<double, double> pitches[] = { { 57, 30 }, { 60, -25 }, { 64, 20 }, { 55, -40 }, { 62, 15 } };
+    std::vector<SungNote> notes;
+
+    for (int i = 0; i < 10; ++i)
+    {
+        const double start = 0.1 + 0.34 * i;
+        notes.push_back ({ start, start + 0.22, pitches[i % 5].first, pitches[i % 5].second });
+    }
+
+    auto live = hardTune();
+    live.mode = LatencyMode::live;
+    const auto input = renderVoice (sampleRate, 3.6, melodyPitch (notes));
+    const auto output = runEngine (input, sampleRate, live);
+
+    // Largest drop of the one-period RMS envelope below its running peak while each note starts.
+    auto worstAttackDip = [&] (const std::vector<float>& x)
+    {
+        double worst = 0.0;
+
+        for (const auto& n : notes)
+        {
+            const auto period = (int) std::lround (sampleRate / midiToHz (n.note + n.cents / 100.0));
+            std::vector<double> envelope;
+
+            for (auto centre = (int) ((n.start - 0.005) * sampleRate); centre < (int) ((n.start + 0.05) * sampleRate); centre += 24)
+            {
+                double energy = 0.0;
+
+                for (int j = centre - period / 2; j < centre + period / 2; ++j)
+                    energy += (double) x[(size_t) j] * x[(size_t) j];
+
+                envelope.push_back (10.0 * std::log10 (energy / period + 1.0e-12));
+            }
+
+            const double top = *std::max_element (envelope.begin(), envelope.end());
+            double peak = -1.0e9;
+
+            for (auto level : envelope)
+            {
+                if (level < top - 30.0)
+                    continue; // still silent
+
+                peak = std::max (peak, level);
+                worst = std::max (worst, peak - level);
+            }
+        }
+
+        return worst;
+    };
+
+    const double dipIn = worstAttackDip (input), dipOut = worstAttackDip (output);
+    check (dipOut < 1.0, "Live mode: detached notes start cleanly",
+           "worst dip in an attack: input " + juce::String (dipIn, 2) + " dB, Live " + juce::String (dipOut, 2) + " dB");
+}
+
 // A less polite singer: breath noise, jitter (period wobble), shimmer (level wobble), a room,
 // background hiss and a real-world input level. Real mics give the detector all of these.
 struct Realism
@@ -1002,6 +1065,96 @@ double pitchAccuracy (const std::vector<PitchFrame>& frames, double sampleRate, 
     return inside > 0 ? (double) right / inside : 0.0;
 }
 
+/** Changes of the target note between consecutive voiced hops inside the notes (onsets and ends trimmed). */
+int targetFlips (const std::vector<PitchFrame>& frames, double sampleRate, const std::vector<SungNote>& notes)
+{
+    const double maxPeriod = std::ceil (sampleRate / 65.0);
+    const double hop = std::max (32.0, (double) std::lround (sampleRate / 375.0));
+    const double firstHop = std::ceil ((2.0 * maxPeriod + 2.0) / hop) * hop;
+    int flips = 0;
+
+    for (size_t i = 1; i < frames.size(); ++i)
+    {
+        const double t = (firstHop + (double) i * hop - 0.75 * maxPeriod - hop) / sampleRate;
+
+        for (const auto& n : notes)
+            if (t >= n.start + 0.08 && t <= n.end - 0.08 && frames[i - 1].voiced && frames[i].voiced && frames[i - 1].targetNote != frames[i].targetNote)
+                ++flips;
+    }
+
+    return flips;
+}
+
+void testNoteFlips()
+{
+    // A breathy note held 35 cents sharp, about 20 cents from where hard tune switches to the
+    // next note. Estimation noise used to flip the target there for a few ms at a time, about 15
+    // times a second in Live (85 target changes in 2.6 s): each excursion is a semitone bop at hard
+    // tune. The Live window, the scaled extrapolation and the smoothed note choice keep it still.
+    const double sampleRate = 48000.0;
+    const std::vector<SungNote> held { { 0.10, 2.90, 57, +35 } };
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        int flips = 0;
+
+        // The breath noise differs between standard libraries, so count over three realisations:
+        // a few flips each (up to ~12), against 85 in the old Live engine and ~14 without the
+        // smoothed note choice.
+        for (uint32_t seed : { 11u, 12u, 13u })
+        {
+            const auto input = renderRealisticVoice (sampleRate, 3.0, melodyPitch (held), { -12.0, 0.35, 0.012, 0.15 }, seed);
+            std::vector<PitchFrame> frames;
+            runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+            flips += targetFlips (frames, sampleRate, held);
+        }
+
+        check (flips <= 24, juce::String ("Breathy held note keeps its target") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               juce::String (flips) + " note flips in 3 x 2.6 s");
+    }
+}
+
+void testDropoutResume()
+{
+    // A held note 35 cents sharp with a 15 ms burst of noise in the middle (a breath or a consonant
+    // inside the note), at a 60 ms retune. The detector loses the pitch there; the note must come
+    // back on its correction, not glide onto the target again from uncorrected. (The tracker's frames
+    // overlap the burst for ~25 ms after it, so the check starts there.)
+    const double sampleRate = 48000.0;
+    const std::vector<SungNote> held { { 0.10, 1.40, 57, +35 } };
+    auto input = renderVoice (sampleRate, 1.5, melodyPitch (held));
+    const auto burstStart = (size_t) (0.80 * sampleRate), burstEnd = (size_t) (0.815 * sampleRate);
+    double power = 0.0;
+
+    for (size_t i = burstStart; i < burstEnd; ++i)
+        power += (double) input[i] * input[i];
+
+    std::mt19937 rng (7);
+    std::normal_distribution<double> noise (0.0, std::sqrt (power / (double) (burstEnd - burstStart)));
+
+    for (size_t i = burstStart; i < burstEnd; ++i)
+        input[i] = (float) noise (rng);
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        settings.retuneMs = 60.0f;
+        const auto output = runEngine (input, sampleRate, settings);
+        double worst = 0.0;
+
+        for (const auto& p : trackPitch (output, sampleRate))
+            if (p.time > 0.843 && p.time < 0.88)
+                worst = std::max (worst, std::abs (100.0 * (hzToMidi (p.hz) - 57.0)));
+
+        // Restarting from uncorrected leaves 9-11 cents here.
+        check (worst < 5.0, juce::String ("A dropout inside a note doesn't restart its correction") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               "worst error 28-65 ms after it " + juce::String (worst, 1) + " ct");
+    }
+}
+
 void testOctaveErrors()
 {
     const double sampleRate = 48000.0;
@@ -1046,6 +1199,158 @@ void testOctaveErrors()
         check (roomyScore > minimum, "No sub-harmonic jumps on a roomy, breathy voice" + tag, "right octave " + juce::String (100.0 * roomyScore, 1) + "% of the time");
         check (bleedScore > minimum - 0.05, "No sub-harmonic jumps with bleed a fifth below" + tag, "right octave " + juce::String (100.0 * bleedScore, 1) + "% of the time");
     }
+}
+
+const Vowel vowelU { { 300.0, 870.0, 2240.0, 3300.0 }, { 60.0, 90.0, 120.0, 150.0 } };
+
+/** Like renderVoice, for one held note while the formants glide from one vowel to another. */
+std::vector<float> renderVowelGlide (double sampleRate, double seconds, double hz, const Vowel& from, const Vowel& to, double glideStart, double glideEnd)
+{
+    const auto n = (size_t) (seconds * sampleRate);
+    std::vector<float> out (n);
+    std::vector<Resonator> tract;
+
+    for (int i = 0; i < 4; ++i)
+        tract.emplace_back (from.frequency[i], from.bandwidth[i], sampleRate);
+
+    std::mt19937 rng (1234);
+    std::normal_distribution<double> noise (0.0, 1.0);
+    double phase = 0.0, envelope = 0.0;
+    const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
+    const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
+    const int harmonics = std::min (60, (int) (0.45 * sampleRate / hz));
+
+    for (size_t i = 0; i < n; ++i)
+    {
+        const double t = (double) i / sampleRate;
+        const double target = t >= 0.1 && t < seconds - 0.1 ? 1.0 : 0.0;
+        envelope += (target - envelope) * (target > envelope ? attack : release);
+
+        if (i % 16 == 0)
+        {
+            const double x = std::clamp ((t - glideStart) / (glideEnd - glideStart), 0.0, 1.0);
+
+            for (size_t k = 0; k < tract.size(); ++k)
+            {
+                Resonator updated (from.frequency[k] + x * (to.frequency[k] - from.frequency[k]),
+                                   from.bandwidth[k] + x * (to.bandwidth[k] - from.bandwidth[k]), sampleRate);
+                updated.y1 = tract[k].y1;
+                updated.y2 = tract[k].y2;
+                tract[k] = updated;
+            }
+        }
+
+        double source = 0.0;
+
+        if (envelope > 1.0e-5)
+        {
+            phase += hz / sampleRate;
+            phase -= std::floor (phase);
+
+            for (int k = 1; k <= harmonics; ++k)
+                source += std::sin (juce::MathConstants<double>::twoPi * k * phase) / k;
+
+            source = envelope * (source + 0.004 * noise (rng));
+        }
+
+        double y = source;
+
+        for (auto& r : tract)
+            y = r.process (y);
+
+        out[i] = (float) y;
+    }
+
+    float peak = 1.0e-9f;
+
+    for (auto x : out)
+        peak = std::max (peak, std::abs (x));
+
+    for (auto& x : out)
+        x *= 0.5f / peak;
+
+    return out;
+}
+
+void testOctaveSlips()
+{
+    // A held A3 (30 cents sharp) while the vowel glides from /u/ to /a/: as F1 sweeps past the
+    // second harmonic, that harmonic dominates and the detector reads the note an octave up for a
+    // few hops. The correction is the same in either octave, but pitch marks that follow the slip
+    // land half a period apart and cut every cycle in two (the independent tracker loses the pitch).
+    // The octave guard usually holds the period first; the marks' harmonic check backs it up.
+    const double sampleRate = 48000.0;
+    const auto input = renderVowelGlide (sampleRate, 1.4, midiToHz (57.3), vowelU, vowelA, 0.4, 0.9);
+    const auto output = runEngine (input, sampleRate, hardTune());
+
+    double gap = 0.0, worst = 0.0, previous = 0.3;
+    std::vector<double> errors;
+
+    for (const auto& p : trackPitch (output, sampleRate))
+    {
+        if (p.time < 0.3 || p.time > 1.2)
+            continue;
+
+        gap = std::max (gap, p.time - previous);
+        previous = p.time;
+        worst = std::max (worst, p.aperiodicity);
+        errors.push_back (std::abs (100.0 * (hzToMidi (p.hz) - 57.0)));
+    }
+
+    gap = std::max (gap, 1.2 - previous);
+    check (gap < 0.012 && worst < 0.05 && percentile (errors, 1.0) < 10.0, "Vowel change: a brief octave slip leaves grains whole",
+           "longest unpitched stretch " + juce::String (juce::roundToInt (1000.0 * gap)) + " ms, worst aperiodicity " + juce::String (worst, 4)
+               + ", max error " + juce::String (percentile (errors, 1.0), 2) + " ct");
+}
+
+void testLeapsOntoFormant()
+{
+    // Instant legato octave leaps on /u/: its first formant (300 Hz) sits on the low note's second
+    // harmonic, so after each leap down the old period still dips fairly well and the octave guard
+    // may hold the upper octave for a few hops. It must let go: a guard that keeps holding against a
+    // clean pick loses whole notes. (pitchAccuracy skips each note's first 80 ms, so a short hold
+    // isn't measured here.)
+    const double sampleRate = 48000.0;
+    std::vector<SungNote> leaps;
+
+    for (int i = 0; i < 8; ++i)
+        leaps.push_back ({ 0.10 + 0.4 * i, 0.50 + 0.4 * i, i % 2 == 0 ? 62.0 : 50.0, 20.0 });
+
+    const auto input = renderVoice (sampleRate, 3.4, melodyPitch (leaps), vowelU);
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        std::vector<PitchFrame> frames;
+        runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+        const double accuracy = pitchAccuracy (frames, sampleRate, leaps);
+        check (accuracy > 0.97, juce::String ("Follows octave leaps onto /u/") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               "right octave " + juce::String (100.0 * accuracy, 1) + "% of the time");
+    }
+}
+
+void testFastLeapUp()
+{
+    // A sudden leap up of 16 semitones (the periods are 2.5x apart, not a whole ratio), sung off so
+    // that C major moves the upper note 70 cents. The pitch marks' harmonic check could take the new
+    // note for the old period and space the rest of its grains several cycles apart: a growl. Taking
+    // the measured spacing as the marks' period, and the 30 ms limit on wider spacing, each prevent it.
+    const double sampleRate = 48000.0;
+    const std::vector<SungNote> notes { { 0.10, 0.70, 50, +30 }, { 0.70, 1.30, 66, -30 }, { 1.30, 1.90, 50, +25 } };
+    const auto input = renderVoice (sampleRate, 2.0, melodyPitch (notes));
+    auto settings = hardTune();
+    settings.scale = Scale::major;
+    const auto output = runEngine (input, sampleRate, settings);
+
+    std::vector<double> aperiodicity;
+
+    for (const auto& p : trackPitch (output, sampleRate))
+        if (p.time > 0.8 && p.time < 1.25)
+            aperiodicity.push_back (p.aperiodicity);
+
+    const double worst = aperiodicity.empty() ? 1.0 : percentile (aperiodicity, 0.95);
+    check (worst < 0.01, "Fast leap up keeps whole grains [Studio]", "upper note aperiodicity p95 " + juce::String (worst, 4));
 }
 
 void testModeSwitch()
@@ -1576,8 +1881,14 @@ int main (int argc, char* argv[])
     testTransparency();
     testLiveMode (outDir);
     testLowVoice();
+    testLiveNoteOnsets();
     testRealWorldVoices();
+    testNoteFlips();
+    testDropoutResume();
     testOctaveErrors();
+    testOctaveSlips();
+    testLeapsOntoFormant();
+    testFastLeapUp();
     testModeSwitch();
     testGraphStaysStill();
     testBlockSizesAndCpu();
