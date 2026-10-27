@@ -32,6 +32,10 @@ export type TelemetryEvent = {
 
 export const MAX_EVENTS = 20000;
 
+// The developer's own installs, left out of every metric so testing doesn't skew them.
+// An install's id is in ~/Library/Application Support/SnapTune/install-id (macOS).
+const IGNORED_INSTALLS = new Set(["3467e8d7-5552-466a-be7e-5374d0b31859"]);
+
 const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
 
@@ -66,9 +70,12 @@ export async function readTelemetry(): Promise<{ installs: StoredInstall[]; even
   // HGETALL comes back as a flat [field, value, field, value, …] array.
   const fields = (hash as string[]) ?? [];
   const installs: StoredInstall[] = [];
-  for (let i = 1; i < fields.length; i += 2) installs.push({ ...JSON.parse(fields[i]), id: fields[i - 1] });
+  for (let i = 1; i < fields.length; i += 2)
+    if (!IGNORED_INSTALLS.has(fields[i - 1])) installs.push({ ...JSON.parse(fields[i]), id: fields[i - 1] });
 
-  const events = ((list as string[]) ?? []).map((e) => JSON.parse(e) as TelemetryEvent);
+  const events = ((list as string[]) ?? [])
+    .map((e) => JSON.parse(e) as TelemetryEvent)
+    .filter((e) => !IGNORED_INSTALLS.has(e.install));
   return { installs, events };
 }
 
