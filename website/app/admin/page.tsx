@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
-import { readTelemetry, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
+import { readTelemetry, snapshotDownloads, storageConfigured, TOOL_HOSTS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
 // Google searches from Search Console, and the latest mail in the Zoho inboxes.
@@ -117,6 +117,8 @@ export default async function Admin() {
   const recent = events.filter((e) => now - e.t < 30 * DAY);
   const launches30 = recent.filter((e) => e.type === "launch");
   const exits30 = recent.filter((e) => e.type === "unclean_exit");
+  const toolExits30 = exits30.filter((e) => TOOL_HOSTS.has(e.host)).length;
+  const dawExits30 = exits30.length - toolExits30;
   const exits = events.filter((e) => e.type === "unclean_exit");
 
   const days = Array.from({ length: 30 }, (_, i) => day(now - (29 - i) * DAY));
@@ -221,9 +223,9 @@ export default async function Admin() {
         <Stat label="Sessions, 30 days" value={launches30.length} note="one per DAW session" />
         <Stat
           label="Unclean exits, 30 days"
-          value={exits30.length}
-          note={`${percent(exits30.length, launches30.length)} of sessions`}
-          alert={exits30.length > 0}
+          value={dawExits30}
+          note={`${percent(dawExits30, launches30.length)} of sessions${toolExits30 ? `, +${toolExits30} from tools` : ""}`}
+          alert={dawExits30 > 0}
         />
         <Stat label="Downloads" value={downloads} note="all releases" />
         <Stat label="Open reports" value={openReports.length} note={`${reports.length} total`} alert={openReports.length > 0} />

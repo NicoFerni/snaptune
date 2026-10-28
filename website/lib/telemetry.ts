@@ -36,6 +36,10 @@ export const MAX_EVENTS = 20000;
 // An install's id is in ~/Library/Application Support/SnapTune/install-id (macOS).
 const IGNORED_INSTALLS = new Set(["3467e8d7-5552-466a-be7e-5374d0b31859"]);
 
+// Hosts that aren't DAWs: scripts, plugin scanners and people's own test hosts load the plugin and
+// exit without destroying it, so their unclean exits say nothing about crashes.
+export const TOOL_HOSTS = new Set(["python", "vst3cat", "Auralis-picker-pitch-live-fx"]);
+
 const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
 
