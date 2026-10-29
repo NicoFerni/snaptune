@@ -1,4 +1,4 @@
-import { MAX_EVENTS, redis, storageConfigured, type Install, type TelemetryEvent } from "@/lib/telemetry";
+import { isDawHost, MAX_EVENTS, redis, storageConfigured, type Install, type TelemetryEvent } from "@/lib/telemetry";
 
 // Receives the plugin's usage ping (../Source/Telemetry.cpp): one per DAW session, with the
 // install's anonymous id, this session, and earlier sessions that ended without a clean shutdown.
@@ -73,6 +73,7 @@ export async function POST(request: Request) {
     host: current.host,
     format: current.format,
     country,
+    daw: before?.daw || isDawHost(current.host),
   };
 
   await redis(

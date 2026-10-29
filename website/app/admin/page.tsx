@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
-import { readTelemetry, snapshotDownloads, storageConfigured, TOOL_HOSTS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
+import { NOT_DAWS, readTelemetry, snapshotDownloads, storageConfigured, TOOL_HOSTS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
 // Google searches from Search Console, and the latest mail in the Zoho inboxes.
@@ -43,8 +43,6 @@ function assetOs(name: string): string {
 
 // Plugin scanners, script runners and processes with random names load the plugin without being a
 // DAW anyone records in, so the Host panel counts them together.
-const NOT_DAWS = /^(pythonw?|vstscanner|vst3cat|pluginval|.*scanner.*|.*validator.*)$/i;
-
 function hostLabel(host: string): string {
   if (!host) return "Unknown";
   if (NOT_DAWS.test(host)) return "Other";
@@ -218,7 +216,7 @@ export default async function Admin() {
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Installs" value={installs.length} note="unique, all time" />
+        <Stat label="Installs" value={installs.length} note="one per device that ran it in a DAW" />
         <Stat label="Active, 7 days" value={active7.length} note={`${active30.length} in 30 days`} />
         <Stat label="Sessions, 30 days" value={launches30.length} note="one per DAW session" />
         <Stat

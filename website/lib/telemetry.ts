@@ -16,6 +16,8 @@ export type Install = {
   host: string;
   format: string;
   country: string;
+  // Set once the install has launched in a DAW, not only in a scanner or script.
+  daw?: boolean;
 };
 
 export type TelemetryEvent = {
@@ -39,6 +41,13 @@ const IGNORED_INSTALLS = new Set(["3467e8d7-5552-466a-be7e-5374d0b31859"]);
 // Hosts that aren't DAWs: scripts, plugin scanners and people's own test hosts load the plugin and
 // exit without destroying it, so their unclean exits say nothing about crashes.
 export const TOOL_HOSTS = new Set(["python", "vst3cat", "Auralis-picker-pitch-live-fx"]);
+
+// Plugin scanners and validators, by executable name.
+export const NOT_DAWS = /^(pythonw?|vstscanner|vst3cat|pluginval|.*scanner.*|.*validator.*)$/i;
+
+export function isDawHost(host: string): boolean {
+  return Boolean(host) && !TOOL_HOSTS.has(host) && !NOT_DAWS.test(host);
+}
 
 const url = process.env.KV_REST_API_URL ?? process.env.UPSTASH_REDIS_REST_URL;
 const token = process.env.KV_REST_API_TOKEN ?? process.env.UPSTASH_REDIS_REST_TOKEN;
@@ -73,13 +82,22 @@ export async function readTelemetry(): Promise<{ installs: StoredInstall[]; even
 
   // HGETALL comes back as a flat [field, value, field, value, …] array.
   const fields = (hash as string[]) ?? [];
-  const installs: StoredInstall[] = [];
-  for (let i = 1; i < fields.length; i += 2)
-    if (!IGNORED_INSTALLS.has(fields[i - 1])) installs.push({ ...JSON.parse(fields[i]), id: fields[i - 1] });
-
   const events = ((list as string[]) ?? [])
     .map((e) => JSON.parse(e) as TelemetryEvent)
     .filter((e) => !IGNORED_INSTALLS.has(e.install));
+
+  // One install is one device (the id lives in the user's app data, shared by every DAW and
+  // version), and it only counts once it has run in a DAW: an install only a scanner or
+  // validator ever loaded isn't a user. Installs from before the `daw` flag fall back to events.
+  const inDaw = new Set(events.filter((e) => e.type === "launch" && isDawHost(e.host)).map((e) => e.install));
+
+  const installs: StoredInstall[] = [];
+  for (let i = 1; i < fields.length; i += 2) {
+    const id = fields[i - 1];
+    const install: Install = JSON.parse(fields[i]);
+    if (!IGNORED_INSTALLS.has(id) && (install.daw || inDaw.has(id) || isDawHost(install.host)))
+      installs.push({ ...install, id });
+  }
   return { installs, events };
 }
 
