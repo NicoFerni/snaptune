@@ -111,3 +111,34 @@ export async function snapshotDownloads(total: number): Promise<[string, number]
   for (let i = 0; i < fields.length; i += 2) days.push([fields[i], Number(fields[i + 1])]);
   return days.sort((a, b) => a[0].localeCompare(b[0]));
 }
+
+// Downloads through the site's buttons (app/download/[os]), one per IP: each IP goes, hashed, into
+// HyperLogLogs (`dl:all`, `dl:<os>`, `dl:day:YYYY-MM-DD`), which keep only an estimate of how many
+// distinct values they've seen, never the values.
+async function hashIp(ip: string): Promise<string> {
+  const data = new TextEncoder().encode(`snaptune:${ip}`);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return Buffer.from(digest).toString("hex").slice(0, 32);
+}
+
+export async function recordDownload(ip: string, os: string): Promise<void> {
+  const id = await hashIp(ip);
+  const today = new Date().toISOString().slice(0, 10);
+  await redis(["SET", "dl:since", today, "NX"], ["PFADD", "dl:all", id], ["PFADD", `dl:${os}`, id], ["PFADD", `dl:day:${today}`, id]);
+}
+
+export type UniqueDownloads = { since: string | null; all: number; last7: number; lastDay: number; byOs: [string, number][] };
+
+export async function readUniqueDownloads(): Promise<UniqueDownloads> {
+  const days = Array.from({ length: 7 }, (_, i) => `dl:day:${new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)}`);
+  const [since, all, last7, lastDay, mac, windows, linux] = (await redis(
+    ["GET", "dl:since"],
+    ["PFCOUNT", "dl:all"],
+    ["PFCOUNT", ...days],
+    ["PFCOUNT", days[0]],
+    ["PFCOUNT", "dl:mac"],
+    ["PFCOUNT", "dl:windows"],
+    ["PFCOUNT", "dl:linux"],
+  )) as [string | null, ...number[]];
+  return { since, all, last7, lastDay, byOs: [["Mac", mac], ["Windows", windows], ["Linux", linux]] };
+}
