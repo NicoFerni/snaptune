@@ -34,12 +34,12 @@ for (const page of pages) {
     for (const system of ["Mac", "Windows"]) {
       const button = buttons.find((b) => b.system === system);
       if (!button) failures.push(`/: no "Download for ${system}" button`);
-      else if (!/\/releases\/download\//.test(button.href)) failures.push(`/: "Download for ${system}" opens ${button.href}, not an installer`);
+      else if (!/\/releases\/download\/|^\/download\//.test(button.href)) failures.push(`/: "Download for ${system}" opens ${button.href}, not an installer`);
     }
   }
 
   for (const b of buttons) {
-    const code = await status(b.href);
+    const code = await status(new URL(b.href, site).href);
     console.log(`${code}  ${page}  ${b.system}  ${b.href}`);
     if (code !== 200) failures.push(`${page}: "Download for ${b.system}" (${b.href}) answered ${code}`);
   }

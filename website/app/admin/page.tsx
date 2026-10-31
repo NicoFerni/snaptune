@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
-import { NOT_DAWS, readTelemetry, snapshotDownloads, storageConfigured, TOOL_HOSTS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
+import { NOT_DAWS, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, TOOL_HOSTS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
 // Google searches from Search Console, and the latest mail in the Zoho inboxes.
@@ -27,7 +27,7 @@ async function github<T>(path: string): Promise<T | null> {
   const headers: HeadersInit = { Accept: "application/vnd.github+json" };
   if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
   try {
-    const res = await fetch(`https://api.github.com/repos/${repo}${path}`, { headers, next: { revalidate: 300 } });
+    const res = await fetch(`https://api.github.com/repos/${repo}${path}`, { headers, next: { revalidate: 60 } });
     return res.ok ? ((await res.json()) as T) : null;
   } catch {
     return null;
@@ -80,8 +80,9 @@ function percent(part: number, whole: number): string {
 const LOCAL_OFFSET = -3;
 
 async function load() {
-  const [telemetry, releases, issues, repoInfo, checks, builds, mail, search] = await Promise.all([
+  const [telemetry, unique, releases, issues, repoInfo, checks, builds, mail, search] = await Promise.all([
     storageConfigured ? readTelemetry().catch((e: Error) => e) : null,
+    storageConfigured ? readUniqueDownloads().catch(() => null) : null,
     github<Release[]>("/releases?per_page=100"),
     github<Issue[]>("/issues?state=all&per_page=100"),
     github<Repo>(""),
@@ -94,7 +95,7 @@ async function load() {
   const downloads = (releases ?? []).reduce((sum, r) => sum + r.assets.reduce((s, a) => s + a.download_count, 0), 0);
   const history = storageConfigured && releases ? await snapshotDownloads(downloads).catch(() => null) : null;
 
-  return { telemetry, releases, issues, repoInfo, checks, builds, history, mail, search, now: Date.now() };
+  return { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, now: Date.now() };
 }
 
 /** The latest run that finished with a verdict: skipped runs say nothing, and cancelled ones were
@@ -104,7 +105,7 @@ function lastRun(runs: Runs | null) {
 }
 
 export default async function Admin() {
-  const { telemetry, releases, issues, repoInfo, checks, builds, history, mail, search, now } = await load();
+  const { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, now } = await load();
   const messages = mail && !(mail instanceof Error) ? mail.messages : [];
   const unread = messages.filter((m) => m.unread);
   const installs: StoredInstall[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
@@ -225,7 +226,7 @@ export default async function Admin() {
           note={`${percent(dawExits30, launches30.length)} of sessions${toolExits30 ? `, +${toolExits30} from tools` : ""}`}
           alert={dawExits30 > 0}
         />
-        <Stat label="Downloads" value={downloads} note="all releases" />
+        <Stat label="Downloads" value={unique?.all ?? "–"} note={`one per IP${unique?.since ? `, since ${unique.since}` : ""} · GitHub counts ${downloads}`} />
         <Stat label="Open reports" value={openReports.length} note={`${reports.length} total`} alert={openReports.length > 0} />
         <Stat label="Stars" value={repoInfo?.stargazers_count ?? "–"} note={`${repoInfo?.forks_count ?? "–"} forks`} />
         <Stat label="Last ping" value={events[0] ? ago(events[0].t) : "–"} note={events[0] ? `${events[0].host}, ${events[0].os}` : "no data yet"} />
