@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
-import { NOT_DAWS, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, TOOL_HOSTS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
+import { isDawHost, NOT_DAWS, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
 // Google searches from Search Console, and the latest mail in the Zoho inboxes.
@@ -114,10 +114,12 @@ export default async function Admin() {
   const active7 = installs.filter((i) => now - i.last < 7 * DAY);
   const active30 = installs.filter((i) => now - i.last < 30 * DAY);
   const recent = events.filter((e) => now - e.t < 30 * DAY);
-  const launches30 = recent.filter((e) => e.type === "launch");
-  const exits30 = recent.filter((e) => e.type === "unclean_exit");
-  const toolExits30 = exits30.filter((e) => TOOL_HOSTS.has(e.host)).length;
-  const dawExits30 = exits30.length - toolExits30;
+  // Sessions and unclean exits count DAWs only: scripts, offline renderers and scanners load the
+  // plugin and exit without destroying it, so their exits say nothing about crashes.
+  const launches30 = recent.filter((e) => e.type === "launch" && isDawHost(e.host));
+  const allExits30 = recent.filter((e) => e.type === "unclean_exit");
+  const exits30 = allExits30.filter((e) => isDawHost(e.host));
+  const toolExits30 = allExits30.length - exits30.length;
   const exits = events.filter((e) => e.type === "unclean_exit");
 
   const days = Array.from({ length: 30 }, (_, i) => day(now - (29 - i) * DAY));
@@ -161,10 +163,11 @@ export default async function Admin() {
   const searchClicks = searchReport?.perDay.reduce((sum, r) => sum + r.clicks, 0) ?? 0;
   const searchImpressions = searchReport?.perDay.reduce((sum, r) => sum + r.impressions, 0) ?? 0;
 
-  // Stability by version: sessions and unclean exits, all recorded time.
-  const stability = countBy(events, (e) => e.version).map(([version]) => {
-    const sessions = events.filter((e) => e.version === version && e.type === "launch").length;
-    const crashes = events.filter((e) => e.version === version && e.type === "unclean_exit").length;
+  // Stability by version: sessions and unclean exits in DAWs, all recorded time.
+  const dawEvents = events.filter((e) => isDawHost(e.host));
+  const stability = countBy(dawEvents, (e) => e.version).map(([version]) => {
+    const sessions = dawEvents.filter((e) => e.version === version && e.type === "launch").length;
+    const crashes = dawEvents.filter((e) => e.version === version && e.type === "unclean_exit").length;
     return [version, sessions, crashes, percent(crashes, sessions)] as React.ReactNode[];
   });
 
@@ -222,9 +225,9 @@ export default async function Admin() {
         <Stat label="Sessions, 30 days" value={launches30.length} note="one per DAW session" />
         <Stat
           label="Unclean exits, 30 days"
-          value={dawExits30}
-          note={`${percent(dawExits30, launches30.length)} of sessions${toolExits30 ? `, +${toolExits30} from tools` : ""}`}
-          alert={dawExits30 > 0}
+          value={exits30.length}
+          note={`${percent(exits30.length, launches30.length)} of sessions${toolExits30 ? `, +${toolExits30} from tools` : ""}`}
+          alert={exits30.length > 0}
         />
         <Stat label="Downloads" value={unique?.all ?? "–"} note={`one per IP${unique?.since ? `, since ${unique.since}` : ""} · GitHub counts ${downloads}`} />
         <Stat label="Open reports" value={openReports.length} note={`${reports.length} total`} alert={openReports.length > 0} />
@@ -299,7 +302,7 @@ export default async function Admin() {
       </div>
 
       <div className="grid gap-x-6 md:grid-cols-2">
-        <Panel title="Stability by version" note="sessions and unclean exits, all recorded time">
+        <Panel title="Stability by version" note="sessions and unclean exits in DAWs, all recorded time">
           <Table head={["Version", "Sessions", "Unclean exits", "Rate"]} rows={stability} empty="No data yet." />
         </Panel>
         <Panel title="Sessions by hour" note="last 30 days, Argentina time (UTC-3)">
