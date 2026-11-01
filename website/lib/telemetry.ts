@@ -38,12 +38,12 @@ export const MAX_EVENTS = 20000;
 // An install's id is in ~/Library/Application Support/SnapTune/install-id (macOS).
 const IGNORED_INSTALLS = new Set(["3467e8d7-5552-466a-be7e-5374d0b31859"]);
 
-// Hosts that aren't DAWs: scripts, plugin scanners and people's own test hosts load the plugin and
-// exit without destroying it, so their unclean exits say nothing about crashes.
-export const TOOL_HOSTS = new Set(["python", "vst3cat", "Auralis-picker-pitch-live-fx"]);
+// Hosts that aren't DAWs: scripts, offline renderers, plugin scanners and people's own test hosts
+// load the plugin and exit without destroying it, so their unclean exits say nothing about crashes.
+export const TOOL_HOSTS = new Set(["python", "vst3cat", "vst3_render", "Auralis-picker-pitch-live-fx"]);
 
-// Plugin scanners and validators, by executable name.
-export const NOT_DAWS = /^(pythonw?|vstscanner|vst3cat|pluginval|.*scanner.*|.*validator.*)$/i;
+// Script runners, plugin scanners and validators, by executable name (python, python3, pythonw…).
+export const NOT_DAWS = /^(python[\d.]*w?|vstscanner|vst3cat|pluginval|.*scanner.*|.*validator.*)$/i;
 
 export function isDawHost(host: string): boolean {
   return Boolean(host) && !TOOL_HOSTS.has(host) && !NOT_DAWS.test(host);
@@ -88,14 +88,17 @@ export async function readTelemetry(): Promise<{ installs: StoredInstall[]; even
 
   // One install is one device (the id lives in the user's app data, shared by every DAW and
   // version), and it only counts once it has run in a DAW: an install only a scanner or
-  // validator ever loaded isn't a user. Installs from before the `daw` flag fall back to events.
+  // validator ever loaded isn't a user. While the event list still holds an install's launches they
+  // decide, so a host recognised as a tool later stops counting; the stored `daw` flag covers
+  // installs whose events were trimmed.
   const inDaw = new Set(events.filter((e) => e.type === "launch" && isDawHost(e.host)).map((e) => e.install));
+  const seen = new Set(events.map((e) => e.install));
 
   const installs: StoredInstall[] = [];
   for (let i = 1; i < fields.length; i += 2) {
     const id = fields[i - 1];
     const install: Install = JSON.parse(fields[i]);
-    if (!IGNORED_INSTALLS.has(id) && (install.daw || inDaw.has(id) || isDawHost(install.host)))
+    if (!IGNORED_INSTALLS.has(id) && (inDaw.has(id) || (!seen.has(id) && (install.daw || isDawHost(install.host)))))
       installs.push({ ...install, id });
   }
   return { installs, events };
