@@ -21,6 +21,12 @@ SnapTuneProcessor::SnapTuneProcessor()
     voice = apvts.getRawParameterValue (ids::voice);
     midi = apvts.getRawParameterValue (ids::midi);
     mode = apvts.getRawParameterValue (ids::mode);
+    transition = apvts.getRawParameterValue (ids::transition);
+    keepVibrato = apvts.getRawParameterValue (ids::vibrato);
+    vibratoDepth = apvts.getRawParameterValue (ids::vibratoDepth);
+    vibratoAdd = apvts.getRawParameterValue (ids::vibratoAdd);
+    vibratoRate = apvts.getRawParameterValue (ids::vibratoRate);
+    vibratoDelay = apvts.getRawParameterValue (ids::vibratoDelay);
 
     for (int pc = 0; pc < 12; ++pc)
         notes[(size_t) pc] = apvts.getRawParameterValue (ids::note (pc));
@@ -66,6 +72,12 @@ EngineSettings SnapTuneProcessor::readSettings() const
     s.voice = (VoiceType) juce::jlimit (0, (int) VoiceType::numTypes - 1, (int) voice->load());
     s.midiTargets = midi->load() > 0.5f;
     s.mode = mode->load() > 0.5f ? LatencyMode::live : LatencyMode::studio;
+    s.transitionMs = transition->load();
+    s.keepVibrato = keepVibrato->load() > 0.5f;
+    s.vibratoDepth = vibratoDepth->load() * 0.01f;
+    s.vibratoAddCents = vibratoAdd->load();
+    s.vibratoRateHz = vibratoRate->load();
+    s.vibratoDelayMs = vibratoDelay->load();
 
     uint16_t custom = 0;
 
@@ -161,8 +173,27 @@ void SnapTuneProcessor::getStateInformation (juce::MemoryBlock& destData)
 void SnapTuneProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
+    {
         if (xml->hasTagName (apvts.state.getType()))
+        {
+            // A session saved before a parameter existed has no value for it: give it the default (what
+            // that version did), not whatever this instance was set to before the session loaded.
+            for (auto* parameter : getParameters())
+            {
+                if (auto* ranged = dynamic_cast<juce::RangedAudioParameter*> (parameter))
+                {
+                    if (xml->getChildByAttribute ("id", ranged->paramID) == nullptr)
+                    {
+                        auto* child = xml->createNewChildElement ("PARAM");
+                        child->setAttribute ("id", ranged->paramID);
+                        child->setAttribute ("value", ranged->convertFrom0to1 (ranged->getDefaultValue()));
+                    }
+                }
+            }
+
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
+        }
+    }
 }
 
 juce::AudioProcessor* JUCE_CALLTYPE createPluginFilter()

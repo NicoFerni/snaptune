@@ -18,7 +18,7 @@ SnapTuneEditor::SnapTuneEditor (SnapTuneProcessor& p)
     addAndMakeVisible (view);
 
     setResizable (true, true);
-    setResizeLimits (910, 582, 1500, 960);
+    setResizeLimits (910, 612, 1500, 1008);
     getConstrainer()->setFixedAspectRatio ((double) MainView::baseWidth / MainView::baseHeight);
     setSize (juce::roundToInt (MainView::baseWidth * scale), juce::roundToInt (MainView::baseHeight * scale));
     rememberSize = true;

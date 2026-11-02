@@ -2,6 +2,7 @@
 
 #include "PitchDetector.h"
 #include "Scales.h"
+#include "VibratoTracker.h"
 
 #include <juce_audio_basics/juce_audio_basics.h>
 
@@ -36,6 +37,7 @@ struct EngineSettings
     Scale scale = Scale::chromatic;
     uint16_t customMask = 0x0fff;
     float retuneMs = 20.0f;       // time to reach the target note; 0 = instant ("hard tune")
+    float transitionMs = 0.0f;    // time to move to the next note; never shorter than retuneMs (0 = follow it)
     float humanize = 0.0f;        // 0..1, relaxes correction on sustained notes
     float amount = 1.0f;          // 0..1, fraction of the pitch error that is corrected
     float formantSemitones = 0.0f;
@@ -45,6 +47,14 @@ struct EngineSettings
     bool midiTargets = false;     // held MIDI notes replace the scale
     float referenceHz = 440.0f;
     LatencyMode mode = LatencyMode::studio;
+
+    // Vibrato. Keep: the singer's own vibrato is left on the corrected note (scaled by depth) instead
+    // of being corrected away. Add: a synthetic vibrato on every held note, after `vibratoDelayMs`.
+    bool keepVibrato = false;
+    float vibratoDepth = 1.0f;    // 0..2, scale of the kept vibrato
+    float vibratoAddCents = 0.0f; // depth of the added vibrato (each way)
+    float vibratoRateHz = 5.5f;
+    float vibratoDelayMs = 200.0f;
 };
 
 /** One analysis hop of pitch data, published lock-free for the editor. */
@@ -61,7 +71,10 @@ struct PitchFrame
     Pipeline per sample:
       1. A YIN detector runs every hop on a high-passed mono sum and yields period + voicing.
       2. The detected note is snapped to the nearest allowed note; the correction (in semitones)
-         is smoothed by a one-pole whose time constant is the retune speed.
+         is smoothed by a one-pole whose time constant is the retune speed. A vibrato tracker finds
+         the note's centre under a sung vibrato, so the target is chosen from that centre (and the
+         vibrato can be kept). Note changes and onsets glide along an S-curve (a critically damped
+         response, as in the Fujisaki model of pitch contours) instead of starting at full speed.
       3. Pitch marks are placed one period apart on the input, each where its cycle best matches
          the previous one, pulled toward the waveform peaks.
       4. TD-PSOLA: two-period Hann grains centred on the marks are overlap-added at the corrected
@@ -101,6 +114,28 @@ public:
 
     /** Pitch classes of the MIDI notes currently held (bit 0 = C). */
     uint16_t getHeldNoteMask() const noexcept { return heldMaskForUi.load (std::memory_order_relaxed); }
+
+#if SNAPTUNE_DIAGNOSTICS
+    /** Test builds only: counts of the events that can leave a gap or a click in the output. */
+    struct Diagnostics
+    {
+        int64_t liveReadsAhead = 0; // Live reads that interpolated past the newest sample written
+        int64_t grainTailCuts = 0;  // Studio grains cut short because their source hadn't arrived
+        int64_t grainHeadCuts = 0;  // Studio grains whose start had already been played
+        int64_t splices = 0, driftBacks = 0, weakSplices = 0; // weak: the cycles correlate under 0.8
+        double spliceScoreSum = 0.0, lastSpliceScore = 0.0;
+
+        struct Splice
+        {
+            int64_t at;   // input sample index when the splice started
+            double offset, fade, score;
+        };
+
+        std::vector<Splice> spliceLog;
+    };
+
+    mutable Diagnostics diagnostics;
+#endif
 
 private:
     struct TrackEntry
@@ -147,8 +182,9 @@ private:
     void studioSample (float* wet);
     void liveSample (float* wet);
     void maybeSplice (double ratio);
-    double findSpliceLength (double tap, int direction, double minLength, double maxLength, double period) const;
-    void startSplice (double offset, double fadeSamples, bool uncorrelated);
+    /** Splice length where the cycles line up best; `correlation` receives how well they do (-1..1). */
+    double findSpliceLength (double tap, int direction, double minLength, double maxLength, double period, double& correlation) const;
+    void startSplice (double offset, double fadeSamples, double correlation);
     bool driftBackInaudible (double delay) const;
     double periodicity (double period) const;
     void switchMode (LatencyMode mode);
@@ -194,11 +230,34 @@ private:
     float anchorPeriod = 0.0f; // period of the last hop that was voiced on its own
     float typicalAperiodicity = 0.0f; // of the voice, averaged over recent steady hops
 
-    // Correction state (one value per hop).
+    // Correction state (one value per hop). The correction applied is the sum of:
+    //   noteCorrection     the in-note correction, a one-pole following the wanted correction at the retune speed
+    //   glide              what is left of the last note change or onset, decaying along an S-curve
+    //   settle             what is left of a discontinuity in the vibrato split, decaying over ~20 ms
+    //   vibrato terms      the kept vibrato's depth change and the added vibrato
+    // `correction` is that sum.
+    struct Glide
+    {
+        float offset = 0.0f, velocity = 0.0f; // semitones, semitones per second
+    };
+
+    void advanceGlide (Glide& glide, double seconds, double timeMs) const noexcept;
+    static float glidePosition (const Glide& glide, double seconds, double timeMs) noexcept;
+
     bool wasVoiced = false;
     int currentTarget = -1;
     float correction = 0.0f;
+    float noteCorrection = 0.0f;
+    Glide glide, settle;
+    double glideMs = 0.0;
+    float keptVibrato = 0.0f, addedVibrato = 0.0f; // their terms in the correction
+    float vibratoEnvelope = 0.0f;
+    double vibratoPhase = 0.0;
     float noteAge = 0.0f;
+    VibratoTracker vibratoTracker;
+    int64_t hopCount = 0;
+    float onsetCandidate = 0.0f; // period of a lone first voiced hop, waiting for the next to confirm it
+    float drivenCorrection = 0.0f; // Live: the input-driven part of the correction (in-note + kept vibrato)
     float choiceNote = 0.0f; // Live: smoothed detected pitch the target note is chosen from
     int rawChoiceHops = 0; // Live: consecutive hops the unsmoothed pitch chose another note
     float lastInputNote = 0.0f; // detected pitch of the last voiced hop
@@ -239,7 +298,7 @@ private:
     double liveMinDelay = 8.0;
     double liveTap = 0.0, spliceTap = 0.0;
     int fadeLength = 0, fadePosition = 0;
-    bool fadeEqualPower = false;
+    double fadeCorrelation = 1.0; // of the two copies being crossfaded: 1 for whole cycles, 0 for noise
     double liveCorrectionFrom = 0.0, liveCorrectionTo = 0.0;
     int liveRamp = 0;
     float longPeak = 0.0f, longPeakDecay = 0.0f; // input peak over ~1 s

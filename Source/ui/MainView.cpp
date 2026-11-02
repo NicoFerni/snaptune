@@ -11,15 +11,33 @@ namespace
     constexpr const char* versionText = "v" SNAPTUNE_DISPLAY_VERSION;
     constexpr int margin = 20;
 
-    // Knob order in `knobs`.
+    // Knob order in `knobs` (the Correction page).
     enum KnobIndex
     {
         humanizeKnob,
+        transitionKnob,
         amountKnob,
         formantKnob,
         trackingKnob,
         mixKnob
     };
+
+    // Knob order in `vibratoKnobs` (the Vibrato page).
+    enum VibratoKnobIndex
+    {
+        depthKnob,
+        addedKnob,
+        rateKnob,
+        delayKnob
+    };
+
+    enum Page
+    {
+        correctionPage,
+        vibratoPage
+    };
+
+    const juce::Identifier pageProperty ("controlsPage");
 } // namespace
 
 MainView::MainView (SnapTuneProcessor& p)
@@ -95,12 +113,34 @@ MainView::MainView (SnapTuneProcessor& p)
     graph.setHelpText ("Dashed sage: what you sang. Solid gold: what comes out.");
     addAndMakeVisible (graph);
 
-    // Controls.
-    addKnob (ids::humanize, "Humanize", false, 0.0, "Relaxes the correction on long notes so they keep their natural movement.");
-    addKnob (ids::amount, "Amount", false, 100.0, "How much of the pitch error is corrected.");
-    addKnob (ids::formant, "Formant", true, 0.0, "Moves the character of the voice up (smaller) or down (bigger) without changing pitch. Studio mode only.");
-    addKnob (ids::tracking, "Tracking", false, 50.0, "Higher treats breathy or noisy singing as pitched; lower is stricter.");
-    addKnob (ids::mix, "Mix", false, 100.0, "Blend of the original and the tuned voice.");
+    // Controls: the Correction page.
+    addKnob (knobs, ids::humanize, "Humanize", false, 0.0, "Relaxes the correction on long notes so they keep their natural movement.");
+    addKnob (knobs, ids::transition, "Transition", false, 0.0,
+             "How long the voice takes to glide to the next note. Auto follows Retune Speed; longer makes note changes smooth while held notes stay tight.");
+    addKnob (knobs, ids::amount, "Amount", false, 100.0, "How much of the pitch error is corrected.");
+    addKnob (knobs, ids::formant, "Formant", true, 0.0, "Moves the character of the voice up (smaller) or down (bigger) without changing pitch. Studio mode only.");
+    addKnob (knobs, ids::tracking, "Tracking", false, 50.0, "Higher treats breathy or noisy singing as pitched; lower is stricter.");
+    addKnob (knobs, ids::mix, "Mix", false, 100.0, "Blend of the original and the tuned voice.");
+
+    // The Vibrato page.
+    keepVibratoButton.setTooltip ("Keeps the vibrato you sing, even at hard tune: the note's centre is corrected and your vibrato rides on top.");
+    keepVibratoButton.setHelpText (keepVibratoButton.getTooltip());
+    addChildComponent (keepVibratoButton);
+    keepVibratoAttachment = std::make_unique<ButtonAttachment> (audioProcessor.apvts, ids::vibrato, keepVibratoButton);
+
+    addKnob (vibratoKnobs, ids::vibratoDepth, "Depth", false, 100.0,
+             "How much of your vibrato is kept: 100% as sung, 0% removes it, 200% doubles it. Needs Keep my vibrato.");
+    addKnob (vibratoKnobs, ids::vibratoAdd, "Add vibrato", false, 0.0, "Adds a vibrato to every held note, this many cents each way. Off at 0.");
+    addKnob (vibratoKnobs, ids::vibratoRate, "Rate", false, 5.5, "Speed of the added vibrato. Singers sit around 5 to 6.5 Hz.");
+    addKnob (vibratoKnobs, ids::vibratoDelay, "Delay", false, 200.0, "How long a note is held before the added vibrato starts; it then fades in.");
+
+    controlTabs.setTitle ("Controls page");
+    controlTabs.onChange = [this] (int page)
+    {
+        showPage (page);
+        audioProcessor.apvts.state.setProperty (pageProperty, page, nullptr);
+    };
+    addAndMakeVisible (controlTabs);
 
     setUpCombo (voiceBox, "Voice", voiceTypeNames, ids::voice, voiceAttachment, "The range the pitch detector listens in. Pick Low Male for deep voices.");
 
@@ -110,8 +150,25 @@ MainView::MainView (SnapTuneProcessor& p)
     }
 
     setSize (baseWidth, baseHeight);
+
+    const int page = juce::jlimit ((int) correctionPage, (int) vibratoPage, (int) audioProcessor.apvts.state.getProperty (pageProperty, 0));
+    controlTabs.setSelectedIndex (page, juce::dontSendNotification);
+    showPage (page);
+
     refreshState();
     startTimerHz (60);
+}
+
+void MainView::showPage (int page)
+{
+    for (auto& knob : knobs)
+        knob->slider.setVisible (page == correctionPage);
+
+    for (auto& knob : vibratoKnobs)
+        knob->slider.setVisible (page == vibratoPage);
+
+    keepVibratoButton.setVisible (page == vibratoPage);
+    repaint (controlsPanel);
 }
 
 MainView::~MainView()
@@ -148,13 +205,14 @@ void MainView::setUpKnob (juce::Slider& slider, const juce::String& title, const
     slider.setDoubleClickReturnValue (true, resetValue);
 }
 
-void MainView::addKnob (const char* parameterId, const juce::String& title, bool bipolar, double resetValue, const juce::String& tooltip)
+void MainView::addKnob (std::vector<std::unique_ptr<Knob>>& group, const char* parameterId, const juce::String& title, bool bipolar,
+                        double resetValue, const juce::String& tooltip)
 {
     auto knob = std::make_unique<Knob>();
     knob->caption = title;
     knob->slider.getProperties().set ("bipolar", bipolar);
     setUpKnob (knob->slider, title, parameterId, knob->attachment, resetValue, tooltip);
-    knobs.push_back (std::move (knob));
+    group.push_back (std::move (knob));
 }
 
 //==============================================================================
@@ -179,15 +237,28 @@ void MainView::resized()
     graphPanel = { heroPanel.getRight() + 12, heroPanel.getY(), baseWidth - margin - (heroPanel.getRight() + 12), heroPanel.getHeight() };
     graph.setBounds (graphPanel.reduced (1));
 
-    controlsPanel = { margin, heroPanel.getBottom() + 12, baseWidth - 2 * margin, 138 };
-    auto cells = controlsPanel.reduced (16, 0);
-    const int cellWidth = 150;
+    // Bottom panel: the page tabs, then a row of knobs and the voice selector on the right.
+    controlsPanel = { margin, heroPanel.getBottom() + 12, baseWidth - 2 * margin, 170 };
+    controlTabs.setBounds (controlsPanel.getX() + 16, controlsPanel.getY() + 8, 260, 30);
+    const auto content = controlsPanel.withTrimmedTop (32);
+    auto cells = content.reduced (16, 0);
+    const int cellWidth = 125;
+    auto knobBounds = [&content] (juce::Rectangle<int> cell) { return cell.withY (content.getY()).withHeight (content.getHeight()).withTrimmedTop (34).withTrimmedBottom (12).withSizeKeepingCentre (84, 92); };
 
     for (auto& knob : knobs)
-        knob->slider.setBounds (cells.removeFromLeft (cellWidth).withTrimmedTop (34).withTrimmedBottom (12).withSizeKeepingCentre (84, 92));
+        knob->slider.setBounds (knobBounds (cells.removeFromLeft (cellWidth)));
 
     cells.removeFromLeft (24);
-    voiceBox.setBounds (cells.getX(), controlsPanel.getY() + 56, cells.getWidth(), 30);
+    voiceBox.setBounds (cells.getX(), content.getY() + 56, cells.getWidth(), 30);
+
+    // Vibrato page: the sung vibrato (keep it, and how deep), then the added one.
+    auto vibratoCells = content.reduced (16, 0);
+    keepVibratoButton.setBounds (vibratoCells.removeFromLeft (170).withY (content.getY() + 54).withHeight (30).withTrimmedLeft (14));
+    vibratoKnobs[depthKnob]->slider.setBounds (knobBounds (vibratoCells.removeFromLeft (cellWidth)));
+    vibratoDivider = vibratoCells.removeFromLeft (40).withY (content.getY() + 18).withHeight (content.getHeight() - 36);
+
+    for (int i = addedKnob; i <= delayKnob; ++i)
+        vibratoKnobs[(size_t) i]->slider.setBounds (knobBounds (vibratoCells.removeFromLeft (cellWidth)));
 }
 
 void MainView::paint (juce::Graphics& g)
@@ -237,22 +308,40 @@ void MainView::paint (juce::Graphics& g)
     // Hero caption.
     g.drawText ("Retune speed", Rectangle<int> (heroPanel.getX(), retuneKnob.getY() - 18, heroPanel.getWidth(), 16), Justification::centred);
 
-    // Control captions.
-    for (auto& knob : knobs)
+    // Control captions, for the page that is open.
+    const int captionY = controlsPanel.getY() + 32 + 17;
+    const bool vibratoOpen = controlTabs.getSelectedIndex() == vibratoPage;
+
+    for (auto& knob : vibratoOpen ? vibratoKnobs : knobs)
     {
         const bool enabled = knob->slider.isEnabled();
+        const bool studioOnly = ! enabled && knob == knobs[formantKnob];
         g.setColour (enabled ? palette::textDim : palette::textFaint);
-        g.drawText (enabled ? knob->caption : knob->caption + " (Studio only)", knob->slider.getX() - 40, controlsPanel.getY() + 17,
-                    knob->slider.getWidth() + 80, 16, Justification::centred);
+        g.drawText (studioOnly ? knob->caption + " (Studio only)" : knob->caption, knob->slider.getX() - 40, captionY, knob->slider.getWidth() + 80, 16,
+                    Justification::centred);
     }
 
-    // Divider and the voice selector.
-    const float dividerX = (float) voiceBox.getX() - 14.0f;
+    // A line under the tabs, and the divider before the voice selector.
     g.setColour (palette::line);
-    g.fillRect (Rectangle<float> (dividerX, (float) controlsPanel.getY() + 18.0f, 1.0f, (float) controlsPanel.getHeight() - 36.0f));
+    g.fillRect (Rectangle<float> ((float) controlsPanel.getX() + 16.0f, (float) controlsPanel.getY() + 38.0f, (float) controlsPanel.getWidth() - 32.0f, 1.0f));
+
+    const float dividerX = (float) voiceBox.getX() - 14.0f;
+    g.fillRect (Rectangle<float> (dividerX, (float) captionY + 1.0f, 1.0f, (float) controlsPanel.getBottom() - 18.0f - (float) captionY));
+
+    if (vibratoOpen)
+    {
+        g.fillRect (Rectangle<float> ((float) vibratoDivider.getCentreX(), (float) captionY + 1.0f, 1.0f,
+                                      (float) controlsPanel.getBottom() - 18.0f - (float) captionY));
+        g.setColour (palette::textDim);
+        g.drawText ("Your vibrato", keepVibratoButton.getX() + 2, captionY, keepVibratoButton.getWidth(), 16, Justification::centredLeft);
+        g.setFont (uiFont (11.5f));
+        g.drawFittedText ("Kept on the tuned note,\neven at hard tune", keepVibratoButton.getX() + 2, keepVibratoButton.getBottom() + 6,
+                          keepVibratoButton.getWidth(), 30, Justification::topLeft, 2);
+        g.setFont (labelFont());
+    }
 
     g.setColour (palette::textDim);
-    g.drawText ("Voice", voiceBox.getX() + 2, controlsPanel.getY() + 17, voiceBox.getWidth(), 16, Justification::centredLeft);
+    g.drawText ("Voice", voiceBox.getX() + 2, captionY, voiceBox.getWidth(), 16, Justification::centredLeft);
     g.setFont (uiFont (11.5f));
     g.drawFittedText ("Pitch range the detector\nlistens for", voiceBox.getX() + 2, voiceBox.getBottom() + 8, voiceBox.getWidth(), 30,
                       Justification::topLeft, 2);
@@ -371,6 +460,20 @@ void MainView::refreshState()
         repaint (controlsPanel);
     }
 
+    // Depth acts on the kept vibrato, Rate and Delay on the added one: dimmed while those are off.
+    const bool keep = plainValue (ids::vibrato) > 0.5f;
+    const bool adding = plainValue (ids::vibratoAdd) >= 0.5f;
+    const int vibratoState = (keep ? 1 : 0) | (adding ? 2 : 0);
+
+    if (vibratoState != shownVibratoState)
+    {
+        shownVibratoState = vibratoState;
+        vibratoKnobs[depthKnob]->slider.setAlpha (keep ? 1.0f : 0.45f);
+        vibratoKnobs[rateKnob]->slider.setAlpha (adding ? 1.0f : 0.45f);
+        vibratoKnobs[delayKnob]->slider.setAlpha (adding ? 1.0f : 0.45f);
+        controlTabs.setMarked (vibratoPage, keep || adding);
+    }
+
     if (audioProcessor.engine.getLatencySamples() != shownLatency)
     {
         shownLatency = audioProcessor.engine.getLatencySamples();
@@ -423,7 +526,10 @@ int MainView::matchingPreset() const
         const auto& p = factoryPresets[i];
         const bool same = std::abs (plainValue (ids::retune) - p.retune) < 0.05f && std::abs (plainValue (ids::humanize) - p.humanize) < 0.05f
                           && std::abs (plainValue (ids::amount) - p.amount) < 0.05f && std::abs (plainValue (ids::formant) - p.formant) < 0.005f
-                          && std::abs (plainValue (ids::tracking) - p.tracking) < 0.05f && std::abs (plainValue (ids::mix) - p.mix) < 0.05f;
+                          && std::abs (plainValue (ids::tracking) - p.tracking) < 0.05f && std::abs (plainValue (ids::mix) - p.mix) < 0.05f
+                          && std::abs (plainValue (ids::transition) - p.transition) < 0.05f && (plainValue (ids::vibrato) > 0.5f) == p.keepVibrato
+                          && std::abs (plainValue (ids::vibratoDepth) - p.vibratoDepth) < 0.05f && std::abs (plainValue (ids::vibratoAdd) - p.vibratoAdd) < 0.05f
+                          && std::abs (plainValue (ids::vibratoRate) - p.vibratoRate) < 0.005f && std::abs (plainValue (ids::vibratoDelay) - p.vibratoDelay) < 0.5f;
 
         if (same)
             return i;
@@ -444,6 +550,12 @@ void MainView::applyPreset (int index)
     setParameter (ids::formant, p.formant);
     setParameter (ids::tracking, p.tracking);
     setParameter (ids::mix, p.mix);
+    setParameter (ids::transition, p.transition);
+    setParameter (ids::vibrato, p.keepVibrato ? 1.0f : 0.0f);
+    setParameter (ids::vibratoDepth, p.vibratoDepth);
+    setParameter (ids::vibratoAdd, p.vibratoAdd);
+    setParameter (ids::vibratoRate, p.vibratoRate);
+    setParameter (ids::vibratoDelay, p.vibratoDelay);
 }
 
 void MainView::setParameter (const juce::String& id, float value)
