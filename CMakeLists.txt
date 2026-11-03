@@ -46,6 +46,7 @@ set(SNAPTUNE_SOURCES
     Source/ui/SnapLookAndFeel.cpp
     Source/ui/PitchGraph.cpp
     Source/ui/ModeSwitch.cpp
+    Source/ui/TabSwitch.cpp
     Source/ui/NotePills.cpp
     Source/ui/TunerGauge.cpp
     Source/ui/MainView.cpp)
@@ -68,13 +69,31 @@ else()
     set(SNAPTUNE_FORMATS VST3 AU Standalone)
 endif()
 
+# A build to try next to the installed release: another name and plugin ID, so a DAW lists both
+# (sessions saved with it won't open in the release), and no usage pings.
+option(SNAPTUNE_DEV_BUILD "Build as 'SnapTune Dev', side by side with the release" OFF)
+
+if(SNAPTUNE_DEV_BUILD)
+    set(SNAPTUNE_PRODUCT_NAME "SnapTune Dev")
+    set(SNAPTUNE_PLUGIN_CODE SnpD)
+    set(SNAPTUNE_BUNDLE_ID "com.nicofernandez.snaptune.dev")
+    set(SNAPTUNE_LV2URI "https://getsnaptune.com/lv2/snaptune-dev")
+    set(SNAPTUNE_TELEMETRY_FLAG 0)
+else()
+    set(SNAPTUNE_PRODUCT_NAME "SnapTune")
+    set(SNAPTUNE_PLUGIN_CODE Snpt)
+    set(SNAPTUNE_BUNDLE_ID "com.nicofernandez.snaptune")
+    set(SNAPTUNE_LV2URI "https://getsnaptune.com/lv2/snaptune")
+    set(SNAPTUNE_TELEMETRY_FLAG 1)
+endif()
+
 juce_add_plugin(SnapTune
     COMPANY_NAME "Nico Fernandez"
-    BUNDLE_ID "com.nicofernandez.snaptune"
+    BUNDLE_ID "${SNAPTUNE_BUNDLE_ID}"
     PLUGIN_MANUFACTURER_CODE Ncfz
-    PLUGIN_CODE Snpt
+    PLUGIN_CODE ${SNAPTUNE_PLUGIN_CODE}
     FORMATS ${SNAPTUNE_FORMATS}
-    PRODUCT_NAME "SnapTune"
+    PRODUCT_NAME "${SNAPTUNE_PRODUCT_NAME}"
     DESCRIPTION "Real-time pitch correction"
     IS_SYNTH FALSE
     NEEDS_MIDI_INPUT TRUE
@@ -84,7 +103,7 @@ juce_add_plugin(SnapTune
     VST3_CATEGORIES Fx "Pitch Shift"
     AU_MAIN_TYPE kAudioUnitType_MusicEffect
     # The LV2 plugin's identity in saved sessions: never change it.
-    LV2URI "https://getsnaptune.com/lv2/snaptune"
+    LV2URI "${SNAPTUNE_LV2URI}"
     COPY_PLUGIN_AFTER_BUILD TRUE
     MICROPHONE_PERMISSION_ENABLED TRUE
     MICROPHONE_PERMISSION_TEXT "SnapTune needs the microphone to tune your voice in real time."
@@ -103,7 +122,7 @@ target_compile_definitions(SnapTune
         JUCE_LOAD_CURL_SYMBOLS_LAZILY=1
         JUCE_VST3_CAN_REPLACE_VST2=0
         # Anonymous usage pings for the website's admin panel (Source/Telemetry.h). Off in the tests.
-        SNAPTUNE_TELEMETRY=1
+        SNAPTUNE_TELEMETRY=${SNAPTUNE_TELEMETRY_FLAG}
         SNAPTUNE_DISPLAY_VERSION="${SNAPTUNE_DISPLAY_VERSION}"
         # Only note on/off is used for MIDI target notes; without this the VST3 wrapper adds
         # 2048 hidden "MIDI CC" parameters that clutter FL Studio's automation list.
@@ -148,6 +167,8 @@ if(SNAPTUNE_BUILD_TESTS)
             JUCE_PLUGINHOST_AU=1
             $<$<PLATFORM_ID:Linux>:JUCE_PLUGINHOST_LV2=1>
             JUCE_MODAL_LOOPS_PERMITTED=1
+            # Event counters in the engine (AutoTuneEngine::Diagnostics) for the gap and click checks.
+            SNAPTUNE_DIAGNOSTICS=1
             SNAPTUNE_DISPLAY_VERSION="${SNAPTUNE_DISPLAY_VERSION}")
 
     target_link_libraries(SnapTuneTests

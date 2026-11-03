@@ -6,7 +6,7 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-/** Resizable shell: the interface is laid out once at 1000 x 640 and scaled to the window. */
+/** Resizable shell: the interface is laid out once at 1000 x 672 and scaled to the window. */
 class SnapTuneEditor final : public juce::AudioProcessorEditor
 {
 public:

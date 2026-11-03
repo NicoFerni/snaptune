@@ -16,12 +16,14 @@ Try it in your browser at **[getsnaptune.com](https://getsnaptune.com)**.
 ## Features
 
 - **Hard tune to natural:** Retune Speed from 0 ms (instant snap, the T-Pain sound) to slow, vibrato-friendly correction, plus Humanize for long notes
+- **Smooth note changes:** a Transition knob sets how long the voice takes to glide to the next note, along a natural S-curve, while held notes stay tight
+- **Vibrato:** keep the vibrato you sing even at hard tune (and scale it from 0 to 200 %), or add one to every held note (depth, rate, delay)
 - **Formant-preserving:** pitch moves, your voice's character doesn't (no chipmunk). A Formant knob shifts it on purpose
 - **Studio and Live modes:** 46 ms formant-safe processing for mixing (compensated by the DAW), or 2.7 ms for hearing yourself tuned while recording. Switch any time; the DAW is told the new latency automatically
 - **Key and scale:** 13 scales, or click the note pills to build your own
 - **MIDI target notes:** play or draw a melody and the voice follows it
 - **See what it's doing:** a tuner gauge (where you sang vs. where it lands) and a piano-roll pitch graph
-- **Factory presets:** Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop
+- **Factory presets:** Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop, Hard Tune Vibrato, Smooth Glide
 - Resizable window (91 % to 150 %), tooltips on every control, under 1 % CPU
 
 ## Download
@@ -115,6 +117,10 @@ number, add a **MIDI Out** channel on the same port, write the melody in its pia
 | MIDI notes | Tune to held MIDI notes instead of the scale. |
 | Retune Speed | Time to reach the note. 0 ms = instant (hard tune); slower keeps slides and vibrato. |
 | Humanize | Relaxes the correction on sustained notes. |
+| Transition | Time to glide to the next note, never shorter than Retune Speed. Auto follows Retune Speed. |
+| Keep my vibrato | (Vibrato page) Corrects the note's centre and leaves your vibrato on top, even at hard tune. |
+| Depth | How much of your vibrato is kept: 100 % as sung, 0 % removes it, 200 % doubles it. |
+| Add vibrato / Rate / Delay | A vibrato on every held note: cents each way, speed, and how long the note is held before it fades in. |
 | Amount | How much of the pitch error is corrected. |
 | Formant | Shifts the vocal character ±5 semitones without changing pitch (Studio only). |
 | Tracking | Higher treats breathy or noisy singing as pitched; lower is stricter. |
@@ -167,10 +173,23 @@ opens the download page. Nothing is sent with that request, and the same opt-out
    analysis is noisier, a breathy voice's note is chosen from a lightly smoothed pitch (at most ~8 ms
    later). A dropout of up to 40 ms inside a note doesn't restart it: if the voice comes back on the
    same pitch, the note resumes with its target and correction instead of gliding in again.
-3. **Retune speed.** The correction (target − detected) passes through a one-pole smoother whose time
-   constant is a third of the retune time. At 0 ms it jumps instantly (the stair-step effect); slower
-   settings act like a high-pass on the pitch curve, so vibrato passes through while drift is corrected.
-4. **Studio mode: TD-PSOLA.** Pitch marks are placed one period apart, each where its cycle best
+3. **Retune speed and transitions.** The correction (target − detected) passes through a one-pole
+   smoother whose time constant is a third of the retune time. At 0 ms it jumps instantly (the
+   stair-step effect); slower settings act like a high-pass on the pitch curve, so vibrato passes
+   through while drift is corrected. A note change (and a note's start) instead glides along a
+   critically damped S-curve, the response the Fujisaki model gives pitch accents: it starts and ends
+   at rest rather than jumping off at full speed, takes the Transition time, and keeps its momentum if
+   the target moves again mid-glide (a fast run passes the notes in between instead of stopping on
+   each). The first estimate of a new note waits for the next one to agree, since it often still
+   hears the consonant or the previous note.
+4. **Vibrato.** A tracker follows the turning points of the pitch curve. Once it has seen a cycle and a
+   half of regular swings (3.5–9 Hz, 10–100 cents, centred on a note rather than alternating between two
+   as a trill does), the note's centre is the mean pitch over the last vibrato period, which cancels
+   the swing whatever its phase. The target is chosen from that centre, so a wide vibrato doesn't flip
+   between notes at hard tune. With Keep, the correction follows the centre and the vibrato stays on
+   top; the tracker lets go as soon as the voice leaves the band it was swinging in (a move to another
+   note), and the output settles from where it is, without a jump.
+5. **Studio mode: TD-PSOLA.** Pitch marks are placed one period apart, each where its cycle best
    matches the previous one (normalised cross-correlation) and pulled gently toward the same waveform
    peak, so breath noise or the formant ripples of a low voice can't make a mark jump to a neighbouring
    peak. When the detector briefly locks onto a harmonic or a sub-harmonic, the harmonics present in
@@ -182,10 +201,10 @@ opens the download page. Nothing is sent with that request, and the same opt-out
    so at 100% Mix the hand-over doesn't crossfade two copies of the voice a fraction of a period apart.
    Grains need to see past the note they rebuild: for the lowest note (65 Hz) that is
    3 × 15.4 ms = 46 ms, reported to the host for compensation.
-5. **Live mode: pitch-synchronous resampling** (the original Auto-Tune method). The input is read
+6. **Live mode: pitch-synchronous resampling** (the original Auto-Tune method). The input is read
    through a delay line at the corrected speed; when the read point drifts a full cycle it jumps back or
-   forward exactly one period (found by cross-correlation, crossfaded), so the delay stays under one
-   period. Between notes it returns to the reported latency in near silence, or in breaths and
+   forward exactly one period (found by cross-correlation, crossfaded with a gain that keeps the level
+   steady however well the two cycles match), so the delay stays under one period. Between notes it returns to the reported latency in near silence, or in breaths and
    consonants once the pitch has been gone for ~20 ms; otherwise it keeps its delay (about a period at
    most). With no look-ahead, it analyses a shorter window (1.5 periods, up to 2.5 for a breathy voice,
    within ~5-15 ms) and extrapolates the correction across the detector's delay so vibrato is still
@@ -195,7 +214,7 @@ opens the download page. Nothing is sent with that request, and the same opt-out
 ## Project layout
 
 ```
-Source/dsp/     PitchDetector (YIN) and AutoTuneEngine (both modes); no UI code
+Source/dsp/     PitchDetector (YIN), VibratoTracker and AutoTuneEngine (both modes); no UI code
 Source/ui/      LookAndFeel, tuner gauge, pitch graph, note pills, main view
 Source/         plugin processor, parameters, presets, editor shell, usage pings (Telemetry)
 tests/          offline test runner (DSP suite, plugin host test, file processing, UI snapshots)

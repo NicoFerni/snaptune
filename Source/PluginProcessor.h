@@ -26,7 +26,9 @@ public:
     bool acceptsMidi() const override { return true; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
-    double getTailLengthSeconds() const override { return 0.0; }
+    // The output runs `latency` behind the input: a host that stops processing once the input falls
+    // silent must keep going that long, or the end of each phrase is cut.
+    double getTailLengthSeconds() const override { return getSampleRate() > 0.0 ? latencyToReport.load() / getSampleRate() : 0.0; }
 
     int getNumPrograms() override { return 1; }
     int getCurrentProgram() override { return 0; }
@@ -57,6 +59,12 @@ private:
     std::atomic<float>* voice = nullptr;
     std::atomic<float>* midi = nullptr;
     std::atomic<float>* mode = nullptr;
+    std::atomic<float>* transition = nullptr;
+    std::atomic<float>* keepVibrato = nullptr;
+    std::atomic<float>* vibratoDepth = nullptr;
+    std::atomic<float>* vibratoAdd = nullptr;
+    std::atomic<float>* vibratoRate = nullptr;
+    std::atomic<float>* vibratoDelay = nullptr;
     std::atomic<int> latencyToReport { 0 };
     std::array<std::atomic<float>*, 12> notes {};
 

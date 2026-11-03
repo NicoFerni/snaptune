@@ -5,18 +5,19 @@
 #include "ModeSwitch.h"
 #include "NotePills.h"
 #include "PitchGraph.h"
+#include "TabSwitch.h"
 #include "TunerGauge.h"
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
 namespace snaptune
 {
-/** The whole interface, laid out at a fixed 1000 x 640; the editor scales it to the window. */
+/** The whole interface, laid out at a fixed 1000 x 672; the editor scales it to the window. */
 class MainView final : public juce::Component, private juce::Timer
 {
 public:
     static constexpr int baseWidth = 1000;
-    static constexpr int baseHeight = 640;
+    static constexpr int baseHeight = 672;
 
     explicit MainView (SnapTuneProcessor&);
     ~MainView() override;
@@ -69,7 +70,9 @@ private:
                      std::unique_ptr<ComboBoxAttachment>&, const juce::String& tooltip);
     void setUpKnob (juce::Slider&, const juce::String& title, const char* parameterId, std::unique_ptr<SliderAttachment>&, double resetValue,
                     const juce::String& tooltip);
-    void addKnob (const char* parameterId, const juce::String& title, bool bipolar, double resetValue, const juce::String& tooltip);
+    void addKnob (std::vector<std::unique_ptr<Knob>>& group, const char* parameterId, const juce::String& title, bool bipolar,
+                  double resetValue, const juce::String& tooltip);
+    void showPage (int page);
 
     SnapTuneProcessor& audioProcessor;
 
@@ -81,7 +84,13 @@ private:
 
     FocusSlider retuneKnob;
     std::unique_ptr<SliderAttachment> retuneAttachment;
-    std::vector<std::unique_ptr<Knob>> knobs;
+    std::vector<std::unique_ptr<Knob>> knobs, vibratoKnobs;
+
+    // The bottom panel's two pages: correction knobs, and vibrato.
+    TabSwitch controlTabs { juce::StringArray { "Correction", "Vibrato" } };
+    juce::ToggleButton keepVibratoButton { "Keep my vibrato" };
+    std::unique_ptr<ButtonAttachment> keepVibratoAttachment;
+    int shownVibratoState = -1;
 
     juce::SharedResourcePointer<UpdateCheck> updates;
     UpdateButton updateButton;
@@ -96,7 +105,7 @@ private:
     int framesSinceVoiced = 1 << 20;
     int shownMode = -1, shownLatency = -1, presetCheckCountdown = 0;
 
-    juce::Rectangle<int> header, scaleBar, heroPanel, graphPanel, controlsPanel, latencyArea;
+    juce::Rectangle<int> header, scaleBar, heroPanel, graphPanel, controlsPanel, latencyArea, vibratoDivider;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (MainView)
 };

@@ -3,8 +3,9 @@
 //   SnapTuneTests [--out <dir>]                 DSP test suite (+ demo WAVs when --out is given)
 //   SnapTuneTests --process <in> <out> [opts]   tune an audio file: --key C --scale Major --retune 0 --formant 0
 //   SnapTuneTests --host <plugin path>          load the built VST3 / AU and check it corrects pitch
-//   SnapTuneTests --snapshot <out.png> [studio|live] [uiScale] [pixelScale]
+//   SnapTuneTests --snapshot <out.png> [studio|live|studio-vibrato] [uiScale] [pixelScale]
 //                                               render the editor with real pitch data (pixelScale 2 = Retina)
+//   SnapTuneTests --diagnose <dir> [take.wav ...] gap / click event counters over stress cases, plus the audio
 
 #include "Parameters.h"
 #include "PluginEditor.h"
@@ -31,6 +32,37 @@ using namespace snaptune;
 namespace
 {
 int failures = 0;
+
+/** Gaussian noise that is the same on every platform. std::mt19937's output is fixed by the standard,
+    but std::normal_distribution's algorithm is up to the library: libstdc++ (Linux) gives other
+    numbers than libc++ and MSVC, so the "same" test signal differed between the CI builds. */
+template <typename T>
+struct Gaussian
+{
+    Gaussian (T meanToUse, T deviationToUse) : mean (meanToUse), deviation (deviationToUse) {}
+
+    T operator() (std::mt19937& rng)
+    {
+        if (hasSpare)
+        {
+            hasSpare = false;
+            return mean + deviation * (T) spare;
+        }
+
+        // Box-Muller on two uniforms in (0, 1).
+        const double u1 = ((double) rng() + 0.5) / 4294967296.0;
+        const double u2 = ((double) rng() + 0.5) / 4294967296.0;
+        const double radius = std::sqrt (-2.0 * std::log (u1));
+        const double angle = 6.283185307179586 * u2;
+        spare = radius * std::sin (angle);
+        hasSpare = true;
+        return mean + deviation * (T) (radius * std::cos (angle));
+    }
+
+    T mean, deviation;
+    double spare = 0.0;
+    bool hasSpare = false;
+};
 
 void check (bool ok, const juce::String& name, const juce::String& detail)
 {
@@ -109,7 +141,7 @@ std::vector<float> renderVoice (double sampleRate, double seconds, const std::fu
         tract.emplace_back (vowel.frequency[i], vowel.bandwidth[i], sampleRate);
 
     std::mt19937 rng (1234);
-    std::normal_distribution<double> noise (0.0, 1.0);
+    Gaussian<double> noise (0.0, 1.0);
     double phase = 0.0, envelope = 0.0, lastFrequency = 220.0;
     const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
     const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
@@ -371,6 +403,9 @@ std::pair<double, double> estimateFormants (const std::vector<float>& x, double 
 }
 
 //==============================================================================
+/** The engine's event counters from the last runEngine call. */
+AutoTuneEngine::Diagnostics lastDiagnostics;
+
 /** Runs the engine over a mono signal and returns the output aligned to the input (latency removed). */
 std::vector<float> runEngine (const std::vector<float>& in, double sampleRate, const EngineSettings& settings,
                               const std::function<void (AutoTuneEngine&)>& setup = {}, int blockSize = 256,
@@ -406,6 +441,7 @@ std::vector<float> runEngine (const std::vector<float>& in, double sampleRate, c
     if (secondsTaken != nullptr)
         *secondsTaken = std::chrono::duration<double> (std::chrono::steady_clock::now() - started).count();
 
+    lastDiagnostics = engine.diagnostics;
     return { buffer.begin() + latency, buffer.end() };
 }
 
@@ -667,7 +703,7 @@ void testTransparency()
     const double sampleRate = 48000.0;
 
     std::mt19937 rng (99);
-    std::normal_distribution<float> gauss (0.0f, 0.1f);
+    Gaussian<float> gauss (0.0f, 0.1f);
     std::vector<float> noise ((size_t) (3.0 * sampleRate));
 
     for (auto& x : noise)
@@ -744,7 +780,7 @@ void testLiveMode (const juce::File& outDir)
            "mean aperiodicity input " + juce::String (apIn, 4) + ", Studio " + juce::String (apStudio, 4) + ", Live " + juce::String (apLive, 4));
 
     std::mt19937 rng (7);
-    std::normal_distribution<float> gauss (0.0f, 0.1f);
+    Gaussian<float> gauss (0.0f, 0.1f);
     std::vector<float> noise ((size_t) (2.0 * sampleRate));
 
     for (auto& x : noise)
@@ -874,7 +910,7 @@ std::vector<float> renderRealisticVoice (double sampleRate, double seconds, cons
         tract.emplace_back (vowelA.frequency[i], vowelA.bandwidth[i], sampleRate);
 
     std::mt19937 rng (seed);
-    std::normal_distribution<double> noise (0.0, 1.0);
+    Gaussian<double> noise (0.0, 1.0);
     double phase = 0.0, envelope = 0.0, lastFrequency = 120.0, wobbleF = 0.0, wobbleA = 0.0;
     const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
     const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
@@ -1132,7 +1168,7 @@ void testDropoutResume()
         power += (double) input[i] * input[i];
 
     std::mt19937 rng (7);
-    std::normal_distribution<double> noise (0.0, std::sqrt (power / (double) (burstEnd - burstStart)));
+    Gaussian<double> noise (0.0, std::sqrt (power / (double) (burstEnd - burstStart)));
 
     for (size_t i = burstStart; i < burstEnd; ++i)
         input[i] = (float) noise (rng);
@@ -1214,7 +1250,7 @@ std::vector<float> renderVowelGlide (double sampleRate, double seconds, double h
         tract.emplace_back (from.frequency[i], from.bandwidth[i], sampleRate);
 
     std::mt19937 rng (1234);
-    std::normal_distribution<double> noise (0.0, 1.0);
+    Gaussian<double> noise (0.0, 1.0);
     double phase = 0.0, envelope = 0.0;
     const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
     const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
@@ -1351,6 +1387,487 @@ void testFastLeapUp()
 
     const double worst = aperiodicity.empty() ? 1.0 : percentile (aperiodicity, 0.95);
     check (worst < 0.01, "Fast leap up keeps whole grains [Studio]", "upper note aperiodicity p95 " + juce::String (worst, 4));
+}
+
+//==============================================================================
+// Vibrato and note transitions.
+
+/** Pitch of the output (cents from `note`) every 5 ms over [from, to]. */
+std::vector<double> outputCents (const std::vector<float>& output, double sampleRate, double from, double to, double note)
+{
+    return centsInRange (trackPitch (output, sampleRate), from, to, note);
+}
+
+/** Time of each pitch frame (as targetFlips and pitchAccuracy compute it). */
+double frameTime (size_t index, double sampleRate)
+{
+    const double maxPeriod = std::ceil (sampleRate / 65.0);
+    const double hop = std::max (32.0, (double) std::lround (sampleRate / 375.0));
+    const double firstHop = std::ceil ((2.0 * maxPeriod + 2.0) / hop) * hop;
+    return (firstHop + (double) index * hop - 0.75 * maxPeriod - hop) / sampleRate;
+}
+
+void testKeepVibrato()
+{
+    // A long note sung 30 cents sharp with a +-35 cent, 5.5 Hz vibrato. Hard tune flattens the
+    // vibrato; with Keep it stays (scaled by Depth) while the note's centre lands on the target.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 3.0, [] (double t)
+                                    { return t < 0.1 || t > 2.9 ? 0.0 : midiToHz (57.3 + 0.35 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t)); });
+    const double inputDepth = stddev (outputCents (input, sampleRate, 0.8, 2.8, 57.0));
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        const juce::String tag (mode == LatencyMode::live ? " [Live]" : " [Studio]");
+
+        auto measure = [&] (bool keep, float depth, float retune)
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            settings.keepVibrato = keep;
+            settings.vibratoDepth = depth;
+            settings.retuneMs = retune;
+            const auto cents = outputCents (runEngine (input, sampleRate, settings), sampleRate, 0.8, 2.8, 57.0);
+            return std::make_pair (mean (cents), stddev (cents));
+        };
+
+        const auto off = measure (false, 1.0f, 0.0f);
+        const auto kept = measure (true, 1.0f, 0.0f);
+        const auto doubled = measure (true, 2.0f, 0.0f);
+        const auto removed = measure (true, 0.0f, 200.0f);
+
+        check (off.second < 5.0 && std::abs (kept.first) < 5.0 && std::abs (kept.second / inputDepth - 1.0) < 0.15
+                   && std::abs (doubled.second / inputDepth - 2.0) < 0.3 && removed.second < 0.25 * inputDepth,
+               "Keep vibrato: hard tune keeps the singer's vibrato" + tag,
+               "vibrato (std) input " + juce::String (inputDepth, 1) + " ct; off " + juce::String (off.second, 1) + ", kept "
+                   + juce::String (kept.second, 1) + " (centre " + juce::String (kept.first, 1) + " ct), depth 200% "
+                   + juce::String (doubled.second, 1) + ", depth 0% at 200 ms " + juce::String (removed.second, 1));
+    }
+}
+
+void testKeepIrregularVibrato()
+{
+    // A real vibrato wanders: here its rate drifts between 4.6 and 6.4 Hz and its width between 20 and
+    // 45 cents, on a breathy voice with jitter, 25 cents flat. Keep has to hold on to it throughout (a
+    // tracker that keeps losing the lock would let hard tune flatten it in patches).
+    const double sampleRate = 48000.0;
+    const auto pitch = [] (double t)
+    {
+        if (t < 0.1 || t > 3.9)
+            return 0.0;
+
+        const double rate = 5.5 + 0.9 * std::sin (juce::MathConstants<double>::twoPi * 0.37 * t);
+        const double width = 0.325 + 0.125 * std::sin (juce::MathConstants<double>::twoPi * 0.23 * t + 1.0);
+        static double phase = 0.0, last = 0.0;
+
+        if (t < last)
+            phase = 0.0;
+
+        phase += juce::MathConstants<double>::twoPi * rate * (t - last);
+        last = t;
+        return midiToHz (56.75 + width * std::sin (phase));
+    };
+
+    const auto input = renderRealisticVoice (sampleRate, 4.0, pitch, { -12.0, 0.25, 0.008, 0.1 });
+    const auto inputCents = outputCents (input, sampleRate, 0.8, 3.8, 57.0);
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        settings.keepVibrato = true;
+        std::vector<PitchFrame> frames;
+        const auto cents = outputCents (runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames), sampleRate, 0.8, 3.8, 57.0);
+
+        // What the engine does, which the test knows exactly: the voice is sung 25 cents flat, so with
+        // the vibrato kept the correction should hold at +25 cents. Whatever of the vibrato it removes
+        // shows up as a wobble in the correction. (The engine reports a frame every hop, ~2.7 ms.)
+        const double hopSeconds = (double) std::lround (sampleRate / 375.0) / sampleRate;
+        double worstKept = 1.0;
+
+        for (double from = 0.8; from + 0.25 <= 3.8; from += 0.25)
+        {
+            std::vector<double> correction, vibrato;
+
+            for (size_t i = 0; i < frames.size(); ++i)
+            {
+                const double t = (double) i * hopSeconds;
+
+                if (t >= from && t < from + 0.25 && frames[i].voiced)
+                    correction.push_back (100.0 * (frames[i].outputNote - frames[i].inputNote));
+            }
+
+            for (double t = from; t < from + 0.25; t += 0.001) // the sung vibrato's deviation (sine: width / sqrt 2)
+                vibrato.push_back (100.0 * (0.325 + 0.125 * std::sin (juce::MathConstants<double>::twoPi * 0.23 * t + 1.0)) / std::sqrt (2.0));
+
+            if (correction.size() > 10)
+                worstKept = std::min (worstKept, 1.0 - stddev (correction) / mean (vibrato));
+        }
+
+        // What it sounds like, read off the output audio: the vibrato's size in 250 ms stretches, next to
+        // the input's. The reference tracker reads this breathy voice an octave low now and then; frames
+        // where it does are skipped, and a stretch where it lost more than half of them isn't measured
+        // (nor the reader's last few frames, shorter than a vibrato cycle).
+        double worstRatio = 10.0;
+
+        for (double from = 0.8; from + 0.25 <= 3.8; from += 0.25)
+        {
+            std::vector<double> a, b;
+            size_t frameCount = 0;
+
+            for (size_t i = 0; i < std::min (cents.size(), inputCents.size()); ++i)
+            {
+                const double t = 0.8 + 0.005 * (double) i;
+
+                if (t >= from && t < from + 0.25)
+                {
+                    ++frameCount;
+
+                    if (std::abs (inputCents[i] + 25.0) < 200.0 && std::abs (cents[i]) < 200.0)
+                    {
+                        a.push_back (inputCents[i]);
+                        b.push_back (cents[i]);
+                    }
+                }
+            }
+
+            if (a.size() > 10 && 2 * a.size() >= frameCount && frameCount >= 40)
+                worstRatio = std::min (worstRatio, stddev (b) / std::max (1.0, stddev (a)));
+        }
+
+        // The reference tracker also reads this voice a few cents flat (the vibrato is a sine around
+        // -25 ct, yet it measures the input lower): judge the output's centre net of that offset.
+        const double readerOffset = percentile (inputCents, 0.5) + 25.0;
+        const double centre = percentile (cents, 0.5) - readerOffset;
+
+        check (worstKept > 0.75 && worstRatio > 0.6 && std::abs (centre) < 6.0,
+               juce::String ("Keep vibrato: an irregular, breathy vibrato") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               "smallest share of the vibrato kept in any 250 ms: " + juce::String (100.0 * worstKept, 0) + "% (engine), "
+                   + juce::String (100.0 * worstRatio, 0) + "% (output audio); centre " + juce::String (centre, 1) + " ct");
+    }
+}
+
+void testVibratoChoosesFromCentre()
+{
+    // A wide vibrato (+-45 cents) on a note sung 30 cents sharp swings past the point where hard tune
+    // switches to the next note. The target is chosen from the vibrato's centre, so it stays put.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 3.0, [] (double t)
+                                    { return t < 0.1 || t > 2.9 ? 0.0 : midiToHz (57.3 + 0.45 * std::sin (juce::MathConstants<double>::twoPi * 5.2 * t)); });
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        std::vector<PitchFrame> frames;
+        runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+        const int flips = targetFlips (frames, sampleRate, { { 0.6, 2.9, 57, 0 } });
+        check (flips <= 2, juce::String ("Wide vibrato doesn't trill between notes") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               juce::String (flips) + " target changes over 2.2 s of +-45 ct vibrato (each swing crosses the switch point)");
+    }
+}
+
+void testTrillsStayTrills()
+{
+    // Semitone and whole-tone trills alternate between two notes at the speed of a vibrato. They
+    // must not be taken for one: hard tune has to keep landing on both notes, vibrato kept or not.
+    const double sampleRate = 48000.0;
+
+    struct Trill
+    {
+        double low, high;
+        Scale scale;
+        const char* name;
+    };
+
+    for (const auto& trill : { Trill { 60.1, 61.05, Scale::chromatic, "semitone" }, Trill { 59.9, 62.1, Scale::major, "whole-tone" } })
+    {
+        const auto input = renderVoice (sampleRate, 2.0, [trill] (double t)
+                                        {
+                                            if (t < 0.1 || t > 1.9)
+                                                return 0.0;
+
+                                            const double s = std::tanh (3.0 * std::sin (juce::MathConstants<double>::twoPi * 6.5 * t)) / std::tanh (3.0);
+                                            return midiToHz (0.5 * (trill.low + trill.high) + 0.5 * (trill.high - trill.low) * s);
+                                        });
+
+        for (bool keep : { false, true })
+        {
+            auto settings = hardTune();
+            settings.scale = trill.scale;
+            settings.keepVibrato = keep;
+            const auto output = runEngine (input, sampleRate, settings);
+            const int low = (int) std::lround (trill.low), high = (int) std::lround (trill.high);
+            int nearLow = 0, nearHigh = 0, total = 0;
+
+            for (const auto& p : trackPitch (output, sampleRate, 60.0, 1300.0, 0.008, 0.002))
+            {
+                if (p.time < 0.5 || p.time > 1.8)
+                    continue;
+
+                const double n = hzToMidi (p.hz);
+                ++total;
+                nearLow += std::abs (n - low) < 0.2 ? 1 : 0;
+                nearHigh += std::abs (n - high) < 0.2 ? 1 : 0;
+            }
+
+            const double fLow = (double) nearLow / std::max (1, total), fHigh = (double) nearHigh / std::max (1, total);
+            check (fLow > 0.3 && fHigh > 0.3, juce::String ("A ") + trill.name + " trill stays a trill" + (keep ? " (Keep vibrato)" : ""),
+                   juce::String (100.0 * fLow, 0) + "% of the time on the lower note, " + juce::String (100.0 * fHigh, 0) + "% on the upper");
+        }
+    }
+}
+
+void testAddedVibrato()
+{
+    // A flat, steady note with an added vibrato of 40 cents at 5 Hz after 300 ms.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 3.0, [] (double t) { return t < 0.1 || t > 2.9 ? 0.0 : midiToHz (57.0); });
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        settings.vibratoAddCents = 40.0f;
+        settings.vibratoRateHz = 5.0f;
+        settings.vibratoDelayMs = 300.0f;
+        const auto output = runEngine (input, sampleRate, settings);
+        const auto before = outputCents (output, sampleRate, 0.15, 0.35, 57.0);
+        const auto during = outputCents (output, sampleRate, 0.9, 2.8, 57.0);
+        int crossings = 0;
+
+        for (size_t i = 1; i < during.size(); ++i)
+            crossings += (during[i - 1] < 0.0) != (during[i] < 0.0) ? 1 : 0;
+
+        const double rate = 0.5 * crossings / 1.9;
+        check (stddev (before) < 3.0 && std::abs (stddev (during) - 40.0 / std::sqrt (2.0)) < 5.0 && std::abs (mean (during)) < 4.0
+                   && std::abs (rate - 5.0) < 0.6,
+               juce::String ("Added vibrato: depth, rate and delay") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               "before the delay " + juce::String (stddev (before), 1) + " ct; after: " + juce::String (stddev (during), 1) + " ct std (40 ct sine: 28.3), "
+                   + juce::String (rate, 2) + " Hz, centre " + juce::String (mean (during), 1) + " ct");
+    }
+}
+
+void testNoteTransitionCurve()
+{
+    // The singer moves from A3 (+20 ct) to C4 (-20 ct) in 40 ms. With hard tune the output steps there
+    // (through B3, as C major has it); a 150 ms transition stretches the move into an S-curve glide
+    // that neither overshoots nor stalls on B3.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 2.0, [] (double t)
+                                    {
+                                        if (t < 0.1 || t > 1.9)
+                                            return 0.0;
+
+                                        const double x = juce::jlimit (0.0, 1.0, (t - 1.0) / 0.04);
+                                        return midiToHz (57.2 + 2.6 * x * x * (3.0 - 2.0 * x));
+                                    });
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto measure = [&] (float transitionMs, double& lowest, double& highest, double& longestStep)
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            settings.scale = Scale::major;
+            settings.transitionMs = transitionMs;
+            const auto output = runEngine (input, sampleRate, settings);
+            double t10 = -1.0, t90 = -1.0, previous = 0.0;
+            lowest = 1.0e9;
+            highest = -1.0e9;
+            longestStep = 0.0;
+
+            for (const auto& p : trackPitch (output, sampleRate, 60.0, 1300.0, 0.006, 0.001))
+            {
+                if (p.time < 0.9 || p.time > 1.4)
+                    continue;
+
+                const double n = hzToMidi (p.hz);
+                lowest = std::min (lowest, n);
+                highest = std::max (highest, n);
+
+                if (previous > 0.0)
+                    longestStep = std::max (longestStep, std::abs (n - previous));
+
+                previous = n;
+
+                if (t10 < 0.0 && n > 57.3)
+                    t10 = p.time;
+
+                if (t90 < 0.0 && n > 59.7)
+                    t90 = p.time;
+            }
+
+            return t10 > 0.0 && t90 > 0.0 ? 1000.0 * (t90 - t10) : -1.0;
+        };
+
+        double lowHard, highHard, stepHard, lowGlide, highGlide, stepGlide;
+        const double hard = measure (0.0f, lowHard, highHard, stepHard);
+        const double glide = measure (150.0f, lowGlide, highGlide, stepGlide);
+        check (hard >= 0.0 && glide > 70.0 && glide < 160.0 && highGlide < 60.1 && lowGlide > 56.9 && stepGlide < 0.25 && stepHard > 0.5,
+               juce::String ("Note transition: S-curve glide between notes") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               "10-90 % of A3 -> C4: hard " + juce::String (hard, 1) + " ms (largest jump in 1 ms " + juce::String (stepHard, 2)
+                   + " st), 150 ms transition " + juce::String (glide, 1) + " ms (" + juce::String (stepGlide, 2) + " st); range "
+                   + juce::String (lowGlide, 2) + " to " + juce::String (highGlide, 2));
+    }
+}
+
+void testTransitionsDontOvershoot()
+{
+    // A legato glide A3 -> C4 (80 ms) in C major passes B3 on the way. Whatever the speeds, the output
+    // must stay between the two notes (the step to the next note may not outrun the in-note correction).
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 2.0, [] (double t)
+                                    {
+                                        if (t < 0.1 || t > 1.9)
+                                            return 0.0;
+
+                                        const double x = juce::jlimit (0.0, 1.0, (t - 1.0) / 0.08);
+                                        return midiToHz (57.25 + (59.85 - 57.25) * x * x * (3.0 - 2.0 * x));
+                                    });
+
+    struct Speeds
+    {
+        float retune, transition;
+    };
+
+    double worst = 0.0;
+    juce::String worstCase;
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        for (auto sp : { Speeds { 0.0f, 0.0f }, Speeds { 0.0f, 60.0f }, Speeds { 20.0f, 0.0f }, Speeds { 50.0f, 200.0f }, Speeds { 200.0f, 0.0f },
+                         Speeds { 8.0f, 300.0f } })
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            settings.scale = Scale::major;
+            settings.retuneMs = sp.retune;
+            settings.transitionMs = sp.transition;
+            std::vector<PitchFrame> frames;
+            runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+
+            for (size_t i = 0; i < frames.size(); ++i)
+            {
+                const double t = frameTime (i, sampleRate);
+
+                if (t < 0.9 || t > 1.7 || ! frames[i].voiced)
+                    continue;
+
+                const double beyond = std::max (frames[i].outputNote - 60.0, 57.0 - frames[i].outputNote);
+
+                if (beyond > worst)
+                {
+                    worst = beyond;
+                    worstCase = juce::String (mode == LatencyMode::live ? "Live" : "Studio") + " retune " + juce::String (sp.retune, 0) + " / transition "
+                                + juce::String (sp.transition, 0);
+                }
+            }
+        }
+    }
+
+    check (worst < 0.1, "Note changes never overshoot the notes",
+           "worst excursion past A3/C4 " + juce::String (100.0 * worst, 1) + " ct" + (worstCase.isEmpty() ? juce::String() : " (" + worstCase + ")"));
+}
+
+void testVibratoIntoNoteChange()
+{
+    // A note with vibrato that glides on to the next note: the vibrato tracker lets go as the voice
+    // leaves its swing, and the output must carry on to the new note without jumping past it.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 2.4, [] (double t)
+                                    {
+                                        if (t < 0.1 || t > 2.3)
+                                            return 0.0;
+
+                                        if (t < 1.2)
+                                            return midiToHz (57.1 + 0.3 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * t));
+
+                                        const double x = juce::jlimit (0.0, 1.0, (t - 1.2) / 0.06);
+                                        const double from = 57.1 + 0.3 * std::sin (juce::MathConstants<double>::twoPi * 5.5 * 1.2);
+                                        return midiToHz (from + (60.1 - from) * x * x * (3.0 - 2.0 * x));
+                                    });
+
+    double worst = 0.0;
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        for (float transition : { 0.0f, 80.0f })
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            settings.keepVibrato = true;
+            settings.transitionMs = transition;
+            std::vector<PitchFrame> frames;
+            runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+
+            for (size_t i = 0; i < frames.size(); ++i)
+            {
+                const double t = frameTime (i, sampleRate);
+
+                if (t > 1.1 && t < 1.6 && frames[i].voiced)
+                    worst = std::max (worst, (double) frames[i].outputNote - 60.0);
+            }
+        }
+    }
+
+    check (worst < 0.1, "Kept vibrato into a note change: no overshoot", "worst " + juce::String (100.0 * worst, 1) + " ct above the new note");
+}
+
+void testNoGapsOrReadsAhead()
+{
+    // The events that leave a gap or a click: a Live read point overtaking the input (it reads samples
+    // not yet written), and Studio grains cut short at either end. Stress them: big upward and downward
+    // corrections that stop abruptly, a low voice with the formant shifted both ways, 96 kHz.
+    const double sampleRate = 48000.0;
+    std::vector<SungNote> detached;
+
+    for (int i = 0; i < 10; ++i)
+        detached.push_back ({ 0.1 + 0.3 * i, 0.27 + 0.3 * i, 57.0, 0.0 });
+
+    const auto detachedVoice = renderVoice (sampleRate, 3.2, melodyPitch (detached));
+    const auto lowVoice = renderVoice (sampleRate, 5.7, melodyPitch (transposed (offKeyMelody, -15.0)));
+    int64_t readsAhead = 0, tailCuts = 0, headCuts = 0;
+    int runs = 0;
+
+    auto run = [&] (const std::vector<float>& input, double rate, EngineSettings settings, std::function<void (AutoTuneEngine&)> setup = {})
+    {
+        for (auto mode : { LatencyMode::studio, LatencyMode::live })
+        {
+            settings.mode = mode;
+            runEngine (input, rate, settings, setup);
+            readsAhead += lastDiagnostics.liveReadsAhead;
+            tailCuts += lastDiagnostics.grainTailCuts;
+            headCuts += lastDiagnostics.grainHeadCuts;
+            ++runs;
+        }
+    };
+
+    auto midi = hardTune();
+    midi.midiTargets = true;
+
+    for (int note : { 64, 60, 54, 50 }) // 7 and 3 semitones up, 3 and 7 down
+        run (detachedVoice, sampleRate, midi, [note] (AutoTuneEngine& e) { e.noteOn (note); });
+
+    auto low = hardTune();
+    low.voice = VoiceType::lowMale;
+
+    for (float formant : { -5.0f, 0.0f, 5.0f })
+    {
+        low.formantSemitones = formant;
+        run (lowVoice, sampleRate, low);
+    }
+
+    auto vibrato = hardTune();
+    vibrato.keepVibrato = true;
+    vibrato.vibratoDepth = 2.0f;
+    vibrato.vibratoAddCents = 60.0f;
+    vibrato.transitionMs = 80.0f;
+    run (renderVoice (96000.0, 5.7, melodyPitch (offKeyMelody)), 96000.0, vibrato);
+
+    check (readsAhead == 0 && tailCuts == 0 && headCuts == 0, "No reads past the input, no grains cut short",
+           juce::String (runs) + " stress runs: Live reads ahead " + juce::String (readsAhead) + ", Studio grains cut at the end "
+               + juce::String (tailCuts) + ", at the start " + juce::String (headCuts));
 }
 
 void testModeSwitch()
@@ -1497,6 +2014,29 @@ void testProcessorStereoAndState()
                           && processor.apvts.getRawParameterValue (ids::retune)->load() < 0.01f;
     check (restored, "Plugin state save / restore", restored ? "key and retune restored" : "mismatch");
 
+    // A session saved by 2.2 or earlier has no transition or vibrato settings: loading it must give
+    // their defaults (the old behaviour), whatever this instance had been set to.
+    {
+        auto xml = processor.apvts.copyState().createXml();
+
+        for (auto* id : { ids::transition, ids::vibrato, ids::vibratoDepth, ids::vibratoAdd, ids::vibratoRate, ids::vibratoDelay })
+            if (auto* child = xml->getChildByAttribute ("id", id))
+                xml->removeChildElement (child, true);
+
+        juce::MemoryBlock oldState;
+        processor.copyXmlToBinary (*xml, oldState);
+        setPlain (ids::transition, 150.0f);
+        setPlain (ids::vibrato, 1.0f);
+        setPlain (ids::vibratoDepth, 50.0f);
+        setPlain (ids::vibratoAdd, 40.0f);
+        setPlain (ids::key, 2.0f);
+        processor.setStateInformation (oldState.getData(), (int) oldState.getSize());
+        const auto settings = processor.readSettings();
+        const bool legacy = settings.key == 7 && settings.transitionMs == 0.0f && ! settings.keepVibrato && std::abs (settings.vibratoDepth - 1.0f) < 1.0e-4f
+                            && settings.vibratoAddCents == 0.0f;
+        check (legacy, "Sessions from 2.2 load with the old behaviour", legacy ? "transition Auto, vibrato off, key kept" : "new settings leaked into an old session");
+    }
+
     const auto voice = renderVoice (sampleRate, 5.7, melodyPitch (offKeyMelody));
     const int latency = processor.getLatencySamples();
     juce::AudioBuffer<float> buffer (2, 512);
@@ -1579,6 +2119,22 @@ int runProcessFile (const juce::StringArray& args)
             settings.amount = args[i + 1].getFloatValue() * 0.01f;
         else if (args[i] == "--voice")
             settings.voice = (VoiceType) juce::jlimit (0, 3, args[i + 1].getIntValue());
+        else if (args[i] == "--transition")
+            settings.transitionMs = args[i + 1].getFloatValue();
+        else if (args[i] == "--keep")
+            settings.keepVibrato = args[i + 1].getIntValue() != 0;
+        else if (args[i] == "--depth")
+            settings.vibratoDepth = args[i + 1].getFloatValue() * 0.01f;
+        else if (args[i] == "--add")
+            settings.vibratoAddCents = args[i + 1].getFloatValue();
+        else if (args[i] == "--rate")
+            settings.vibratoRateHz = args[i + 1].getFloatValue();
+        else if (args[i] == "--delay")
+            settings.vibratoDelayMs = args[i + 1].getFloatValue();
+        else if (args[i] == "--humanize")
+            settings.humanize = args[i + 1].getFloatValue() * 0.01f;
+        else if (args[i] == "--mix")
+            settings.mix = args[i + 1].getFloatValue() * 0.01f;
     }
 
     std::vector<PitchFrame> frames;
@@ -1621,6 +2177,173 @@ int runProcessFile (const juce::StringArray& args)
                  reader->sampleRate, noteNames[(size_t) settings.key], scaleNames[(size_t) settings.scale], settings.retuneMs);
     std::printf ("Pitched frames: %d. Distance to nearest scale note: input median %.1f ct -> output median %.1f ct\n", voiced,
                  percentile (inErr, 0.5), percentile (outErr, 0.5));
+    return 0;
+}
+
+std::vector<float> readMono (const juce::File& file, double& sampleRate)
+{
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+    if (reader == nullptr)
+        return {};
+
+    sampleRate = reader->sampleRate;
+    juce::AudioBuffer<float> audio ((int) reader->numChannels, (int) reader->lengthInSamples);
+    reader->read (&audio, 0, (int) reader->lengthInSamples, 0, true, true);
+    std::vector<float> mono ((size_t) audio.getNumSamples(), 0.0f);
+
+    for (int c = 0; c < audio.getNumChannels(); ++c)
+        for (int i = 0; i < audio.getNumSamples(); ++i)
+            mono[(size_t) i] += audio.getSample (c, i) / (float) audio.getNumChannels();
+
+    return mono;
+}
+
+/** --diagnose <dir> [take.wav ...]: runs the engine over stress cases, prints its gap/click event
+    counters and writes each input/output pair for offline analysis. */
+int runDiagnose (const juce::File& dir, const juce::StringArray& takes)
+{
+    dir.createDirectory();
+
+    struct Case
+    {
+        juce::String name;
+        std::vector<float> input;
+        double sampleRate;
+        EngineSettings settings;
+        std::function<void (AutoTuneEngine&)> setup;
+    };
+
+    std::vector<Case> cases;
+    const double sr = 48000.0;
+    auto add = [&] (const juce::String& name, const std::vector<float>& input, double rate, EngineSettings s,
+                    std::function<void (AutoTuneEngine&)> setup = {})
+    {
+        for (auto mode : { LatencyMode::studio, LatencyMode::live })
+        {
+            s.mode = mode;
+            cases.push_back ({ name + (mode == LatencyMode::live ? "_live" : "_studio"), input, rate, s, setup });
+        }
+    };
+
+    const auto melody = renderVoice (sr, 5.7, melodyPitch (offKeyMelody));
+    add ("melody_hard", melody, sr, hardTune());
+
+    auto natural = hardTune();
+    natural.retuneMs = 20.0f;
+    add ("melody_20ms", melody, sr, natural);
+
+    const auto breathy = renderRealisticVoice (sr, 5.7, melodyPitch (offKeyMelody), { -12.0, 0.35, 0.012, 0.15 });
+    add ("breathy_hard", breathy, sr, hardTune());
+
+    const auto roomy = renderRealisticVoice (sr, 5.7, melodyPitch (offKeyMelody), { -12.0, 0.1, 0.006, 0.08, 0.5, -62.0 });
+    add ("roomy_hard", roomy, sr, hardTune());
+
+    auto low = hardTune();
+    low.voice = VoiceType::lowMale;
+    const auto lowVoice = renderVoice (sr, 5.7, melodyPitch (transposed (offKeyMelody, -15.0)));
+    add ("low_hard", lowVoice, sr, low);
+    low.formantSemitones = 5.0f;
+    add ("low_formant_up", lowVoice, sr, low);
+    low.formantSemitones = -5.0f;
+    add ("low_formant_down", lowVoice, sr, low);
+
+    // Wide vibrato (+-50 ct) sung 30 cents sharp: hard tune flips notes on every swing.
+    std::vector<SungNote> vibratoNotes { { 0.10, 2.40, 57, +30, 50.0 }, { 2.55, 4.80, 62, -20, 35.0 } };
+    add ("vibrato_hard", renderVoice (sr, 5.0, melodyPitch (vibratoNotes)), sr, hardTune());
+
+    // Big upward corrections that stop abruptly: a held MIDI note 3 semitones above, short detached notes.
+    std::vector<SungNote> detached;
+
+    for (int i = 0; i < 10; ++i)
+        detached.push_back ({ 0.1 + 0.3 * i, 0.1 + 0.3 * i + 0.17, 57.0, 0.0 });
+
+    auto midiUp = hardTune();
+    midiUp.midiTargets = true;
+    const auto detachedVoice = renderVoice (sr, 3.2, melodyPitch (detached));
+    add ("detached_midi_up3", detachedVoice, sr, midiUp, [] (AutoTuneEngine& e) { e.noteOn (60); });
+    add ("detached_midi_down3", detachedVoice, sr, midiUp, [] (AutoTuneEngine& e) { e.noteOn (54); });
+
+    // Notes in the gaps of a pentatonic scale: corrections up to 1.5 semitones either way.
+    auto penta = hardTune();
+    penta.scale = Scale::minorPentatonic;
+    std::vector<SungNote> gaps { { 0.1, 0.9, 58.5, 0 }, { 1.0, 1.8, 61.4, 0 }, { 1.9, 2.7, 65.6, 0 }, { 2.8, 3.6, 56.4, 0 } };
+    add ("penta_gaps", renderRealisticVoice (sr, 3.7, melodyPitch (gaps), { -12.0, 0.2, 0.008, 0.1 }), sr, penta);
+
+    for (auto rate : { 44100.0, 96000.0 })
+        add ("melody_hard_" + juce::String ((int) rate), renderVoice (rate, 5.7, melodyPitch (offKeyMelody)), rate, hardTune());
+
+    for (const auto& path : takes)
+    {
+        double rate = 48000.0;
+        const auto take = readMono (juce::File (path), rate);
+
+        if (take.empty())
+            continue;
+
+        auto s = hardTune();
+        s.key = 3; // D#
+        s.scale = Scale::major;
+        add (juce::File (path).getFileNameWithoutExtension() + "_hard", take, rate, s);
+        s.retuneMs = 20.0f;
+        add (juce::File (path).getFileNameWithoutExtension() + "_20ms", take, rate, s);
+    }
+
+    // Worst-case time per host block: a block that takes too long is a dropout on a busy machine.
+    for (const auto& c : cases)
+    {
+        for (int block : { 32, 64, 256 })
+        {
+            AutoTuneEngine engine;
+            engine.setSettings (c.settings);
+            engine.prepare (c.sampleRate, 2);
+            std::vector<float> left (c.input), right (c.input);
+            double worst = 0.0, total = 0.0;
+
+            for (size_t pos = 0; pos + (size_t) block <= left.size(); pos += (size_t) block)
+            {
+                float* channels[] = { left.data() + pos, right.data() + pos };
+                const auto started = std::chrono::steady_clock::now();
+                engine.process (channels, 2, 0, block);
+                const double seconds = std::chrono::duration<double> (std::chrono::steady_clock::now() - started).count();
+                worst = std::max (worst, seconds);
+                total += seconds;
+            }
+
+            const double budget = block / c.sampleRate;
+            const double blocks = std::floor ((double) left.size() / block);
+            std::printf ("%-28s block %4d: worst %6.1f %% of its time, mean %5.2f %%\n", c.name.toRawUTF8(), block, 100.0 * worst / budget,
+                         100.0 * total / (blocks * budget));
+        }
+    }
+
+    std::printf ("%-28s %8s %8s %8s %8s %8s %8s %8s\n", "case", "readAhd", "tailCut", "headCut", "splices", "weak", "meanCorr", "drifts");
+
+    for (const auto& c : cases)
+    {
+        const auto output = runEngine (c.input, c.sampleRate, c.settings, c.setup);
+        const auto& d = lastDiagnostics;
+        std::printf ("%-28s %8lld %8lld %8lld %8lld %8lld %8.3f %8lld\n", c.name.toRawUTF8(), (long long) d.liveReadsAhead,
+                     (long long) d.grainTailCuts, (long long) d.grainHeadCuts, (long long) d.splices, (long long) d.weakSplices,
+                     d.splices > 0 ? d.spliceScoreSum / (double) d.splices : 0.0, (long long) d.driftBacks);
+        writeWav (dir.getChildFile (c.name + "_in.wav"), c.input, c.sampleRate);
+        writeWav (dir.getChildFile (c.name + "_out.wav"), output, c.sampleRate);
+
+        // Splice times on the output timeline: the read point sits `latency` behind the input.
+        juce::String log ("time,offset,fade,score\n");
+        AutoTuneEngine probe;
+        probe.setSettings (c.settings);
+        probe.prepare (c.sampleRate, 1);
+
+        for (const auto& sp : d.spliceLog)
+            log << juce::String ((double) (sp.at - probe.getLatencySamples()) / c.sampleRate, 5) << "," << juce::String (sp.offset, 2) << ","
+                << juce::String (sp.fade, 1) << "," << juce::String (sp.score, 4) << "\n";
+
+        dir.getChildFile (c.name + "_splices.csv").replaceWithText (log);
+    }
+
     return 0;
 }
 
@@ -1769,7 +2492,7 @@ int runHostTest (const juce::String& path)
     return failures == 0 ? 0 : 1;
 }
 
-int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pixelScale)
+int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pixelScale, bool vibratoPage = false)
 {
     const double sampleRate = 48000.0;
     SnapTuneProcessor processor;
@@ -1788,6 +2511,13 @@ int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pi
     setPlain (ids::humanize, 25.0f);
     setPlain (ids::mode, liveMode ? 1.0f : 0.0f);
     processor.apvts.state.setProperty ("uiScale", uiScale, nullptr);
+
+    if (vibratoPage)
+    {
+        setPlain (ids::vibrato, 1.0f);
+        setPlain (ids::vibratoAdd, 30.0f);
+        processor.apvts.state.setProperty ("controlsPage", 1, nullptr);
+    }
 
     std::unique_ptr<SnapTuneEditor> editor (dynamic_cast<SnapTuneEditor*> (processor.createEditor()));
 
@@ -1855,9 +2585,19 @@ int main (int argc, char* argv[])
     if (args[1] == "--host" && args.size() >= 3)
         return runHostTest (args[2]);
 
+    if (args[1] == "--diagnose" && args.size() >= 3)
+    {
+        juce::StringArray takes;
+
+        for (int i = 3; i < args.size(); ++i)
+            takes.add (args[i]);
+
+        return runDiagnose (juce::File (args[2]), takes);
+    }
+
     if (args[1] == "--snapshot" && args.size() >= 3)
-        return runSnapshot (juce::File (args[2]), args[3] == "live", args.size() > 4 ? args[4].getDoubleValue() : 1.0,
-                            args.size() > 5 ? juce::jlimit (1.0f, 8.0f, args[5].getFloatValue()) : 2.0f);
+        return runSnapshot (juce::File (args[2]), args[3].startsWith ("live"), args.size() > 4 ? args[4].getDoubleValue() : 1.0,
+                            args.size() > 5 ? juce::jlimit (1.0f, 8.0f, args[5].getFloatValue()) : 2.0f, args[3].endsWith ("vibrato"));
 
     juce::File outDir;
 
@@ -1889,6 +2629,15 @@ int main (int argc, char* argv[])
     testOctaveSlips();
     testLeapsOntoFormant();
     testFastLeapUp();
+    testKeepVibrato();
+    testKeepIrregularVibrato();
+    testVibratoChoosesFromCentre();
+    testTrillsStayTrills();
+    testAddedVibrato();
+    testNoteTransitionCurve();
+    testTransitionsDontOvershoot();
+    testVibratoIntoNoteChange();
+    testNoGapsOrReadsAhead();
     testModeSwitch();
     testGraphStaysStill();
     testBlockSizesAndCpu();

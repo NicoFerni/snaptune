@@ -20,6 +20,7 @@ namespace
     constexpr int steadyHopsNeeded = 8;  // ~21 ms of steps under half a semitone make a steady stretch
     constexpr int recentPeriodHops = 24; // ~64 ms of track the Live splices judge the delay by
     constexpr int rawChoiceWinHops = 3;  // Live: the unsmoothed note choice wins after ~8 ms
+    constexpr double settleMs = 20.0;    // the output settles this fast where the vibrato split jumps
 
     // Studio grain offsets (see emitGrain).
     constexpr double quietLevel = 1.0e-4; // power 40 dB under the voice: moving the grid there can't be heard
@@ -144,6 +145,7 @@ void AutoTuneEngine::prepare (double newSampleRate, int newMaxChannels)
 
     mixSmoothed.reset (sampleRate, 0.03);
     mixSmoothed.setCurrentAndTargetValue (settings.mix);
+    vibratoTracker.prepare (hopSize / sampleRate);
 
     reset();
 }
@@ -171,7 +173,15 @@ void AutoTuneEngine::reset()
 
     wasVoiced = false;
     currentTarget = -1;
-    correction = 0.0f;
+    correction = noteCorrection = 0.0f;
+    glide = settle = {};
+    glideMs = 0.0;
+    keptVibrato = addedVibrato = vibratoEnvelope = 0.0f;
+    vibratoPhase = 0.0;
+    vibratoTracker.reset();
+    hopCount = 0;
+    onsetCandidate = 0.0f;
+    drivenCorrection = 0.0f;
     noteAge = 0.0f;
     choiceNote = 0.0f;
     lastInputNote = 0.0f;
@@ -387,10 +397,22 @@ void AutoTuneEngine::liveSample (float* wet)
 
     if (fadeLength > 0)
     {
+        // A raised-cosine crossfade keeps the level of two copies that match (whole cycles of a steady
+        // voice) but dips by up to 3 dB where they don't (noise, or cycles that changed: a vowel moving,
+        // a note starting). Scale it to keep the power of copies with the correlation the splice search
+        // measured, so a splice in a changing voice doesn't leave a short gap.
         const double t = ((double) fadePosition + 0.5) / fadeLength;
-        const double fadeIn = fadeEqualPower ? std::sin (0.5 * juce::MathConstants<double>::pi * t)
-                                             : 0.5 - 0.5 * std::cos (juce::MathConstants<double>::pi * t);
-        const double fadeOut = fadeEqualPower ? std::cos (0.5 * juce::MathConstants<double>::pi * t) : 1.0 - fadeIn;
+        double fadeIn = 0.5 - 0.5 * std::cos (juce::MathConstants<double>::pi * t);
+        double fadeOut = 1.0 - fadeIn;
+        const double power = fadeIn * fadeIn + fadeOut * fadeOut + 2.0 * fadeCorrelation * fadeIn * fadeOut;
+        fadeIn /= std::sqrt (power);
+        fadeOut /= std::sqrt (power);
+
+#if SNAPTUNE_DIAGNOSTICS
+        for (const double tap : { liveTap, spliceTap })
+            if (std::floor (tap) + 2.0 > (double) (writePos - 1) && tap != std::floor (tap))
+                ++diagnostics.liveReadsAhead;
+#endif
 
         for (int c = 0; c < activeChannels; ++c)
             wet[c] = (float) (fadeOut * readInput (c, liveTap) + fadeIn * readInput (c, spliceTap));
@@ -412,10 +434,17 @@ void AutoTuneEngine::liveSample (float* wet)
         return;
     }
 
+#if SNAPTUNE_DIAGNOSTICS
+    if (std::floor (liveTap) + 2.0 > (double) (writePos - 1) && liveTap != std::floor (liveTap))
+        ++diagnostics.liveReadsAhead;
+#endif
+
     for (int c = 0; c < activeChannels; ++c)
         wet[c] = readInput (c, liveTap);
 
-    liveTap += ratio;
+    // Splices keep the read point behind the input; this only guards the hop in which a large
+    // upward correction is released (no splice while unpitched) from reading samples not yet written.
+    liveTap = std::min (liveTap + ratio, (double) (writePos - 2));
 }
 
 void AutoTuneEngine::maybeSplice (double ratio)
@@ -457,17 +486,23 @@ void AutoTuneEngine::maybeSplice (double ratio)
             return longest;
         };
 
+        double correlation = 1.0;
+
         if (ratio > 1.0 && delay < liveMinDelay + (ratio - 1.0) * fade + 2.0)
         {
             const double longest = longestRecentPeriod();
-            startSplice (-findSpliceLength (liveTap, -1, 0.8 * period, 1.25 * longest, longest), fade, false);
+            const double length = findSpliceLength (liveTap, -1, 0.8 * period, 1.25 * longest, longest, correlation);
+            startSplice (-length, fade, correlation);
         }
         else if (ratio < 1.0 && delay > liveMinDelay + 1.25 * period + 2.0)
         {
             const double longest = longestRecentPeriod();
 
             if (delay > liveMinDelay + 1.25 * longest + 2.0)
-                startSplice (findSpliceLength (liveTap, 1, 0.8 * period, std::min (1.25 * longest, delay - liveMinDelay - 2.0), longest), fade, false);
+            {
+                const double length = findSpliceLength (liveTap, 1, 0.8 * period, std::min (1.25 * longest, delay - liveMinDelay - 2.0), longest, correlation);
+                startSplice (length, fade, correlation);
+            }
         }
 
         return;
@@ -481,7 +516,7 @@ void AutoTuneEngine::maybeSplice (double ratio)
     const double offset = delay - liveLatency;
 
     if (std::abs (offset) > 0.5 && (! inRange || driftBackInaudible (delay)))
-        startSplice (offset, std::max (16.0, std::min (delay, (double) liveLatency)), true);
+        startSplice (offset, std::max (16.0, std::min (delay, (double) liveLatency)), 0.0);
 }
 
 bool AutoTuneEngine::driftBackInaudible (double delay) const
@@ -545,8 +580,10 @@ double AutoTuneEngine::periodicity (double period) const
     return best;
 }
 
-double AutoTuneEngine::findSpliceLength (double tap, int direction, double minLength, double maxLength, double period) const
+double AutoTuneEngine::findSpliceLength (double tap, int direction, double minLength, double maxLength, double period, double& correlation) const
 {
+    correlation = 1.0;
+
     // Compare the cycle just behind the read point with the one `length` samples further back
     // (direction -1) or ahead (+1), and keep the length where they line up best.
     const int window = juce::jlimit (32, 512, (int) std::lround (period));
@@ -609,6 +646,14 @@ double AutoTuneEngine::findSpliceLength (double tap, int direction, double minLe
         if (length != coarse)
             consider (length);
 
+#if SNAPTUNE_DIAGNOSTICS
+    diagnostics.spliceScoreSum += bestScore;
+    diagnostics.weakSplices += bestScore < 0.8 ? 1 : 0;
+    diagnostics.lastSpliceScore = bestScore;
+#endif
+
+    correlation = bestScore;
+
     // Sub-sample refinement.
     if (best > lo && best < hi)
     {
@@ -622,12 +667,22 @@ double AutoTuneEngine::findSpliceLength (double tap, int direction, double minLe
     return best;
 }
 
-void AutoTuneEngine::startSplice (double offset, double fadeSamples, bool uncorrelated)
+void AutoTuneEngine::startSplice (double offset, double fadeSamples, double correlation)
 {
+#if SNAPTUNE_DIAGNOSTICS
+    if (correlation <= 0.0)
+        ++diagnostics.driftBacks;
+    else
+        ++diagnostics.splices;
+
+    if (diagnostics.spliceLog.size() < 100000)
+        diagnostics.spliceLog.push_back ({ writePos - 1, offset, fadeSamples, correlation <= 0.0 ? -2.0 : correlation });
+#endif
+
     spliceTap = liveTap + offset;
     fadeLength = std::max (1, (int) std::lround (fadeSamples));
     fadePosition = 0;
-    fadeEqualPower = uncorrelated;
+    fadeCorrelation = juce::jlimit (0.0, 1.0, correlation);
 }
 
 //==============================================================================
@@ -726,6 +781,31 @@ void AutoTuneEngine::analyseHop()
 
     guardedHops = jumpHeld ? guardedHops + 1 : 0;
 
+    // A voiced stretch's first estimate is often wrong: the window still holds the consonant or the
+    // previous note, and YIN can take a multiple of the period there. Hard tune turns that one hop
+    // into a pitch blip (and Studio's pitch marks into a wrongly spaced grain), so the first hop waits
+    // for the next to agree within 1.5 semitones. A note resuming at the pitch it was held at after a
+    // short dropout needs no proof.
+    if (voiced && ! wasVoiced)
+    {
+        const bool resumes = unvoicedHops <= maxHeldHops && currentTarget >= 0 && std::abs (std::log2 (period / stampPeriod)) < 0.125f;
+        const bool confirms = onsetCandidate > 0.0f && std::abs (std::log2 (period / onsetCandidate)) < 0.125f;
+
+        if (resumes || confirms)
+        {
+            onsetCandidate = 0.0f;
+        }
+        else
+        {
+            onsetCandidate = period;
+            voiced = false;
+        }
+    }
+    else if (! voiced)
+    {
+        onsetCandidate = 0.0f;
+    }
+
     estimateDelay = 0.5 * window;
 
     if (voiced && live)
@@ -788,12 +868,49 @@ void AutoTuneEngine::analyseHop()
     updateCorrection (voiced, period);
 }
 
+void AutoTuneEngine::advanceGlide (Glide& g, double seconds, double timeMs) const noexcept
+{
+    if (timeMs < 0.5)
+    {
+        g = {};
+        return;
+    }
+
+    // Critically damped decay toward zero: a step of the target comes out as 1 - (1 + wt) e^-wt, the
+    // response the Fujisaki model gives pitch accents, 95 % complete after timeMs. It starts and ends
+    // at rest, where a one-pole jumps off at full speed; a new step mid-glide keeps the velocity.
+    const double w = 4.744 / (0.001 * timeMs);
+    const double decay = std::exp (-w * seconds);
+    const double k = (double) g.velocity + w * (double) g.offset;
+    g.offset = (float) (((double) g.offset + k * seconds) * decay);
+    g.velocity = (float) (((double) g.velocity - w * k * seconds) * decay);
+}
+
+float AutoTuneEngine::glidePosition (const Glide& g, double seconds, double timeMs) noexcept
+{
+    if (timeMs < 0.5)
+        return 0.0f;
+
+    const double w = 4.744 / (0.001 * timeMs);
+    return (float) (((double) g.offset + ((double) g.velocity + w * (double) g.offset) * seconds) * std::exp (-w * seconds));
+}
+
 void AutoTuneEngine::updateCorrection (bool voiced, float period)
 {
     const auto hopSeconds = (float) (hopSize / sampleRate);
     const int previousTarget = currentTarget;
     const bool continuingNote = voiced && wasVoiced;
+    const float amount = juce::jlimit (0.0f, 1.0f, settings.amount);
+    const bool keep = settings.keepVibrato;
+    const float depth = keep ? juce::jlimit (0.0f, 2.0f, settings.vibratoDepth) : 1.0f;
+    const float baseRetuneMs = std::max (0.0f, settings.retuneMs);
+    bool discontinuity = false; // the input-driven correction jumped this hop (no slope to extrapolate)
     PitchFrame uiFrame;
+    ++hopCount;
+
+    // A glide and the settling after a vibrato release carry on through dropouts: time passes for them.
+    advanceGlide (glide, hopSeconds, glideMs);
+    advanceGlide (settle, hopSeconds, settleMs);
 
     if (voiced)
     {
@@ -803,6 +920,12 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
 
         if (settings.midiTargets && heldMask != 0)
             mask = heldMask;
+
+        // A note resuming after a short dropout at the pitch it had keeps its vibrato history.
+        if (! wasVoiced && ! (currentTarget >= 0 && std::abs (inputNote - lastInputNote) <= 0.15f))
+            vibratoTracker.reset();
+
+        const auto vibrato = vibratoTracker.push (inputNote, hopCount, mask);
 
         // Live's estimate of a breathy voice is noisier than Studio's (short window, no median), and on
         // a note sung near the midpoint between two allowed notes each outlier would flip the target
@@ -814,20 +937,29 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
         else
             choiceNote += (1.0f - 0.5f * breathiness()) * (inputNote - choiceNote);
 
-        int target = chooseTargetNote (inputNote, mask, currentTarget, 0.12f);
+        // Under a vibrato the note is chosen from its centre: the swings would otherwise cross into
+        // the neighbouring notes and hard tune would trill between them on every cycle.
+        int target = chooseTargetNote (vibrato.locked ? vibrato.centre : inputNote, mask, currentTarget, 0.12f);
 
-        if (activeMode == LatencyMode::live)
+        if (activeMode == LatencyMode::live && ! vibrato.locked)
         {
             rawChoiceHops = wasVoiced && target != currentTarget ? rawChoiceHops + 1 : 0;
 
             if (rawChoiceHops < rawChoiceWinHops)
                 target = chooseTargetNote (choiceNote, mask, currentTarget, 0.12f);
         }
+        else
+        {
+            rawChoiceHops = 0;
+        }
 
         // After a short dropout the note carries on where it was if it comes back on the same target
         // and pitch (currentTarget is -1 after a longer gap); anything else, such as the same note
-        // sung again with other intonation, starts a new note.
+        // sung again with other intonation, starts a new note. One that comes back on another note is
+        // a note change the detector lost track of for a moment (a fast leap, a short consonant): it
+        // starts from where the singer is, like a new note, but takes the transition time.
         const bool newNote = ! wasVoiced && (target != currentTarget || target < 0 || std::abs (inputNote - lastInputNote) > 0.15f);
+        const bool changedInDropout = newNote && currentTarget >= 0 && target >= 0 && target != currentTarget;
         lastInputNote = inputNote;
 
         if (newNote || target != currentTarget)
@@ -835,24 +967,71 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
         else
             noteAge += hopSeconds;
 
-        // Notes start uncorrected and glide onto the target at the retune speed.
-        if (newNote)
-            correction = 0.0f;
-
-        currentTarget = target;
-
-        const float wanted = target >= 0 ? ((float) target - inputNote) * juce::jlimit (0.0f, 1.0f, settings.amount) : 0.0f;
-
         // Humanize: once a note has been held for a moment, slow the retune down so the
         // singer's own drift and vibrato on long notes come through.
-        float retuneMs = std::max (0.0f, settings.retuneMs);
+        float retuneMs = baseRetuneMs;
         const float sustain = juce::jlimit (0.0f, 1.0f, (noteAge - 0.12f) / 0.3f);
         retuneMs += juce::jlimit (0.0f, 1.0f, settings.humanize) * 300.0f * sustain;
 
         // One-pole smoothing; the time constant is a third of the retune time so the
         // correction is ~95% complete after `retuneMs`.
         const float alpha = retuneMs < 0.5f ? 1.0f : 1.0f - std::exp (-hopSeconds * 3000.0f / retuneMs);
-        correction += alpha * (wanted - correction);
+
+        // With the vibrato kept, the correction follows the note's centre and the vibrato rides on
+        // top. When the tracker lets go (the voice heading for another note, or the vibrato fading),
+        // the vibrato term drops out at once; the output stays where it was and settles over ~20 ms.
+        if (keep && vibrato.released && ! newNote)
+        {
+            settle.offset += (alpha + depth - 1.0f) * vibrato.releasedVibrato;
+            discontinuity = true;
+        }
+
+        const float centre = keep ? vibrato.centre : inputNote;
+        const float wanted = target >= 0 ? ((float) target - centre) * amount : 0.0f;
+
+        const double transitionMs = std::max ((double) baseRetuneMs, (double) std::max (0.0f, settings.transitionMs));
+
+        if (newNote)
+        {
+            // Notes start uncorrected and glide onto the target at the retune speed, along the S-curve.
+            noteCorrection = wanted;
+            glide = { -wanted, 0.0f };
+            settle = {};
+            glideMs = changedInDropout ? transitionMs : (double) baseRetuneMs;
+            vibratoEnvelope = 0.0f;
+            discontinuity = true;
+        }
+        else if (continuingNote && target != previousTarget && target >= 0 && previousTarget >= 0)
+        {
+            // A note change: the in-note correction moves with the target (keeping its lag), and the
+            // step itself goes into the glide, which takes the transition time (never less than the
+            // retune time, so it can't outrun the in-note correction and overshoot). Whatever was
+            // still settling joins it, so the glide starts from where the output actually is.
+            const float step = (float) (target - previousTarget) * amount;
+            noteCorrection += step;
+            glide.offset += settle.offset - step;
+            glide.velocity += settle.velocity;
+            settle = {};
+            glideMs = transitionMs;
+            discontinuity = true;
+        }
+
+        if (glideMs < 0.5)
+            glide = {};
+
+        currentTarget = target;
+        noteCorrection += alpha * (wanted - noteCorrection);
+        keptVibrato = keep ? (depth - 1.0f) * vibrato.vibrato : 0.0f;
+
+        // Added vibrato: fades in over 150 ms once the note has been held for the delay, out over 50 ms
+        // when it changes. The oscillator runs freely, so the vibrato never jumps.
+        const bool vibratoOn = settings.vibratoAddCents > 0.01f && noteAge * 1000.0f >= settings.vibratoDelayMs;
+        vibratoEnvelope += ((vibratoOn ? 1.0f : 0.0f) - vibratoEnvelope) * std::min (1.0f, hopSeconds / (vibratoOn ? 0.15f : 0.05f));
+        vibratoPhase = std::fmod (vibratoPhase + juce::MathConstants<double>::twoPi * juce::jlimit (1.0f, 12.0f, settings.vibratoRateHz) * hopSeconds,
+                                  juce::MathConstants<double>::twoPi);
+        addedVibrato = 0.01f * std::max (0.0f, settings.vibratoAddCents) * vibratoEnvelope * (float) std::sin (vibratoPhase);
+
+        correction = noteCorrection + glide.offset + settle.offset + keptVibrato + addedVibrato;
 
         uiFrame.inputNote = inputNote;
         uiFrame.outputNote = inputNote + correction;
@@ -868,13 +1047,18 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
         // when it comes back, and leave the voiced grains either side of the dropout (or at the end
         // of a note) only part of their correction.
         unvoicedHops = std::min (unvoicedHops + 1, maxHeldHops + 1);
+        vibratoEnvelope *= std::exp (-hopSeconds / 0.05f);
 
         if (unvoicedHops > maxHeldHops)
         {
-            correction = 0.0f;
+            noteCorrection = keptVibrato = addedVibrato = 0.0f;
+            glide = settle = {};
             currentTarget = -1;
             noteAge = 0.0f;
+            vibratoTracker.reset();
         }
+
+        correction = noteCorrection + glide.offset + settle.offset + keptVibrato + addedVibrato;
     }
 
     wasVoiced = voiced;
@@ -893,42 +1077,52 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
     ++trackCount;
 
     // Live mode reads just a few ms behind the input, but this estimate describes audio ~10 ms
-    // older. Within a note, extrapolate the correction along its current slope to the read point
-    // (as it will be at the end of the next hop), so fast vibrato is corrected on time. Clamped,
-    // and skipped across note changes where the correction jumps.
+    // older. Within a note, extrapolate the input-driven part of the correction (the in-note
+    // correction and the kept vibrato) along its current slope to the read point (as it will be at
+    // the end of the next hop), so fast vibrato is corrected on time. Clamped, and skipped where the
+    // correction jumps (note changes, onsets, vibrato releases). The glides are known ahead exactly.
     // While unpitched, Live reads at the input's speed: an unvoiced moment may be the next note
     // starting, and the held correction is only for the note resuming.
-    double liveTarget = voiced ? correction : 0.0;
+    double liveTarget = 0.0;
     bool stepped = false;
+    const double ahead = liveTap + hopSize - entry.time;
 
-    if (continuingNote && currentTarget == previousTarget && trackCount >= 2)
+    if (voiced)
     {
-        const auto& previous = track[(size_t) ((trackCount - 2) & (trackCapacity - 1))];
-        const double span = entry.time - previous.time;
+        const float driven = noteCorrection + keptVibrato;
+        const double aheadSeconds = std::max (0.0, ahead) / sampleRate;
+        liveTarget = driven + glidePosition (glide, aheadSeconds, glideMs) + glidePosition (settle, aheadSeconds, settleMs) + addedVibrato;
 
-        if (previous.voiced && span > 0.0)
+        if (continuingNote && ! discontinuity && currentTarget == previousTarget && trackCount >= 2)
         {
-            // On a breathy voice the step between two estimates is mostly noise, and extrapolating it
-            // multiplies the output's pitch jitter. Scale the slope by the share of the step that is
-            // signal. The noise shows in how much the step changes from hop to hop (a vibrato barely
-            // bends within a hop): for independent estimates that change has 3x the step's noise
-            // variance, about 2x here as consecutive windows overlap.
-            const float step = entry.correction - previous.correction;
+            const auto& previous = track[(size_t) ((trackCount - 2) & (trackCapacity - 1))];
+            const double span = entry.time - previous.time;
 
-            if (hasCorrectionStep)
+            if (previous.voiced && span > 0.0)
             {
-                const float bend = step - correctionStep;
-                stepPower += 0.1f * (step * step - stepPower);
-                stepNoise += 0.1f * (0.5f * bend * bend - stepNoise);
+                // On a breathy voice the step between two estimates is mostly noise, and extrapolating it
+                // multiplies the output's pitch jitter. Scale the slope by the share of the step that is
+                // signal. The noise shows in how much the step changes from hop to hop (a vibrato barely
+                // bends within a hop): for independent estimates that change has 3x the step's noise
+                // variance, about 2x here as consecutive windows overlap.
+                const float step = driven - drivenCorrection;
+
+                if (hasCorrectionStep)
+                {
+                    const float bend = step - correctionStep;
+                    stepPower += 0.1f * (step * step - stepPower);
+                    stepNoise += 0.1f * (0.5f * bend * bend - stepNoise);
+                }
+
+                correctionStep = step;
+                stepped = true;
+
+                const double signal = stepPower > 1.0e-12f ? juce::jlimit (0.0, 1.0, 1.0 - (double) (stepNoise / stepPower)) : 1.0;
+                liveTarget += juce::jlimit (-0.3, 0.3, signal * step / span * ahead);
             }
-
-            correctionStep = step;
-            stepped = true;
-
-            const double signal = stepPower > 1.0e-12f ? juce::jlimit (0.0, 1.0, 1.0 - (double) (stepNoise / stepPower)) : 1.0;
-            const double ahead = liveTap + hopSize - entry.time;
-            liveTarget += juce::jlimit (-0.3, 0.3, signal * step / span * ahead);
         }
+
+        drivenCorrection = driven;
     }
 
     hasCorrectionStep = stepped;
@@ -1458,13 +1652,26 @@ void AutoTuneEngine::writeGrain (int64_t now, double centre, double source, doub
     const double newestReadable = (double) writePos - 3.0;
     const double oldestReadable = (double) (writePos - ringSize + 2);
 
+#if SNAPTUNE_DIAGNOSTICS
+    // A head cut matters only if the part already played had real weight (beyond 2 % of the window),
+    // and wasn't simply from before the stream started.
+    if ((double) now > centre - halfLeft && centre - halfLeft >= 0.0 && window (((double) now - 1.0 - centre) / -halfLeft) > 0.02f)
+        ++diagnostics.grainHeadCuts;
+#endif
+
     for (int64_t u = first; u <= last; ++u)
     {
         const double offset = (double) u - centre;
         const double readPosition = source + offset * formantStretch;
 
         if (readPosition > newestReadable)
+        {
+#if SNAPTUNE_DIAGNOSTICS
+            if ((offset < 0.0 ? window (-offset / halfLeft) : window (offset / halfRight)) > 0.02f)
+                ++diagnostics.grainTailCuts;
+#endif
             break;
+        }
 
         if (readPosition < oldestReadable)
             continue;
