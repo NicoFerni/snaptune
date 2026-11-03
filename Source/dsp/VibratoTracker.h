@@ -53,6 +53,7 @@ public:
         locked = false;
         fade = 0.0f;
         scatter = 0.0f;
+        outlierHops = 0;
         historyHops.fill (-1);
     }
 
@@ -62,6 +63,37 @@ public:
     {
         Output out;
         out.centre = note;
+
+        // An octave error of the detector (it reads a breathy voice an octave low now and then, for a
+        // few hops): no vibrato drops an octave in a hop. Leave it out of the tracking, so it can't
+        // release the lock or pass for a swing; if it lasts it is a real octave leap. Any other jump
+        // is taken at once.
+        if (count > 0 && std::abs (note - smoothed + 12.0f) < 1.0f)
+        {
+            if (++outlierHops <= maxOutlierHops)
+            {
+                if (locked)
+                {
+                    out.centre = meanOverPeriod (hop - 1);
+                    out.locked = true;
+                }
+
+                return out;
+            }
+
+            if (locked)
+                release (out, note, hop);
+
+            const bool released = out.released;
+            const float releasedVibrato = out.releasedVibrato;
+            reset();
+            out = push (note, hop, mask);
+            out.released = released;
+            out.releasedVibrato = releasedVibrato;
+            return out;
+        }
+
+        outlierHops = 0;
 
         if (count == 0)
             smoothed = note;
@@ -91,8 +123,10 @@ public:
             const auto& trough = lastOfType (false);
             const float width = peak.value - trough.value;
             const float margin = std::max (0.15f, 0.35f * width);
-            const float halfPeriod = (float) (extrema[(size_t) ((extremaCount - 1) % maxExtrema)].hop
-                                              - extrema[(size_t) ((extremaCount - 2) % maxExtrema)].hop);
+            const float halfPeriod = (float) std::max (extrema[(size_t) ((extremaCount - 1) % maxExtrema)].hop
+                                                           - extrema[(size_t) ((extremaCount - 2) % maxExtrema)].hop,
+                                                       extrema[(size_t) ((extremaCount - 2) % maxExtrema)].hop
+                                                           - extrema[(size_t) ((extremaCount - 3) % maxExtrema)].hop);
             const bool outside = smoothed > peak.value + margin || smoothed < trough.value - margin;
             const bool late = (float) (hop - extrema[(size_t) ((extremaCount - 1) % maxExtrema)].hop) > 2.0f * halfPeriod + 6.0f;
 
@@ -145,7 +179,10 @@ private:
 
     float meanOverPeriod (int64_t hop) const noexcept
     {
-        const int64_t span = std::max<int64_t> (1, periodHops());
+        // Two periods when there are: one spurious turn (noise) then shortens the span only a little.
+        const int64_t span = std::max<int64_t> (1, locked && extremaCount >= 5 ? (extrema[(size_t) ((extremaCount - 1) % maxExtrema)].hop
+                                                                                     - extrema[(size_t) ((extremaCount - 5) % maxExtrema)].hop)
+                                                                                 : periodHops());
         double sum = 0.0;
         int n = 0;
 
@@ -200,31 +237,37 @@ private:
         const float lastWidth = extremaCount >= 2 ? std::abs (extrema[(size_t) ((extremaCount - 1) % maxExtrema)].value
                                                               - extrema[(size_t) ((extremaCount - 2) % maxExtrema)].value)
                                                   : 0.0f;
-        const float hysteresis = std::max ({ 0.04f, 1.5f * scatter, 0.25f * lastWidth });
+        const float hysteresis = std::max ({ 0.04f, 1.5f * scatter, 0.25f * std::min (lastWidth, 1.0f) });
 
         if (direction >= 0 && candidateHigh - smoothed > hysteresis && candidateHighHop < hop)
         {
-            addExtremum ({ candidateHighHop, candidateHigh, true }, mask, out, note, hop);
-            direction = -1;
-            candidateLow = smoothed;
-            candidateLowHop = hop;
+            if (addExtremum ({ candidateHighHop, candidateHigh, true }, mask, out, note, hop))
+            {
+                direction = -1;
+                candidateLow = smoothed;
+                candidateLowHop = hop;
+            }
         }
         else if (direction <= 0 && smoothed - candidateLow > hysteresis && candidateLowHop < hop)
         {
-            addExtremum ({ candidateLowHop, candidateLow, false }, mask, out, note, hop);
-            direction = 1;
-            candidateHigh = smoothed;
-            candidateHighHop = hop;
+            if (addExtremum ({ candidateLowHop, candidateLow, false }, mask, out, note, hop))
+            {
+                direction = 1;
+                candidateHigh = smoothed;
+                candidateHighHop = hop;
+            }
         }
     }
 
-    void addExtremum (const Extremum& e, uint16_t mask, Output& out, float note, int64_t hop) noexcept
+    /** Returns false when the turn was taken for noise and forgotten (the caller then leaves the
+        direction alone: the swing in progress before it carries on). */
+    bool addExtremum (const Extremum& e, uint16_t mask, Output& out, float note, int64_t hop) noexcept
     {
         extrema[(size_t) (extremaCount % maxExtrema)] = e;
         ++extremaCount;
 
         if (extremaCount < 3)
-            return;
+            return true;
 
         const auto& c = extrema[(size_t) ((extremaCount - 1) % maxExtrema)];
         const auto& b = extrema[(size_t) ((extremaCount - 2) % maxExtrema)];
@@ -238,10 +281,37 @@ private:
             const bool keeps = halfB > 0.045 && halfB < 0.18 && widthB > 0.05f && widthB < 1.3f && widthB < 3.0f * widthA
                                && widthB > widthA / 3.0f;
 
-            if (! keeps)
-                release (out, note, hop);
+            if (keeps)
+                return true;
 
-            return;
+            // A swing too quick or too small for a vibrato, inside one that is going on, is a wobble
+            // of breath noise on the way (a dip just after a turn, say): forget it and the turn it
+            // started from, and carry on with the swing they interrupted.
+            const bool wobble = halfB < 0.045 || widthB < 0.05f || widthB < widthA / 3.0f;
+
+            if (wobble && extremaCount >= 5)
+            {
+                const Extremum start = b;
+                extremaCount -= 2;
+
+                if (start.peak)
+                {
+                    direction = 1;
+                    candidateHigh = std::max (start.value, smoothed);
+                    candidateHighHop = start.value >= smoothed ? start.hop : hop;
+                }
+                else
+                {
+                    direction = -1;
+                    candidateLow = std::min (start.value, smoothed);
+                    candidateLowHop = start.value <= smoothed ? start.hop : hop;
+                }
+
+                return false;
+            }
+
+            release (out, note, hop);
+            return true;
         }
 
         // A vibrato is 3.5-9 Hz (half periods of 55-143 ms), 10 to 100 cents peak to peak, and steady.
@@ -251,7 +321,7 @@ private:
         const bool width = widthA > 0.1f && widthA < 1.0f && widthB > 0.1f && widthB < 1.0f && widthB < 2.0f * widthA && widthB > 0.5f * widthA;
 
         if (! (rate && width))
-            return;
+            return true;
 
         const float centre = 0.25f * (a.value + 2.0f * b.value + c.value);
         auto distance = [mask] (float n)
@@ -261,10 +331,11 @@ private:
         };
 
         if (distance (centre) > 0.5f * (distance (b.value) + distance (c.value)) + 0.25f)
-            return;
+            return true;
 
         locked = true;
         fade = 0.0f;
+        return true;
     }
 
     double hopSeconds = 128.0 / 48000.0;
@@ -281,5 +352,7 @@ private:
     bool locked = false;
     float fade = 0.0f;
     float scatter = 0.0f; // typical deviation of one estimate, semitones
+    int outlierHops = 0;
+    static constexpr int maxOutlierHops = 12;    // ~32 ms (hops are ~2.7 ms): longer is a real leap
 };
 } // namespace snaptune

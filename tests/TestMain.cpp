@@ -33,6 +33,37 @@ namespace
 {
 int failures = 0;
 
+/** Gaussian noise that is the same on every platform. std::mt19937's output is fixed by the standard,
+    but std::normal_distribution's algorithm is up to the library: libstdc++ (Linux) gives other
+    numbers than libc++ and MSVC, so the "same" test signal differed between the CI builds. */
+template <typename T>
+struct Gaussian
+{
+    Gaussian (T meanToUse, T deviationToUse) : mean (meanToUse), deviation (deviationToUse) {}
+
+    T operator() (std::mt19937& rng)
+    {
+        if (hasSpare)
+        {
+            hasSpare = false;
+            return mean + deviation * (T) spare;
+        }
+
+        // Box-Muller on two uniforms in (0, 1).
+        const double u1 = ((double) rng() + 0.5) / 4294967296.0;
+        const double u2 = ((double) rng() + 0.5) / 4294967296.0;
+        const double radius = std::sqrt (-2.0 * std::log (u1));
+        const double angle = 6.283185307179586 * u2;
+        spare = radius * std::sin (angle);
+        hasSpare = true;
+        return mean + deviation * (T) (radius * std::cos (angle));
+    }
+
+    T mean, deviation;
+    double spare = 0.0;
+    bool hasSpare = false;
+};
+
 void check (bool ok, const juce::String& name, const juce::String& detail)
 {
     std::printf ("[%s] %-46s %s\n", ok ? "PASS" : "FAIL", name.toRawUTF8(), detail.toRawUTF8());
@@ -110,7 +141,7 @@ std::vector<float> renderVoice (double sampleRate, double seconds, const std::fu
         tract.emplace_back (vowel.frequency[i], vowel.bandwidth[i], sampleRate);
 
     std::mt19937 rng (1234);
-    std::normal_distribution<double> noise (0.0, 1.0);
+    Gaussian<double> noise (0.0, 1.0);
     double phase = 0.0, envelope = 0.0, lastFrequency = 220.0;
     const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
     const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
@@ -672,7 +703,7 @@ void testTransparency()
     const double sampleRate = 48000.0;
 
     std::mt19937 rng (99);
-    std::normal_distribution<float> gauss (0.0f, 0.1f);
+    Gaussian<float> gauss (0.0f, 0.1f);
     std::vector<float> noise ((size_t) (3.0 * sampleRate));
 
     for (auto& x : noise)
@@ -749,7 +780,7 @@ void testLiveMode (const juce::File& outDir)
            "mean aperiodicity input " + juce::String (apIn, 4) + ", Studio " + juce::String (apStudio, 4) + ", Live " + juce::String (apLive, 4));
 
     std::mt19937 rng (7);
-    std::normal_distribution<float> gauss (0.0f, 0.1f);
+    Gaussian<float> gauss (0.0f, 0.1f);
     std::vector<float> noise ((size_t) (2.0 * sampleRate));
 
     for (auto& x : noise)
@@ -879,7 +910,7 @@ std::vector<float> renderRealisticVoice (double sampleRate, double seconds, cons
         tract.emplace_back (vowelA.frequency[i], vowelA.bandwidth[i], sampleRate);
 
     std::mt19937 rng (seed);
-    std::normal_distribution<double> noise (0.0, 1.0);
+    Gaussian<double> noise (0.0, 1.0);
     double phase = 0.0, envelope = 0.0, lastFrequency = 120.0, wobbleF = 0.0, wobbleA = 0.0;
     const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
     const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
@@ -1137,7 +1168,7 @@ void testDropoutResume()
         power += (double) input[i] * input[i];
 
     std::mt19937 rng (7);
-    std::normal_distribution<double> noise (0.0, std::sqrt (power / (double) (burstEnd - burstStart)));
+    Gaussian<double> noise (0.0, std::sqrt (power / (double) (burstEnd - burstStart)));
 
     for (size_t i = burstStart; i < burstEnd; ++i)
         input[i] = (float) noise (rng);
@@ -1219,7 +1250,7 @@ std::vector<float> renderVowelGlide (double sampleRate, double seconds, double h
         tract.emplace_back (from.frequency[i], from.bandwidth[i], sampleRate);
 
     std::mt19937 rng (1234);
-    std::normal_distribution<double> noise (0.0, 1.0);
+    Gaussian<double> noise (0.0, 1.0);
     double phase = 0.0, envelope = 0.0;
     const double attack = 1.0 - std::exp (-1.0 / (0.012 * sampleRate));
     const double release = 1.0 - std::exp (-1.0 / (0.02 * sampleRate));
@@ -1445,36 +1476,74 @@ void testKeepIrregularVibrato()
         auto settings = hardTune();
         settings.mode = mode;
         settings.keepVibrato = true;
-        const auto cents = outputCents (runEngine (input, sampleRate, settings), sampleRate, 0.8, 3.8, 57.0);
+        std::vector<PitchFrame> frames;
+        const auto cents = outputCents (runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames), sampleRate, 0.8, 3.8, 57.0);
 
-        // Compare the vibrato's size in 250 ms stretches: none may lose most of it.
+        // What the engine does, which the test knows exactly: the voice is sung 25 cents flat, so with
+        // the vibrato kept the correction should hold at +25 cents. Whatever of the vibrato it removes
+        // shows up as a wobble in the correction. (The engine reports a frame every hop, ~2.7 ms.)
+        const double hopSeconds = (double) std::lround (sampleRate / 375.0) / sampleRate;
+        double worstKept = 1.0;
+
+        for (double from = 0.8; from + 0.25 <= 3.8; from += 0.25)
+        {
+            std::vector<double> correction, vibrato;
+
+            for (size_t i = 0; i < frames.size(); ++i)
+            {
+                const double t = (double) i * hopSeconds;
+
+                if (t >= from && t < from + 0.25 && frames[i].voiced)
+                    correction.push_back (100.0 * (frames[i].outputNote - frames[i].inputNote));
+            }
+
+            for (double t = from; t < from + 0.25; t += 0.001) // the sung vibrato's deviation (sine: width / sqrt 2)
+                vibrato.push_back (100.0 * (0.325 + 0.125 * std::sin (juce::MathConstants<double>::twoPi * 0.23 * t + 1.0)) / std::sqrt (2.0));
+
+            if (correction.size() > 10)
+                worstKept = std::min (worstKept, 1.0 - stddev (correction) / mean (vibrato));
+        }
+
+        // What it sounds like, read off the output audio: the vibrato's size in 250 ms stretches, next to
+        // the input's. The reference tracker reads this breathy voice an octave low now and then; frames
+        // where it does are skipped, and a stretch where it lost more than half of them isn't measured
+        // (nor the reader's last few frames, shorter than a vibrato cycle).
         double worstRatio = 10.0;
 
         for (double from = 0.8; from + 0.25 <= 3.8; from += 0.25)
         {
             std::vector<double> a, b;
+            size_t frameCount = 0;
 
-            // (The reference tracker reads this breathy voice an octave low now and then: skip those frames.)
             for (size_t i = 0; i < std::min (cents.size(), inputCents.size()); ++i)
             {
                 const double t = 0.8 + 0.005 * (double) i;
 
-                if (t >= from && t < from + 0.25 && std::abs (inputCents[i] + 25.0) < 200.0 && std::abs (cents[i]) < 200.0)
+                if (t >= from && t < from + 0.25)
                 {
-                    a.push_back (inputCents[i]);
-                    b.push_back (cents[i]);
+                    ++frameCount;
+
+                    if (std::abs (inputCents[i] + 25.0) < 200.0 && std::abs (cents[i]) < 200.0)
+                    {
+                        a.push_back (inputCents[i]);
+                        b.push_back (cents[i]);
+                    }
                 }
             }
 
-            if (a.size() > 10)
+            if (a.size() > 10 && 2 * a.size() >= frameCount && frameCount >= 40)
                 worstRatio = std::min (worstRatio, stddev (b) / std::max (1.0, stddev (a)));
-
         }
 
-        check (worstRatio > 0.6 && std::abs (percentile (cents, 0.5)) < 6.0,
+        // The reference tracker also reads this voice a few cents flat (the vibrato is a sine around
+        // -25 ct, yet it measures the input lower): judge the output's centre net of that offset.
+        const double readerOffset = percentile (inputCents, 0.5) + 25.0;
+        const double centre = percentile (cents, 0.5) - readerOffset;
+
+        check (worstKept > 0.75 && worstRatio > 0.6 && std::abs (centre) < 6.0,
                juce::String ("Keep vibrato: an irregular, breathy vibrato") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
-               "smallest share of the vibrato kept in any 250 ms: " + juce::String (100.0 * worstRatio, 0) + "%, centre (median) "
-                   + juce::String (percentile (cents, 0.5), 1) + " ct (sung " + juce::String (percentile (inputCents, 0.5), 1) + " ct)");
+               "smallest share of the vibrato kept in any 250 ms: " + juce::String (100.0 * worstKept, 0) + "% (engine), "
+                   + juce::String (100.0 * worstRatio, 0) + "% (output audio); centre " + juce::String (centre, 1) + " ct");
     }
 }
 
