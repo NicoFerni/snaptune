@@ -42,6 +42,10 @@ public:
     snaptune::EngineSettings readSettings() const;
 
     juce::AudioProcessorValueTreeState apvts;
+
+    /** The editor's Compare button: the original voice, at the same delay. Not a parameter: it isn't
+        automated or saved, so a session can never come back silently untuned. */
+    std::atomic<bool> compareOriginal { false };
     snaptune::AutoTuneEngine engine;
 
 private:

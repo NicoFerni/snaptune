@@ -406,6 +406,9 @@ std::pair<double, double> estimateFormants (const std::vector<float>& x, double 
 /** The engine's event counters from the last runEngine call. */
 AutoTuneEngine::Diagnostics lastDiagnostics;
 
+/** NaN or Inf samples in everything runEngine has produced: one is a burst of noise in a DAW. */
+int64_t nonFiniteSamples = 0;
+
 /** Runs the engine over a mono signal and returns the output aligned to the input (latency removed). */
 std::vector<float> runEngine (const std::vector<float>& in, double sampleRate, const EngineSettings& settings,
                               const std::function<void (AutoTuneEngine&)>& setup = {}, int blockSize = 256,
@@ -442,6 +445,7 @@ std::vector<float> runEngine (const std::vector<float>& in, double sampleRate, c
         *secondsTaken = std::chrono::duration<double> (std::chrono::steady_clock::now() - started).count();
 
     lastDiagnostics = engine.diagnostics;
+    nonFiniteSamples += std::count_if (buffer.begin(), buffer.end(), [] (float x) { return ! std::isfinite (x); });
     return { buffer.begin() + latency, buffer.end() };
 }
 
@@ -1814,6 +1818,203 @@ void testVibratoIntoNoteChange()
     check (worst < 0.1, "Kept vibrato into a note change: no overshoot", "worst " + juce::String (100.0 * worst, 1) + " ct above the new note");
 }
 
+/** Power in a band, in dB: a 4th-order band-pass over [from, to) seconds of the signal. */
+double bandLevel (const std::vector<float>& x, double sampleRate, double lowHz, double highHz, double from, double to)
+{
+    struct Biquad
+    {
+        double b0, b1, b2, a1, a2, z1 = 0.0, z2 = 0.0;
+
+        double process (double in) noexcept
+        {
+            const double out = b0 * in + z1;
+            z1 = b1 * in - a1 * out + z2;
+            z2 = b2 * in - a2 * out;
+            return out;
+        }
+    };
+
+    auto highPass = [&] (double hz)
+    {
+        const double w = juce::MathConstants<double>::twoPi * hz / sampleRate, alpha = std::sin (w) / std::sqrt (2.0), a0 = 1.0 + alpha, c = std::cos (w);
+        return Biquad { (1.0 + c) / 2.0 / a0, -(1.0 + c) / a0, (1.0 + c) / 2.0 / a0, -2.0 * c / a0, (1.0 - alpha) / a0 };
+    };
+
+    auto lowPass = [&] (double hz)
+    {
+        const double w = juce::MathConstants<double>::twoPi * hz / sampleRate, alpha = std::sin (w) / std::sqrt (2.0), a0 = 1.0 + alpha, c = std::cos (w);
+        return Biquad { (1.0 - c) / 2.0 / a0, (1.0 - c) / a0, (1.0 - c) / 2.0 / a0, -2.0 * c / a0, (1.0 - alpha) / a0 };
+    };
+
+    auto hp = highPass (lowHz), lp = lowPass (highHz);
+    const auto first = (size_t) (from * sampleRate), last = std::min (x.size(), (size_t) (to * sampleRate));
+    double sum = 0.0;
+
+    for (size_t i = 0; i < last; ++i)
+    {
+        const double y = lp.process (hp.process ((double) x[i]));
+
+        if (i >= first)
+            sum += y * y;
+    }
+
+    return 10.0 * std::log10 (sum / (double) std::max<size_t> (1, last - first) + 1.0e-20);
+}
+
+void testConsonantsKeepTheirHighs()
+{
+    // A sibilant between two notes that get corrected. The notes leave the Studio grid up to half a
+    // period off the input; reading the noise with a different offset per grain cancels its highs (a comb).
+    const double sampleRate = 48000.0;
+    const std::vector<SungNote> notes { { 0.1, 0.8, 57.4, 0.0 }, { 1.0, 1.7, 60.3, 0.0 } };
+    auto input = renderVoice (sampleRate, 2.2, melodyPitch (notes));
+    std::mt19937 rng (5);
+    Gaussian<float> gauss (0.0f, 0.12f);
+    const auto sibilantStart = (size_t) (0.8 * sampleRate), sibilantEnd = (size_t) (1.0 * sampleRate), lastSibilantEnd = (size_t) (2.0 * sampleRate);
+
+    for (size_t i = sibilantStart; i < sibilantEnd; ++i)
+        input[i] += gauss (rng);
+
+    for (size_t i = (size_t) (1.7 * sampleRate); i < lastSibilantEnd; ++i)
+        input[i] += gauss (rng);
+
+    for (float retune : { 0.0f, 20.0f })
+    {
+        auto settings = hardTune();
+        settings.retuneMs = retune;
+        const auto output = runEngine (input, sampleRate, settings);
+        double worst = 0.0;
+
+        for (const auto& band : { std::pair { 2000.0, 4000.0 }, std::pair { 4000.0, 8000.0 }, std::pair { 8000.0, 14000.0 } })
+            worst = std::max (worst, std::abs (bandLevel (output, sampleRate, band.first, band.second, 1.72, 2.0)
+                                               - bandLevel (input, sampleRate, band.first, band.second, 1.72, 2.0)));
+
+        check (worst < 0.35, "Consonants keep their highs after a tuned note [retune " + juce::String ((int) retune) + " ms]",
+               "worst band change " + juce::String (worst, 2) + " dB");
+
+        double between = 0.0;
+
+        for (const auto& band : { std::pair { 2000.0, 4000.0 }, std::pair { 4000.0, 8000.0 } })
+            between = std::max (between, std::abs (bandLevel (output, sampleRate, band.first, band.second, 0.83, 0.97)
+                                                   - bandLevel (input, sampleRate, band.first, band.second, 0.83, 0.97)));
+
+        check (between < 0.5, "Short consonant between notes keeps its highs [retune " + juce::String ((int) retune) + " ms]",
+               "worst band change " + juce::String (between, 2) + " dB");
+    }
+}
+
+void testVoiceKeepsItsAir()
+{
+    // Air on top of a voice being corrected, in both modes at hard tune. Nearly every read lands between
+    // samples, and the interpolation shouldn't take the top off. The air is added as noise: it's what
+    // fills these bands on a real voice (this synthetic one has next to nothing up there).
+    for (double sampleRate : { 44100.0, 48000.0 })
+    {
+        auto input = renderVoice (sampleRate, 3.0, melodyPitch ({ { 0.1, 1.4, 57.35, 0.0 }, { 1.5, 2.9, 60.3, 0.0 } }));
+        std::mt19937 rng (21);
+        Gaussian<float> gauss (0.0f, 0.01f);
+
+        for (auto& x : input)
+            x += gauss (rng);
+
+        for (auto mode : { LatencyMode::studio, LatencyMode::live })
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            const auto output = runEngine (input, sampleRate, settings);
+            const double change = bandLevel (output, sampleRate, 12000.0, 16000.0, 0.3, 2.7) - bandLevel (input, sampleRate, 12000.0, 16000.0, 0.3, 2.7);
+            check (change > (mode == LatencyMode::live ? -0.3 : -1.25), "Air above 12 kHz survives the correction" + juce::String (mode == LatencyMode::live ? " [Live, " : " [Studio, ") + juce::String (sampleRate / 1000.0, 1) + " kHz]",
+                   juce::String (change, 2) + " dB");
+        }
+    }
+}
+
+void testGlidesDontBlip()
+{
+    // A clean leap from A3 to C4, with a retune slower than instant and a longer transition: what the
+    // presets Natural, Smooth Glide and Bright Pop do. The pitch should leave A3 and rise to C4, never
+    // bouncing back on the way.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 2.0, [] (double t)
+                                    {
+                                        if (t < 0.1 || t > 1.9)
+                                            return 0.0;
+
+                                        return midiToHz (t < 1.0 ? 57.2 : 59.8);
+                                    });
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        for (const auto& times : { std::pair { 10.0f, 90.0f }, std::pair { 40.0f, 120.0f }, std::pair { 15.0f, 60.0f } })
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            settings.scale = Scale::major;
+            settings.retuneMs = times.first;
+            settings.transitionMs = times.second;
+            const auto output = runEngine (input, sampleRate, settings);
+            double highest = 0.0, pullback = 0.0, overshoot = 0.0;
+
+            for (const auto& p : trackPitch (output, sampleRate, 60.0, 1300.0, 0.006, 0.001))
+            {
+                // A frame straddling the leap itself reads anything (it isn't periodic at any one lag).
+                if (p.time < 0.98 || p.time > 1.4 || p.aperiodicity > 0.05)
+                    continue;
+
+                const double n = hzToMidi (p.hz);
+                highest = std::max (highest, n);
+                pullback = std::max (pullback, highest - n);
+                overshoot = std::max (overshoot, n - 60.0);
+            }
+
+            check (pullback < 0.2 && overshoot < 0.15,
+                   "A glide doesn't bounce [" + juce::String (mode == LatencyMode::live ? "Live" : "Studio") + ", retune " + juce::String ((int) times.first) + ", transition " + juce::String ((int) times.second) + "]",
+                   "falls back " + juce::String (pullback, 2) + " st on the way, overshoots " + juce::String (overshoot, 2) + " st");
+        }
+    }
+}
+
+void testDetectorSlipsDontBendTheVoice()
+{
+    // A held note with a 40 ms burst of fry an octave down: on real takes the detector does the same on
+    // its own, reading a note an octave or two off for a few hops. The jump back up isn't the singer
+    // moving, and a glide started there bends the voice that follows by up to the size of the jump.
+    const double sampleRate = 48000.0;
+    const auto input = renderVoice (sampleRate, 1.4, [] (double t)
+                                    {
+                                        if (t < 0.1 || t > 1.3)
+                                            return 0.0;
+
+                                        return midiToHz (t > 0.6 && t < 0.64 ? 45.3 : 57.3);
+                                    });
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        for (const auto& times : { std::pair { 20.0f, 0.0f }, std::pair { 10.0f, 90.0f }, std::pair { 40.0f, 120.0f } })
+        {
+            auto settings = hardTune();
+            settings.mode = mode;
+            settings.retuneMs = times.first;
+            settings.transitionMs = times.second;
+            std::vector<PitchFrame> frames;
+            const auto output = runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+            std::vector<double> errors;
+            int slips = 0;
+
+            for (const auto& frame : frames)
+                slips += frame.voiced && frame.inputNote < 50.0f ? 1 : 0;
+
+            for (const auto& p : trackPitch (output, sampleRate))
+                if (p.time > 0.69 && p.time < 1.2)
+                    errors.push_back (std::abs (100.0 * (hzToMidi (p.hz) - 57.0)));
+
+            check (slips > 0 && percentile (errors, 1.0) < 45.0,
+                   "An octave slip doesn't bend the voice after it [" + juce::String (mode == LatencyMode::live ? "Live" : "Studio") + ", retune " + juce::String ((int) times.first) + ", transition " + juce::String ((int) times.second) + "]",
+                   juce::String (slips) + " hops read an octave down, worst output error after them " + juce::String (percentile (errors, 1.0), 1) + " ct");
+        }
+    }
+}
+
 void testNoGapsOrReadsAhead()
 {
     // The events that leave a gap or a click: a Live read point overtaking the input (it reads samples
@@ -1987,6 +2188,63 @@ void testBlockSizesAndCpu()
     runEngine (longInput, sampleRate, live, {}, 256, &liveSeconds);
     check (studioSeconds < audioSeconds * 0.05 && liveSeconds < audioSeconds * 0.05, "CPU load (mono, % of one core)",
            "Studio " + juce::String (100.0 * studioSeconds / audioSeconds, 2) + "%, Live " + juce::String (100.0 * liveSeconds / audioSeconds, 2) + "%");
+}
+
+void testCompareButton()
+{
+    // Compare plays the input at the plugin's delay (so the two line up) and isn't saved.
+    const double sampleRate = 48000.0;
+    SnapTuneProcessor processor;
+    processor.setPlayConfigDetails (2, 2, sampleRate, 512);
+    processor.prepareToPlay (sampleRate, 512);
+    auto* retune = processor.apvts.getParameter (ids::retune);
+    retune->setValueNotifyingHost (retune->convertTo0to1 (0.0f));
+
+    const auto voice = renderVoice (sampleRate, 3.0, melodyPitch ({ { 0.1, 2.9, 57.35, 0.0 } }));
+    const int latency = processor.getLatencySamples();
+    std::vector<float> output;
+    juce::AudioBuffer<float> buffer (2, 512);
+    juce::MidiBuffer midi;
+
+    for (size_t pos = 0; pos + 512 <= voice.size(); pos += 512)
+    {
+        // Tuned for the first second, then the original, then tuned again.
+        const double time = (double) pos / sampleRate;
+        processor.compareOriginal.store (time >= 1.0 && time < 2.0);
+
+        for (int i = 0; i < 512; ++i)
+        {
+            buffer.setSample (0, i, voice[pos + (size_t) i]);
+            buffer.setSample (1, i, voice[pos + (size_t) i]);
+        }
+
+        processor.processBlock (buffer, midi);
+        output.insert (output.end(), buffer.getReadPointer (0), buffer.getReadPointer (0) + 512);
+    }
+
+    output.erase (output.begin(), output.begin() + latency);
+    const double snr = snrDb (voice, output, (size_t) (1.2 * sampleRate), (size_t) (1.9 * sampleRate));
+    auto pitchIn = [&] (double from, double to)
+    {
+        std::vector<double> notes;
+
+        for (const auto& p : trackPitch (output, sampleRate))
+            if (p.time > from && p.time < to)
+                notes.push_back (hzToMidi (p.hz));
+
+        return percentile (notes, 0.5);
+    };
+
+    const double before = pitchIn (0.4, 0.9), during = pitchIn (1.2, 1.9), after = pitchIn (2.2, 2.7);
+    check (snr > 60.0 && std::abs (before - 57.0) < 0.02 && std::abs (during - 57.35) < 0.02 && std::abs (after - 57.0) < 0.02, "Compare plays the original at the same delay",
+           "SNR " + juce::String (snr, 1) + " dB vs delayed input; pitch " + juce::String (before, 2) + " -> " + juce::String (during, 2) + " -> " + juce::String (after, 2));
+
+    juce::MemoryBlock state;
+    processor.compareOriginal.store (true);
+    processor.getStateInformation (state);
+    SnapTuneProcessor reopened;
+    reopened.setStateInformation (state.getData(), (int) state.getSize());
+    check (! reopened.compareOriginal.load(), "Compare isn't saved with the session", "a reopened session is tuned");
 }
 
 void testProcessorStereoAndState()
@@ -2637,11 +2895,18 @@ int main (int argc, char* argv[])
     testNoteTransitionCurve();
     testTransitionsDontOvershoot();
     testVibratoIntoNoteChange();
+    testConsonantsKeepTheirHighs();
+    testVoiceKeepsItsAir();
+    testGlidesDontBlip();
+    testDetectorSlipsDontBendTheVoice();
     testNoGapsOrReadsAhead();
     testModeSwitch();
     testGraphStaysStill();
     testBlockSizesAndCpu();
+    testCompareButton();
     testProcessorStereoAndState();
+
+    check (nonFiniteSamples == 0, "No NaN or Inf anywhere in the outputs", juce::String (nonFiniteSamples) + " samples");
 
     std::printf ("\n%s: %d failure(s)\n", failures == 0 ? "ALL PASSED" : "FAILED", failures);
     return failures == 0 ? 0 : 1;

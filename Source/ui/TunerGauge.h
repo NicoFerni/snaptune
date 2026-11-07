@@ -13,6 +13,10 @@ public:
     /** inputCents / outputCents are relative to targetNote. */
     void setState (bool active, int targetNote, float inputCents, float outputCents);
 
+    /** What the output is meant to do: its needle swings around the note on purpose with a vibrato on,
+        and with Compare on nothing is being tuned. */
+    void setOutputContext (bool vibratoOn, bool comparing);
+
     /** Eases the needle toward the latest state; call at the UI frame rate. */
     void animate();
 
@@ -25,6 +29,7 @@ private:
     juce::String statusText() const;
 
     bool active = false;
+    bool hasVibrato = false, isComparing = false;
     int note = -1;
     float targetInput = 0.0f, targetOutput = 0.0f;
     float shownInput = 0.0f, shownOutput = 0.0f, presence = 0.0f;

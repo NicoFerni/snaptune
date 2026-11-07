@@ -38,6 +38,7 @@ namespace
     };
 
     const juce::Identifier pageProperty ("controlsPage");
+    const juce::Identifier lastPresetProperty ("lastPreset");
 } // namespace
 
 MainView::MainView (SnapTuneProcessor& p)
@@ -60,7 +61,7 @@ MainView::MainView (SnapTuneProcessor& p)
     for (int i = 0; i < numFactoryPresets; ++i)
         presetBox.addItem (factoryPresets[i].name, i + 1);
 
-    presetBox.setTextWhenNothingSelected ("Presets");
+    presetBox.setTextWhenNothingSelected ("Choose a preset");
     presetBox.setTitle ("Presets");
     presetBox.setTooltip ("Starting points for the correction knobs. Key, scale and voice are not changed.");
     presetBox.setHelpText (presetBox.getTooltip());
@@ -70,6 +71,15 @@ MainView::MainView (SnapTuneProcessor& p)
             applyPreset (presetBox.getSelectedId() - 1);
     };
     addAndMakeVisible (presetBox);
+
+    compareButton.setClickingTogglesState (true);
+    compareButton.setWantsKeyboardFocus (true);
+    compareButton.setTitle ("Compare with the original voice");
+    compareButton.setToggleState (audioProcessor.compareOriginal.load(), juce::dontSendNotification);
+    compareButton.setTooltip ("Hear your voice untuned, at the same delay and level, to compare. Click again to go back. Isn't saved with the session.");
+    compareButton.setHelpText (compareButton.getTooltip());
+    compareButton.onClick = [this] { audioProcessor.compareOriginal.store (compareButton.getToggleState()); };
+    addAndMakeVisible (compareButton);
 
     modeSwitch = std::make_unique<ModeSwitch> (*audioProcessor.apvts.getParameter (ids::mode));
     modeSwitch->setTooltip ("Studio: best quality, formants preserved, 46 ms (FL compensates it). "
@@ -116,7 +126,7 @@ MainView::MainView (SnapTuneProcessor& p)
     // Controls: the Correction page.
     addKnob (knobs, ids::humanize, "Humanize", false, 0.0, "Relaxes the correction on long notes so they keep their natural movement.");
     addKnob (knobs, ids::transition, "Transition", false, 0.0,
-             "How long the voice takes to glide to the next note. Auto follows Retune Speed; longer makes note changes smooth while held notes stay tight.");
+             "How long the voice takes to glide to the next note. Auto follows Retune Speed; longer makes note changes smooth while held notes stay tight. In Live, sudden leaps pass as sung: the new note is already playing by the time it's heard.");
     addKnob (knobs, ids::amount, "Amount", false, 100.0, "How much of the pitch error is corrected.");
     addKnob (knobs, ids::formant, "Formant", true, 0.0, "Moves the character of the voice up (smaller) or down (bigger) without changing pitch. Studio mode only.");
     addKnob (knobs, ids::tracking, "Tracking", false, 50.0, "Higher treats breathy or noisy singing as pitched; lower is stricter.");
@@ -221,8 +231,9 @@ void MainView::resized()
     header = { margin, 12, baseWidth - 2 * margin, 44 };
     presetBox.setBounds (232, 19, 196, 30);
     modeSwitch->setBounds (header.getRight() - 150, 19, 150, 30);
-    latencyArea = { modeSwitch->getX() - 140, 14, 128, 40 };
-    updateButton.setBounds (presetBox.getRight() + 16, 21, updateButton.getWidth(), 26);
+    latencyArea = { modeSwitch->getX() - 80, 14, 68, 40 };
+    compareButton.setBounds (presetBox.getRight() + 10, 19, 84, 30);
+    updateButton.setBounds (compareButton.getRight() + 12, 21, updateButton.getWidth(), 26);
 
     scaleBar = { margin, 66, baseWidth - 2 * margin, 64 };
     keyBox.setBounds (scaleBar.getX() + 16, scaleBar.getY() + 26, 70, 30);
@@ -378,6 +389,29 @@ void MainView::showUpdateIfAny()
     updateButton.setVisible (true);
 }
 
+void MainView::CompareButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+{
+    using namespace juce;
+
+    const auto r = getLocalBounds().toFloat().reduced (0.5f);
+    const bool on = getToggleState();
+    g.setColour (on ? palette::accent : palette::raised);
+    g.fillRoundedRectangle (r, 4.0f);
+
+    if (! on)
+    {
+        g.setColour (highlighted || down ? palette::textDim.withAlpha (0.6f) : palette::lineBright);
+        g.drawRoundedRectangle (r, 4.0f, 1.0f);
+    }
+
+    if (hasKeyboardFocus (false))
+        drawFocusRing (g, r.expanded (0.5f), 4.0f);
+
+    g.setColour (on ? palette::panel : palette::text);
+    g.setFont (uiFont (13.5f, true));
+    g.drawText (on ? "Original" : getButtonText(), getLocalBounds(), Justification::centred);
+}
+
 void MainView::UpdateButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
     using namespace juce;
@@ -441,7 +475,10 @@ void MainView::refreshState()
     const int target = lastVoiced.targetNote >= 0 ? lastVoiced.targetNote : (int) std::lround (lastVoiced.inputNote);
 
     pills.setState (allowedMask(), audioProcessor.engine.getHeldNoteMask(), singing && lastVoiced.targetNote >= 0 ? pitchClass (target) : -1);
-    gauge.setState (singing, target, (lastVoiced.inputNote - (float) target) * 100.0f, (lastVoiced.outputNote - (float) target) * 100.0f);
+    // While comparing, what comes out is what was sung.
+    const float outputNote = compareButton.getToggleState() ? lastVoiced.inputNote : lastVoiced.outputNote;
+    gauge.setState (singing, target, (lastVoiced.inputNote - (float) target) * 100.0f, (outputNote - (float) target) * 100.0f);
+    gauge.setOutputContext (plainValue (ids::vibrato) > 0.5f || plainValue (ids::vibratoAdd) >= 0.5f, compareButton.getToggleState());
     gauge.animate();
 
     // Where the graph sits before anything is sung: the middle of the selected voice range.
@@ -483,10 +520,7 @@ void MainView::refreshState()
     if (--presetCheckCountdown <= 0)
     {
         presetCheckCountdown = 15;
-        const int match = matchingPreset();
-
-        if (presetBox.getSelectedId() != match + 1)
-            presetBox.setSelectedId (match + 1, juce::dontSendNotification);
+        showPreset();
     }
 }
 
@@ -519,6 +553,28 @@ float MainView::plainValue (const char* id) const
     return audioProcessor.apvts.getRawParameterValue (id)->load();
 }
 
+void MainView::showPreset()
+{
+    const int match = matchingPreset();
+
+    if (match >= 0)
+    {
+        audioProcessor.apvts.state.setProperty (lastPresetProperty, match, nullptr);
+
+        if (presetBox.getSelectedId() != match + 1)
+            presetBox.setSelectedId (match + 1, juce::dontSendNotification);
+
+        return;
+    }
+
+    // Moved off a preset: say which one this started from, instead of looking like none was chosen.
+    const int last = (int) audioProcessor.apvts.state.getProperty (lastPresetProperty, -1);
+    const auto text = last >= 0 && last < numFactoryPresets ? juce::String (factoryPresets[last].name) + " (edited)" : juce::String ("Choose a preset");
+
+    if (presetBox.getText() != text)
+        presetBox.setText (text, juce::dontSendNotification);
+}
+
 int MainView::matchingPreset() const
 {
     for (int i = 0; i < numFactoryPresets; ++i)
@@ -544,6 +600,7 @@ void MainView::applyPreset (int index)
         return;
 
     const auto& p = factoryPresets[index];
+    audioProcessor.apvts.state.setProperty (lastPresetProperty, index, nullptr);
     setParameter (ids::retune, p.retune);
     setParameter (ids::humanize, p.humanize);
     setParameter (ids::amount, p.amount);
