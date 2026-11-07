@@ -68,7 +68,7 @@ EngineSettings SnapTuneProcessor::readSettings() const
     s.amount = amount->load() * 0.01f;
     s.formantSemitones = formant->load();
     s.tracking = tracking->load() * 0.01f;
-    s.mix = mix->load() * 0.01f;
+    s.mix = compareOriginal.load() ? 0.0f : mix->load() * 0.01f;
     s.voice = (VoiceType) juce::jlimit (0, (int) VoiceType::numTypes - 1, (int) voice->load());
     s.midiTargets = midi->load() > 0.5f;
     s.mode = mode->load() > 0.5f ? LatencyMode::live : LatencyMode::studio;
