@@ -21,12 +21,14 @@ namespace
     constexpr int recentPeriodHops = 24; // ~64 ms of track the Live splices judge the delay by
     constexpr int rawChoiceWinHops = 3;  // Live: the unsmoothed note choice wins after ~8 ms
     constexpr double settleMs = 20.0;    // the output settles this fast where the vibrato split jumps
+    constexpr int leapGraceHops = 6;     // Live: ~16 ms in which a further note change belongs to the same leap
+    constexpr float widestGlidedJump = 9.5f; // semitones the pitch can jump in one hop and still count as the singer moving
 
     // Studio grain offsets (see emitGrain).
     constexpr double quietLevel = 1.0e-4; // power 40 dB under the voice: moving the grid there can't be heard
     constexpr double voiceRelease = 0.3;  // seconds for the held voice level to fall by 1/e
     constexpr double maxRealign = 0.08;   // most a quiet grain moves the grid, as a fraction of the period
-    constexpr double unwindRate = 0.02;   // offset unwound per unvoiced grain, as a fraction of their spacing
+    constexpr double offsetHoldSeconds = 0.02; // an unvoiced stretch this long isn't a dropout inside a note
 
     struct VoiceRange
     {
@@ -50,21 +52,77 @@ namespace
         return p;
     }
 
-    // 4-point, 3rd-order Hermite interpolation.
+    // 12-point Kaiser-windowed sinc (beta 5), flat within 0.05 dB up to 16 kHz at 44.1 kHz at every
+    // fractional position (a 4-point Hermite is 3 dB down there, and more at some positions). A whole
+    // sample position reads that sample exactly. The table is linearly interpolated between phases.
+    constexpr int sincTaps = 12;
+    constexpr int sincPhases = 256;
+    constexpr int sincReachAhead = sincTaps / 2; // samples past the read position that must have arrived
+
+    std::array<float, (size_t) ((sincPhases + 1) * sincTaps)> makeSincTable()
+    {
+        std::array<float, (size_t) ((sincPhases + 1) * sincTaps)> table {};
+        constexpr double beta = 5.0, pi = juce::MathConstants<double>::pi;
+
+        auto bessel = [] (double x)
+        {
+            double sum = 1.0, term = 1.0;
+
+            for (int k = 1; k < 32; ++k)
+            {
+                term *= (x / (2.0 * k)) * (x / (2.0 * k));
+                sum += term;
+            }
+
+            return sum;
+        };
+
+        for (int phase = 0; phase <= sincPhases; ++phase)
+        {
+            const double frac = (double) phase / sincPhases;
+            std::array<double, (size_t) sincTaps> weights {};
+            double total = 0.0;
+
+            for (int i = 0; i < sincTaps; ++i)
+            {
+                const double t = (double) (i - (sincTaps / 2 - 1)) - frac;
+                const double edge = t / (sincTaps / 2);
+                const double window = bessel (beta * std::sqrt (std::max (0.0, 1.0 - edge * edge))) / bessel (beta);
+                weights[(size_t) i] = (std::abs (t) < 1.0e-12 ? 1.0 : std::sin (pi * t) / (pi * t)) * window;
+                total += weights[(size_t) i];
+            }
+
+            for (int i = 0; i < sincTaps; ++i)
+                table[(size_t) (phase * sincTaps + i)] = (float) (weights[(size_t) i] / total);
+        }
+
+        return table;
+    }
+
+    const auto sincTable = makeSincTable();
+
     inline float readInterpolated (const float* ring, int mask, double position) noexcept
     {
         const auto index = (int64_t) std::floor (position);
         const auto frac = (float) (position - (double) index);
-        const float xm1 = ring[(index - 1) & mask];
-        const float x0 = ring[index & mask];
-        const float x1 = ring[(index + 1) & mask];
-        const float x2 = ring[(index + 2) & mask];
-        const float c = (x1 - xm1) * 0.5f;
-        const float v = x0 - x1;
-        const float w = c + v;
-        const float a = w + v + (x2 - x0) * 0.5f;
-        const float b = w + a;
-        return ((a * frac - b) * frac + c) * frac + x0;
+
+        if (frac == 0.0f)
+            return ring[index & mask];
+
+        // The cast above can round up to exactly 1, which is still within the table's last row.
+        const float scaled = frac * (float) sincPhases;
+        const auto phase = std::min ((int) scaled, sincPhases - 1);
+        const float t = scaled - (float) phase;
+        const float* a = sincTable.data() + phase * sincTaps;
+        const float* b = a + sincTaps;
+        const auto first = index - (sincTaps / 2 - 1);
+        float sums[4] = {};
+
+        for (int i = 0; i < sincTaps; i += 4)
+            for (int j = 0; j < 4; ++j)
+                sums[j] += (a[i + j] + t * (b[i + j] - a[i + j])) * ring[(first + i + j) & mask];
+
+        return (sums[0] + sums[1]) + (sums[2] + sums[3]);
     }
 
     // Independent partial sums let the compiler keep the multiply-adds in vector registers.
@@ -173,7 +231,8 @@ void AutoTuneEngine::reset()
 
     wasVoiced = false;
     currentTarget = -1;
-    correction = noteCorrection = 0.0f;
+    correction = noteCorrection = lastWanted = 0.0f;
+    leapHops = 0;
     glide = settle = {};
     glideMs = 0.0;
     keptVibrato = addedVibrato = vibratoEnvelope = 0.0f;
@@ -204,6 +263,7 @@ void AutoTuneEngine::reset()
     lastStep = unvoicedPeriod;
     lastSourceMark = -1;
     lastGrainVoiced = false;
+    lastVoicedCentre = -1.0e12;
     voiceLevel = 0.0;
 
     // The next sample written lands at index writePos; read `latency` samples behind it.
@@ -235,6 +295,7 @@ void AutoTuneEngine::switchMode (LatencyMode mode)
     lastStep = unvoicedPeriod;
     lastSourceMark = -1;
     lastGrainVoiced = false;
+    lastVoicedCentre = -1.0e12;
     voiceLevel = 0.0;
 
     liveTap = now;
@@ -410,7 +471,7 @@ void AutoTuneEngine::liveSample (float* wet)
 
 #if SNAPTUNE_DIAGNOSTICS
         for (const double tap : { liveTap, spliceTap })
-            if (std::floor (tap) + 2.0 > (double) (writePos - 1) && tap != std::floor (tap))
+            if (std::floor (tap) + sincReachAhead > (double) (writePos - 1) && tap != std::floor (tap))
                 ++diagnostics.liveReadsAhead;
 #endif
 
@@ -428,14 +489,14 @@ void AutoTuneEngine::liveSample (float* wet)
         {
             // The splice was timed with the ratio at its start; if the ratio rises during the fade
             // (the hop's glide onto a larger correction), the fading copy mustn't read past the input.
-            liveTap = std::min (liveTap + ratio, (double) (writePos - 2));
+            liveTap = std::min (liveTap + ratio, (double) (writePos - sincReachAhead));
         }
 
         return;
     }
 
 #if SNAPTUNE_DIAGNOSTICS
-    if (std::floor (liveTap) + 2.0 > (double) (writePos - 1) && liveTap != std::floor (liveTap))
+    if (std::floor (liveTap) + sincReachAhead > (double) (writePos - 1) && liveTap != std::floor (liveTap))
         ++diagnostics.liveReadsAhead;
 #endif
 
@@ -444,7 +505,7 @@ void AutoTuneEngine::liveSample (float* wet)
 
     // Splices keep the read point behind the input; this only guards the hop in which a large
     // upward correction is released (no splice while unpitched) from reading samples not yet written.
-    liveTap = std::min (liveTap + ratio, (double) (writePos - 2));
+    liveTap = std::min (liveTap + ratio, (double) (writePos - sincReachAhead));
 }
 
 void AutoTuneEngine::maybeSplice (double ratio)
@@ -551,33 +612,7 @@ bool AutoTuneEngine::driftBackInaudible (double delay) const
         before += (double) b * b;
     }
 
-    return recent <= 2.0 * before && periodicity (stampPeriod) < 0.6;
-}
-
-double AutoTuneEngine::periodicity (double period) const
-{
-    // Best normalised correlation of the newest audio with itself one period (+-10 %) earlier.
-    const auto newest = writePos - 1;
-    const int window = juce::jlimit (64, 256, (int) std::lround (std::max (period, 0.005 * sampleRate)));
-    double best = -1.0;
-
-    for (auto lag = (int) std::floor (0.9 * period); lag <= (int) std::ceil (1.1 * period); lag += 2)
-    {
-        double cross = 0.0, energyA = 0.0, energyB = 0.0;
-
-        for (int i = 0; i < window; ++i)
-        {
-            const float a = detectionRing[(size_t) ((newest - i) & ringMask)];
-            const float b = detectionRing[(size_t) ((newest - lag - i) & ringMask)];
-            cross += (double) a * b;
-            energyA += (double) a * a;
-            energyB += (double) b * b;
-        }
-
-        best = std::max (best, cross / std::sqrt (energyA * energyB + 1.0e-20));
-    }
-
-    return best;
+    return recent <= 2.0 * before && periodicityAt ((double) (writePos - 1), stampPeriod) < 0.6;
 }
 
 double AutoTuneEngine::findSpliceLength (double tap, int direction, double minLength, double maxLength, double period, double& correlation) const
@@ -960,6 +995,8 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
         // starts from where the singer is, like a new note, but takes the transition time.
         const bool newNote = ! wasVoiced && (target != currentTarget || target < 0 || std::abs (inputNote - lastInputNote) > 0.15f);
         const bool changedInDropout = newNote && currentTarget >= 0 && target >= 0 && target != currentTarget;
+        const float jump = continuingNote ? inputNote - lastInputNote : 0.0f;
+        leapHops = std::max (0, leapHops - 1);
         lastInputNote = inputNote;
 
         if (newNote || target != currentTarget)
@@ -1003,18 +1040,40 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
         }
         else if (continuingNote && target != previousTarget && target >= 0 && previousTarget >= 0)
         {
-            // A note change: the in-note correction moves with the target (keeping its lag), and the
-            // step itself goes into the glide, which takes the transition time (never less than the
-            // retune time, so it can't outrun the in-note correction and overshoot). Whatever was
-            // still settling joins it, so the glide starts from where the output actually is.
+            // A note change: the in-note correction takes what the change does to the correction wanted
+            // (keeping its lag), and the step itself goes into the glide, which takes the transition time
+            // (never less than the retune time, so it can't outrun the in-note correction and overshoot).
+            // If the singer has already leapt, little changes in the wanted correction: moving the in-note
+            // part by the whole step would make it fall back at the retune speed while the glide is still
+            // holding, a bounce at the start of every glide. Whatever was still settling joins the glide,
+            // so it starts from where the output actually is.
+            //
+            // Past an octave-sized jump in one hop this is the detector slipping, far more often than the
+            // singer: the wanted correction is about the same in any octave, and a glide would bend the
+            // real voice by the size of the slip. A real leap that wide passes as sung, without a glide.
+            // Live has the same answer for any abrupt leap: it reads just behind the input, so by the time
+            // the estimate shows the leap the new note is already playing, and gliding from the old one
+            // would pull it back. Slides still glide there, as their target changes partway.
             const float step = (float) (target - previousTarget) * amount;
-            noteCorrection += step;
-            glide.offset += settle.offset - step;
-            glide.velocity += settle.velocity;
-            settle = {};
-            glideMs = transitionMs;
+            const bool alreadyLeapt = activeMode == LatencyMode::live && (leapHops > 0 || std::abs (jump) >= 0.5f * std::abs (step));
+
+            // The estimate can pass through a note on the way, so the rest of the leap counts too.
+            if (alreadyLeapt && leapHops == 0)
+                leapHops = leapGraceHops;
+
+            if (std::abs (jump) < widestGlidedJump && ! alreadyLeapt)
+            {
+                noteCorrection += wanted - lastWanted;
+                glide.offset += settle.offset - step;
+                glide.velocity += settle.velocity;
+                settle = {};
+                glideMs = transitionMs;
+            }
+
             discontinuity = true;
         }
+
+        lastWanted = wanted;
 
         if (glideMs < 0.5)
             glide = {};
@@ -1322,7 +1381,9 @@ void AutoTuneEngine::generateMarks (int64_t newestReadable)
         // formants biases it slightly every cycle; a gentle pull onto the nearest peak of the
         // onset's polarity keeps the marks from drifting through the cycle.
         auto height = [this] (int64_t n) { return markPolarity * peakRing[(size_t) (n & ringMask)]; };
-        double position = last.position + lag;
+        // The lag was measured from the rounded position, so add it to that: on top of the exact one, the
+        // rounding (up to half a sample, different every mark) would decorrelate the grains' highs.
+        double position = (double) std::llround (last.position) + lag;
         const auto start = (int64_t) std::llround (position);
         const auto reach = (int64_t) std::lround (0.25 * spacing);
         auto peak = start;
@@ -1568,15 +1629,22 @@ void AutoTuneEngine::emitGrain (int64_t now)
     {
         const double left = juce::jlimit (0.25 * unvoicedPeriod, 2.0 * unvoicedPeriod, centre - lastCentre);
 
-        // Where the input is far below the voice that left the offset behind, a jump can't be
-        // heard: drop the offset there. Otherwise wind it back a little per grain (after the first,
-        // which has to match the last voiced grain), so plain passthrough and the Mix control line
-        // up again while each crossfade only mixes copies ~0.1 ms apart. Below 100% Mix, though, the
-        // dry signal would comb with the offset copy (flanging) until then, so it goes at once.
-        if (std::abs (offset) > 1.0e-9 && (settings.mix < 0.999f || meanSquare (std::min (source, centre) - left, std::max (source, centre)) < voiceLevel * quietLevel))
-            offset = 0.0;
-        else if (! lastGrainVoiced)
-            offset -= juce::jlimit (-unwindRate * unvoicedPeriod, unwindRate * unvoicedPeriod, offset);
+        // Grains that overlap have to read at one offset: copies even a few samples apart cancel each
+        // other in the highs (4.8 samples is a comb with its first dip at 5 kHz), which dulls consonants
+        // and breath. So the offset holds still, and goes in one step once a jump can't be heard: where
+        // the input is far below the voice that left it behind, or in noise, past the length of a dropout
+        // inside a note (the copies of a voice would comb there, noise just crossfades). From then on the
+        // audio passes through untouched. Below 100% Mix the dry signal would comb with the offset copy
+        // (flanging), so it goes at once.
+        if (std::abs (offset) > 1.0e-9 && ! lastGrainVoiced)
+        {
+            const double from = std::min (source, centre) - left, to = std::max (source, centre);
+            const bool quiet = meanSquare (from, to) < voiceLevel * quietLevel;
+            const bool noise = centre - lastVoicedCentre > offsetHoldSeconds * sampleRate && periodicityAt (source, lastVoicedPeriod) < 0.6;
+
+            if (settings.mix < 0.999f || quiet || noise)
+                offset = 0.0;
+        }
 
         source = centre - offset;
 
@@ -1617,6 +1685,39 @@ void AutoTuneEngine::emitGrain (int64_t now)
     lastSource = source;
     lastStep = step;
     lastGrainVoiced = voiced;
+
+    if (voiced)
+    {
+        lastVoicedCentre = centre;
+        lastVoicedPeriod = markAt (lastSourceMark).period;
+    }
+}
+
+double AutoTuneEngine::periodicityAt (double position, double period) const noexcept
+{
+    // Best normalised correlation of the audio around `position` with itself one period (+-10 %) earlier.
+    const auto centre = (int64_t) std::llround (position);
+    const int window = juce::jlimit (64, 256, (int) std::lround (std::max (period, 0.005 * sampleRate)));
+    const auto newest = std::min (centre + window / 2, writePos - 1);
+    double best = -1.0;
+
+    for (auto lag = (int) std::floor (0.9 * period); lag <= (int) std::ceil (1.1 * period); lag += 2)
+    {
+        double cross = 0.0, energyA = 0.0, energyB = 0.0;
+
+        for (int i = 0; i < window; ++i)
+        {
+            const float a = detectionRing[(size_t) ((newest - i) & ringMask)];
+            const float b = detectionRing[(size_t) ((newest - lag - i) & ringMask)];
+            cross += (double) a * b;
+            energyA += (double) a * a;
+            energyB += (double) b * b;
+        }
+
+        best = std::max (best, cross / std::sqrt (energyA * energyB + 1.0e-20));
+    }
+
+    return best;
 }
 
 double AutoTuneEngine::meanSquare (double from, double to) const noexcept
@@ -1649,8 +1750,8 @@ void AutoTuneEngine::writeGrain (int64_t now, double centre, double source, doub
 {
     const int64_t first = std::max (now, (int64_t) std::ceil (centre - halfLeft));
     const auto last = (int64_t) std::floor (centre + halfRight);
-    const double newestReadable = (double) writePos - 3.0;
-    const double oldestReadable = (double) (writePos - ringSize + 2);
+    const double newestReadable = (double) (writePos - 1 - sincReachAhead);
+    const double oldestReadable = (double) (writePos - ringSize + sincTaps);
 
 #if SNAPTUNE_DIAGNOSTICS
     // A head cut matters only if the part already played had real weight (beyond 2 % of the window),

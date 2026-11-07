@@ -38,6 +38,20 @@ private:
     {
         void focusGained (FocusChangeType) override { repaint(); }
         void focusLost (FocusChangeType) override { repaint(); }
+
+        // Holding Shift as the drag starts moves the knob five times slower, for exact settings.
+        void mouseDown (const juce::MouseEvent& e) override
+        {
+            setMouseDragSensitivity (e.mods.isShiftDown() ? 1200 : 240);
+            juce::Slider::mouseDown (e);
+        }
+    };
+
+    /** The A/B switch in the header: lit gold while the original voice is playing. */
+    struct CompareButton final : public juce::Button
+    {
+        CompareButton() : juce::Button ("Compare") {}
+        void paintButton (juce::Graphics&, bool highlighted, bool down) override;
     };
 
     /** "SnapTune 2.1 is out": a gold pill in the header, shown once a newer version is released.
@@ -62,6 +76,7 @@ private:
     void toggleNote (int pitchClass);
     void applyPreset (int index);
     int matchingPreset() const;
+    void showPreset();
     void setParameter (const juce::String& id, float plainValue);
     float plainValue (const char* id) const;
     uint16_t allowedMask() const;
@@ -94,6 +109,7 @@ private:
 
     juce::SharedResourcePointer<UpdateCheck> updates;
     UpdateButton updateButton;
+    CompareButton compareButton;
     int updateCheckCountdown = 0;
 
     TunerGauge gauge;

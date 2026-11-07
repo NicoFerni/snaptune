@@ -186,7 +186,7 @@ private:
     double findSpliceLength (double tap, int direction, double minLength, double maxLength, double period, double& correlation) const;
     void startSplice (double offset, double fadeSamples, double correlation);
     bool driftBackInaudible (double delay) const;
-    double periodicity (double period) const;
+    double periodicityAt (double position, double period) const noexcept;
     void switchMode (LatencyMode mode);
     float readInput (int channel, double position) const noexcept;
 
@@ -248,6 +248,8 @@ private:
     int currentTarget = -1;
     float correction = 0.0f;
     float noteCorrection = 0.0f;
+    float lastWanted = 0.0f; // the correction wanted on the last voiced hop
+    int leapHops = 0; // Live: hops left in which a note change is still part of a leap already heard
     Glide glide, settle;
     double glideMs = 0.0;
     float keptVibrato = 0.0f, addedVibrato = 0.0f; // their terms in the correction
@@ -289,6 +291,7 @@ private:
     double lastStep = 0.0;
     int64_t lastSourceMark = -1;
     bool lastGrainVoiced = false;
+    double lastVoicedCentre = -1.0e12, lastVoicedPeriod = 240.0; // of the last voiced grain
     double voiceLevel = 0.0; // mean square of recent voiced grains, held and slowly released
     double formantStretch = 1.0;
     std::vector<float> windowTable;

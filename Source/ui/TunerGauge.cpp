@@ -20,6 +20,16 @@ namespace
     }
 } // namespace
 
+void TunerGauge::setOutputContext (bool vibratoOn, bool comparing)
+{
+    if (vibratoOn != hasVibrato || comparing != isComparing)
+    {
+        hasVibrato = vibratoOn;
+        isComparing = comparing;
+        repaint();
+    }
+}
+
 void TunerGauge::setState (bool isActive, int targetNote, float inputCents, float outputCents)
 {
     active = isActive;
@@ -47,6 +57,13 @@ juce::String TunerGauge::statusText() const
 {
     if (! active)
         return "Listening";
+
+    if (isComparing)
+        return "Original voice";
+
+    // A vibrato crosses the in-tune window on every swing: saying "Correcting" each time would be noise.
+    if (hasVibrato)
+        return "Vibrato on the note";
 
     return std::abs (targetOutput) < 3.0f ? "Output in tune" : "Correcting";
 }
