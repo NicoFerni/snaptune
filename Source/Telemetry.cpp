@@ -40,6 +40,17 @@ bool networkDisabled()
         || snapTuneDataDir().getChildFile ("no-telemetry").exists();
 }
 
+juce::String hostName()
+{
+    const juce::PluginHostType host;
+    const juce::String description = host.getHostDescription();
+
+    if (description != "Unknown")
+        return description;
+
+    return juce::File (juce::PluginHostType::getHostPath()).getFileNameWithoutExtension();
+}
+
 Telemetry::Telemetry() : juce::Thread ("SnapTune telemetry") {}
 
 Telemetry::~Telemetry()
@@ -97,17 +108,6 @@ juce::String installId (const juce::File& dir)
     return id;
 }
 
-// The host's executable name, which says more than "Unknown" for hosts JUCE doesn't recognise.
-juce::String hostName()
-{
-    const juce::PluginHostType host;
-    const juce::String description = host.getHostDescription();
-
-    if (description != "Unknown")
-        return description;
-
-    return juce::File (juce::PluginHostType::getHostPath()).getFileNameWithoutExtension();
-}
 } // namespace
 
 void Telemetry::pluginCreated (juce::AudioProcessor::WrapperType wrapperType)

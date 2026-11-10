@@ -154,7 +154,20 @@ the ping goes out only if libcurl is installed; SnapTune doesn't need it otherwi
 When the window opens, SnapTune also asks `getsnaptune.com/api/version` for the latest release, at
 most once a day, and shows "SnapTune x.y is out" in the header when there's a newer one; clicking it
 opens the download page. Nothing is sent with that request, and the same opt-out turns it off
-(`Source/UpdateCheck.cpp`).
+(`Source/UpdateCheck.cpp`). The answer can also carry one short notice from me (a beta to try, for
+example), shown in the same place until you click it; it can only open a page of getsnaptune.com.
+
+## Feedback
+
+The **Feedback** button in the header opens [getsnaptune.com/feedback](https://getsnaptune.com/feedback)
+in your browser: one box, no account, and an email address only if you want an answer. The button
+puts the plugin version, format, DAW and OS in the page's address, so I know where a message comes
+from; the form shows them before you send. Nothing is sent unless you press Send, and what's kept is
+the message, those four details, the email if you gave one, and the country.
+
+From the fifth session on, the button asks once ("How is it going? Tell me") until you click it. The
+session count behind that is a file in the SnapTune folder and never leaves your computer; with
+`no-telemetry` set, it isn't kept and the button never asks (`Source/Feedback.cpp`).
 
 ## How it works
 

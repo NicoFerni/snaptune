@@ -22,6 +22,7 @@ export const links = {
   releases: `${repo}/releases/latest`,
   readme: `${repo}#readme`,
   issues: `${repo}/issues`,
+  feedback: "/feedback",
   support: "mailto:support@getsnaptune.com",
   x: "https://x.com/getsnaptune",
   license: `${repo}/blob/main/LICENSE`,
