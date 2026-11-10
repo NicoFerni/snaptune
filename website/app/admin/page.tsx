@@ -146,23 +146,53 @@ export default async function Admin() {
   const downloadCheck = lastRun(checks);
   const build = lastRun(builds);
 
-  // Growth: installs by the day they were first seen, and how many came back on another day.
+  // Growth: installs by the day they were first seen, and how many came back. Coming back is a
+  // session a full day or more after the first: two sessions either side of midnight UTC (nine in the
+  // evening in Argentina) are one evening, not a return. Installs less than a day old haven't had the
+  // chance yet, so they aren't in the rate.
   const newPerDay = days.map((d) => ({ day: d, value: installs.filter((i) => day(i.first) === d).length }));
-  const daysUsed = new Map<string, Set<string>>();
-  for (const e of events) if (e.type === "launch") (daysUsed.get(e.install) ?? daysUsed.set(e.install, new Set()).get(e.install)!).add(day(e.t));
-  const returning = installs.filter((i) => (daysUsed.get(i.id)?.size ?? 0) > 1 || i.last - i.first > DAY).length;
+  const couldReturn = installs.filter((i) => now - i.first > DAY);
+  const returning = couldReturn.filter((i) => i.last - i.first > DAY).length;
   const sessionsTotal = installs.reduce((sum, i) => sum + i.launches, 0);
+  const sessionsMedian = [...installs].sort((a, b) => a.launches - b.launches)[Math.floor(installs.length / 2)]?.launches ?? 0;
 
-  // Downloads per day, from the daily totals the panel keeps.
-  const downloadsPerDay = (history ?? []).slice(1).map(([d, total], i) => ({ day: d, value: Math.max(0, total - history![i][1]) })).slice(-30);
+  // Downloads per day, from the daily totals the panel keeps. A total is only saved on the days the
+  // panel is opened, so the downloads between two saved days are spread evenly over the days between.
+  const downloadsPerDay = (history ?? [])
+    .slice(1)
+    .flatMap(([d, total], i) => {
+      const gap = Math.max(1, Math.round((Date.parse(d) - Date.parse(history![i][0])) / DAY));
+      const each = Math.max(0, total - history![i][1]) / gap;
+      return Array.from({ length: gap }, (_, k) => ({ day: day(Date.parse(d) - (gap - 1 - k) * DAY), value: Math.round(each) }));
+    })
+    .slice(-30);
+  const previous = history?.at(-2);
+  const downloadsSincePrevious = previous ? downloads - previous[1] : null;
   const weekAgo = (history ?? []).filter(([d]) => d <= day(now - 7 * DAY)).at(-1) ?? history?.[0];
   const downloads7 = weekAgo ? downloads - weekAgo[1] : null;
 
+  // Someone updating downloads again without becoming a new install. Each time an install shows up
+  // on a different version than its session before, that was one of those downloads.
+  const versionChanges: number[] = [];
+  const lastVersion = new Map<string, string>();
+  for (const e of [...events].reverse()) {
+    if (e.type !== "launch") continue;
+    const before = lastVersion.get(e.install);
+    if (before && before !== e.version) versionChanges.push(e.t);
+    lastVersion.set(e.install, e.version);
+  }
+  const updatesSince = (t: number) => versionChanges.filter((c) => c >= t).length;
+
   // Download → install since the daily snapshots began, so older downloads of builds that never
-  // pinged don't drag the rate down.
+  // pinged don't drag the rate down, and without the downloads that were updates. Still a floor:
+  // GitHub's count also has bots, link scanners and retried downloads in it, and installs that
+  // opted out of pings or never went online are missing.
   const tracked = history?.[0];
-  const downloadsTracked = tracked ? downloads - tracked[1] : 0;
+  const updatesTracked = tracked ? updatesSince(Date.parse(tracked[0])) : 0;
+  const downloadsTracked = tracked ? Math.max(0, downloads - tracked[1] - updatesTracked) : 0;
   const installsTracked = tracked ? installs.filter((i) => day(i.first) >= tracked[0]).length : 0;
+  const newInstalls7 = installs.filter((i) => now - i.first < 7 * DAY).length;
+  const updates7 = weekAgo ? updatesSince(Date.parse(weekAgo[0])) : 0;
 
   const searchReport = search && !(search instanceof Error) ? search : null;
   const searchClicks = searchReport?.perDay.reduce((sum, r) => sum + r.clicks, 0) ?? 0;
@@ -225,7 +255,7 @@ export default async function Admin() {
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Installs" value={installs.length} note="one per device that ran it in a DAW" />
+        <Stat label="Installs" value={installs.length} note="one per device that ran it in a DAW or the app" />
         <Stat label="Active, 7 days" value={active7.length} note={`${active30.length} in 30 days`} />
         <Stat label="Sessions, 30 days" value={launches30.length} note="one per DAW session" />
         <Stat
@@ -241,18 +271,22 @@ export default async function Admin() {
         <Stat
           label="Download → install"
           value={tracked ? percent(installsTracked, downloadsTracked) : percent(installs.length, downloads)}
-          note={tracked ? `${installsTracked} of ${downloadsTracked} since ${tracked[0]}` : "installs that pinged, per download"}
+          note={tracked ? `at least: ${installsTracked} of ${downloadsTracked} since ${tracked[0]}, ${updatesTracked} updates left out` : "installs that pinged, per download"}
         />
-        <Stat label="Returning" value={percent(returning, installs.length)} note={`${returning} used it on more than one day`} />
-        <Stat label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note="all time" />
-        <Stat label="Downloads, last day" value={downloadsPerDay.at(-1)?.value ?? "–"} note={history ? `tracked since ${history[0]?.[0] ?? "today"}` : "needs telemetry storage"} />
-        <Stat label="Downloads, 7 days" value={downloads7 ?? "–"} note={weekAgo ? `since ${weekAgo[0]}` : "needs telemetry storage"} />
+        <Stat label="Returning" value={percent(returning, couldReturn.length)} note={`${returning} of ${couldReturn.length} came back a day or more later`} />
+        <Stat label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note={`all time; half have ${sessionsMedian} or fewer`} />
+        <Stat
+          label={previous ? `Downloads since ${previous[0].slice(5)}` : "Downloads today"}
+          value={downloadsSincePrevious ?? "–"}
+          note={history ? `GitHub's count, since the panel's last look that day · ${unique?.lastDay ?? "–"} by IP today` : "needs telemetry storage"}
+        />
+        <Stat label="Downloads, 7 days" value={downloads7 ?? "–"} note={weekAgo ? `GitHub's count since ${weekAgo[0]} · ${unique?.last7 ?? "–"} by IP` : "needs telemetry storage"} />
         <Stat label="Google clicks, 28 days" value={searchReport ? searchClicks : "–"} note={searchReport ? `${searchImpressions} impressions` : "Search Console not set up"} />
         <Stat label="Google CTR, 28 days" value={searchReport ? percent(searchClicks, searchImpressions) : "–"} note="clicks per impression" />
         <Stat
           label="New installs, 7 days"
-          value={installs.filter((i) => now - i.first < 7 * DAY).length}
-          note={`${percent(installs.filter((i) => now - i.first < 7 * DAY).length, downloads7 ?? 0)} of downloads`}
+          value={newInstalls7}
+          note={`${percent(newInstalls7, Math.max(0, (downloads7 ?? 0) - updates7))} of downloads, ${updates7} updates left out`}
         />
       </section>
 
@@ -260,7 +294,7 @@ export default async function Admin() {
         <Panel title="New installs per day" note={`last 30 days, UTC; ${installs.length} in total`}>
           <ValueBars data={newPerDay} />
         </Panel>
-        <Panel title="Downloads per day" note="from a daily snapshot of GitHub's totals, taken when this panel opens">
+        <Panel title="Downloads per day" note="GitHub's count, updates and bots included, from a total saved each day this panel is opened; days it wasn't share the difference">
           {downloadsPerDay.length ? <ValueBars data={downloadsPerDay} /> : <p className="text-sm text-faint">Starts filling in tomorrow.</p>}
         </Panel>
       </div>
