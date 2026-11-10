@@ -11,8 +11,8 @@
   },
   "voice": {
     "src": "/shots/voice.webp",
-    "width": 1400,
-    "height": 924
+    "width": 1000,
+    "height": 976
   },
   "graph": {
     "src": "/shots/graph.webp",
@@ -22,6 +22,6 @@
   "modes": {
     "src": "/shots/modes.webp",
     "width": 1400,
-    "height": 1273
+    "height": 1313
   }
 }

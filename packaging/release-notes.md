@@ -1,8 +1,14 @@
 Real-time pitch correction: VST3, Audio Unit and a standalone app for macOS (universal, Apple Silicon + Intel), VST3 and a standalone app for Windows (64-bit), and VST3, LV2 and a standalone app for Linux (64-bit).
 
-### What's new in 2.1
+### What's new in 2.3
 
-- **Steadier tracking on real recordings:** with breath, room sound or something else leaking into the mic, SnapTune sometimes heard a held note an octave or more too low for a few hundredths of a second. The correction let go for that moment, which sounded like a slight stutter (most of all in Studio mode). It now keeps to the note you're singing, and still follows real octave leaps.
+- **Note changes that sound sung:** the voice now glides from one note to the next along a curve instead of jumping, and the new **Transition** knob sets how long that takes. Turn it to zero for the hard, stepped sound.
+- **Vibrato page:** **Keep my vibrato** leaves your own vibrato in while the note is tuned (with a Depth knob), and you can add one with its own rate and delay.
+- **Clearer highs in Studio mode:** consonants and breath had lost some brightness since 2.2. They're back.
+- **Fewer blips:** a moment where the pitch was misread by an octave could bend the voice for an instant. It no longer does.
+- **Compare:** a button in the header plays your untuned voice at the same level and delay, to hear what the correction is doing.
+- **Smaller things:** the preset box says when you've moved a knob off a preset, and holding Shift while dragging a knob moves it five times slower.
+- **Feedback:** a button in the header opens a short form in your browser, no account needed. Tell me what works and what doesn't.
 
 Sessions saved with earlier versions open as before.
 
