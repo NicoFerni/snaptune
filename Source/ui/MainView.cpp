@@ -86,10 +86,10 @@ MainView::MainView (SnapTuneProcessor& p)
                             "Live: about 3 ms, for hearing yourself tuned while you record.");
     addAndMakeVisible (*modeSwitch);
 
-    updateButton.setTooltip ("A newer SnapTune is out. Click to open the download page; quit your DAW before installing it.");
-    updateButton.onClick = [] { juce::URL ("https://getsnaptune.com/#install").launchInDefaultBrowser(); };
-    addChildComponent (updateButton);
+    headerPill.onClick = [this] { pillClicked(); };
+    addAndMakeVisible (headerPill);
     updates->start();
+    feedbackPrompt->windowOpened();
 
     // Scale bar.
     setUpCombo (keyBox, "Key", keys, ids::key, keyAttachment, "The key of the song.");
@@ -160,6 +160,7 @@ MainView::MainView (SnapTuneProcessor& p)
     }
 
     setSize (baseWidth, baseHeight);
+    refreshPill();
 
     const int page = juce::jlimit ((int) correctionPage, (int) vibratoPage, (int) audioProcessor.apvts.state.getProperty (pageProperty, 0));
     controlTabs.setSelectedIndex (page, juce::dontSendNotification);
@@ -233,7 +234,7 @@ void MainView::resized()
     modeSwitch->setBounds (header.getRight() - 150, 19, 150, 30);
     latencyArea = { modeSwitch->getX() - 80, 14, 68, 40 };
     compareButton.setBounds (presetBox.getRight() + 10, 19, 84, 30);
-    updateButton.setBounds (compareButton.getRight() + 12, 21, updateButton.getWidth(), 26);
+    headerPill.setBounds (compareButton.getRight() + 12, 21, headerPill.getWidth(), 26);
 
     scaleBar = { margin, 66, baseWidth - 2 * margin, 64 };
     keyBox.setBounds (scaleBar.getX() + 16, scaleBar.getY() + 26, 70, 30);
@@ -365,28 +366,80 @@ void MainView::timerCallback()
     consumeFrames (scratch.data(), count);
     refreshState();
 
-    if (--updateCheckCountdown <= 0)
+    if (--pillCountdown <= 0)
     {
-        updateCheckCountdown = 60;
-        showUpdateIfAny();
+        pillCountdown = 60;
+        refreshPill();
     }
 }
 
-void MainView::showUpdateIfAny()
+void MainView::refreshPill()
 {
     const auto newer = updates->getNewerVersion();
+    const auto notice = updates->getNotice();
 
-    if (newer.isEmpty() || updateButton.isVisible())
+    auto role = PillRole::feedback;
+    juce::String text ("Feedback"), tooltip ("Tell me what works and what doesn't. Opens a short form in your browser; no account needed.");
+
+    if (newer.isNotEmpty())
+    {
+        role = PillRole::update;
+        text = "SnapTune " + (newer.endsWith (".0") ? newer.dropLastCharacters (2) : newer) + " is out";
+        tooltip = "A newer SnapTune is out. Click to open the download page; quit your DAW before installing it.";
+    }
+    else if (notice.text.isNotEmpty())
+    {
+        role = PillRole::notice;
+        text = notice.text;
+        tooltip = "Opens getsnaptune.com in your browser.";
+        noticeUrl = notice.url;
+    }
+    else if (feedbackPrompt->shouldAsk())
+    {
+        role = PillRole::askFeedback;
+        text = "How is it going? Tell me";
+    }
+
+    if (role == pillRole && text == headerPill.getButtonText())
         return;
 
-    const auto shown = newer.endsWith (".0") ? newer.dropLastCharacters (2) : newer;
-    updateButton.setButtonText ("SnapTune " + shown + " is out");
-    updateButton.setTitle (updateButton.getButtonText() + ": open the download page");
+    pillRole = role;
+    headerPill.quiet = role == PillRole::feedback;
+    headerPill.setButtonText (text);
+    headerPill.setTitle (role == PillRole::update ? text + ": open the download page" : text);
+    headerPill.setTooltip (tooltip);
+    headerPill.setHelpText (tooltip);
 
     // Sized to its words, and never into the latency readout.
-    const float textWidth = juce::GlyphArrangement::getStringWidth (uiFont (13.0f, true), updateButton.getButtonText());
-    updateButton.setSize (juce::jmin (latencyArea.getX() - 16 - updateButton.getX(), juce::roundToInt (textWidth) + 40), 26);
-    updateButton.setVisible (true);
+    const float textWidth = juce::GlyphArrangement::getStringWidth (uiFont (13.0f, true), text);
+    headerPill.setSize (juce::jmin (latencyArea.getX() - 16 - headerPill.getX(), (int) std::ceil (textWidth) + 46), 26);
+    headerPill.repaint();
+}
+
+void MainView::pillClicked()
+{
+    switch (pillRole)
+    {
+        case PillRole::update:
+            juce::URL ("https://getsnaptune.com/#install").launchInDefaultBrowser();
+            break;
+
+        case PillRole::notice:
+            juce::URL (noticeUrl).launchInDefaultBrowser();
+            updates->noticeOpened();
+            break;
+
+        case PillRole::askFeedback:
+        case PillRole::feedback:
+            feedbackUrl (audioProcessor.wrapperType).launchInDefaultBrowser();
+            feedbackPrompt->opened();
+            break;
+
+        case PillRole::none:
+            break;
+    }
+
+    refreshPill();
 }
 
 void MainView::CompareButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
@@ -412,17 +465,20 @@ void MainView::CompareButton::paintButton (juce::Graphics& g, bool highlighted, 
     g.drawText (on ? "Original" : getButtonText(), getLocalBounds(), Justification::centred);
 }
 
-void MainView::UpdateButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+void MainView::HeaderPill::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
     using namespace juce;
 
     const auto font = uiFont (13.0f, true);
     const auto pill = getLocalBounds().toFloat().reduced (0.5f);
+    const float lift = down ? 0.32f : highlighted ? 0.22f : 0.12f;
 
-    g.setColour (palette::accent.withAlpha (down ? 0.32f : highlighted ? 0.22f : 0.12f));
+    // Gold when it has news; "Feedback" stays in the background until the pointer is on it.
+    g.setColour (palette::accent.withAlpha (quiet ? lift - 0.12f : lift));
     g.fillRoundedRectangle (pill, pill.getHeight() / 2.0f);
-    g.setColour (palette::accent);
+    g.setColour (quiet ? palette::lineBright : palette::accent);
     g.drawRoundedRectangle (pill, pill.getHeight() / 2.0f, 1.0f);
+    g.setColour (quiet ? (highlighted || down ? palette::text : palette::textDim) : palette::accent);
 
     // A small arrow up and out: it opens the browser.
     const auto arrow = Rectangle<float> (pill.getRight() - 22.0f, pill.getCentreY() - 4.0f, 8.0f, 8.0f);

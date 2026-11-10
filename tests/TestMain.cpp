@@ -494,6 +494,22 @@ void testVersionCompare()
     check (ok, "Update notice: version comparison", "newer, equal, older, short and malformed versions");
 }
 
+void testVersionAnswer()
+{
+    using snaptune::parseVersionAnswer;
+    const auto plain = parseVersionAnswer (R"({"version":"2.3.0","url":"https://getsnaptune.com/#install"})");
+    const auto withNotice = parseVersionAnswer (R"({"version":"2.3.0","notice":{"id":"7","text":"Join the Discord","url":"https://getsnaptune.com/discord"}})");
+    const auto elsewhere = parseVersionAnswer (R"({"version":"2.3.0","notice":{"id":"7","text":"Free plugins","url":"https://example.com/"}})");
+    const auto tooLong = parseVersionAnswer (R"({"version":"2.3.0","notice":{"id":"7","text":"A line that is far too long to fit in the header","url":"https://getsnaptune.com/x"}})");
+    const auto broken = parseVersionAnswer ("<html>");
+
+    const bool ok = plain.version == "2.3.0" && plain.notice.text.isEmpty()
+                 && withNotice.notice.text == "Join the Discord" && withNotice.notice.id == "7" && withNotice.notice.url == "https://getsnaptune.com/discord"
+                 && elsewhere.version == "2.3.0" && elsewhere.notice.text.isEmpty() && tooLong.notice.text.isEmpty()
+                 && broken.version.isEmpty() && broken.notice.text.isEmpty();
+    check (ok, "Update notice: the website's answer", "version alone, with a notice, a notice to another site, one too long, not JSON");
+}
+
 void testDetector()
 {
     for (double hz : { 70.0, 98.0, 147.0, 220.0, 330.0, 523.25, 880.0, 1175.0 })
@@ -2866,6 +2882,7 @@ int main (int argc, char* argv[])
     }
 
     testVersionCompare();
+    testVersionAnswer();
     testDetector();
     testHardTune (48000.0, outDir);
     testHardTune (44100.0, outDir);

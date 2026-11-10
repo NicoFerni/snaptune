@@ -13,6 +13,9 @@ juce::File snapTuneDataDir();
     data folder, or the SNAPTUNE_NO_TELEMETRY environment variable. */
 bool networkDisabled();
 
+/** The DAW's name, or its executable's name for hosts JUCE doesn't recognise (more use than "Unknown"). */
+juce::String hostName();
+
 // Anonymous usage pings for the admin panel on the website (website/app/api/ping). Once per host
 // process, the first SnapTune instance sends the plugin version, OS, host and format, plus any
 // earlier sessions that ended without SnapTune being shut down (a crash of the plugin or the DAW).

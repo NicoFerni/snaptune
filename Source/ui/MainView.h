@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../PluginProcessor.h"
+#include "../Feedback.h"
 #include "../UpdateCheck.h"
 #include "ModeSwitch.h"
 #include "NotePills.h"
@@ -54,12 +55,24 @@ private:
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
     };
 
-    /** "SnapTune 2.1 is out": a gold pill in the header, shown once a newer version is released.
-        Clicking it opens the website's download section. */
-    struct UpdateButton final : public juce::Button
+    /** The header's link to the website, one at a time: a newer version ("SnapTune 2.1 is out"), the
+        website's notice, the request for feedback, or otherwise a quiet "Feedback". The first three are
+        gold; all of them open the browser. */
+    struct HeaderPill final : public juce::Button
     {
-        UpdateButton() : juce::Button ("Update") {}
+        HeaderPill() : juce::Button ("Feedback") {}
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+
+        bool quiet = true;
+    };
+
+    enum class PillRole
+    {
+        none,
+        feedback,
+        askFeedback,
+        notice,
+        update
     };
 
     struct Knob
@@ -70,7 +83,8 @@ private:
     };
 
     void timerCallback() override;
-    void showUpdateIfAny();
+    void refreshPill();
+    void pillClicked();
     void consumeFrames (const PitchFrame* frames, int count);
     void refreshState();
     void toggleNote (int pitchClass);
@@ -108,9 +122,12 @@ private:
     int shownVibratoState = -1;
 
     juce::SharedResourcePointer<UpdateCheck> updates;
-    UpdateButton updateButton;
+    juce::SharedResourcePointer<FeedbackPrompt> feedbackPrompt;
+    HeaderPill headerPill;
+    PillRole pillRole = PillRole::none;
+    juce::String noticeUrl;
     CompareButton compareButton;
-    int updateCheckCountdown = 0;
+    int pillCountdown = 0;
 
     TunerGauge gauge;
     PitchGraph graph;

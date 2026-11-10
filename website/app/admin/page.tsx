@@ -1,11 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { NOTICE_LENGTH, NOTICE_ORIGIN, readFeedback, readNotice } from "@/lib/feedback";
 import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
+import { setNoticeAction } from "./actions";
 import { isDawHost, NOT_DAWS, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
-// Google searches from Search Console, and the latest mail in the Zoho inboxes.
+// messages from the feedback form, Google searches from Search Console, and the latest mail in the
+// Zoho inboxes. It also sets the notice the plugin shows in its header.
 // proxy.ts keeps it behind ADMIN_PASSWORD.
 
 export const dynamic = "force-dynamic";
@@ -80,7 +83,7 @@ function percent(part: number, whole: number): string {
 const LOCAL_OFFSET = -3;
 
 async function load() {
-  const [telemetry, unique, releases, issues, repoInfo, checks, builds, mail, search] = await Promise.all([
+  const [telemetry, unique, releases, issues, repoInfo, checks, builds, mail, search, feedback, notice] = await Promise.all([
     storageConfigured ? readTelemetry().catch((e: Error) => e) : null,
     storageConfigured ? readUniqueDownloads().catch(() => null) : null,
     github<Release[]>("/releases?per_page=100"),
@@ -90,12 +93,14 @@ async function load() {
     github<Runs>("/actions/workflows/build.yml/runs?branch=main&per_page=5"),
     mailConfigured ? readInboxes(8).catch((e: Error) => e) : null,
     searchConfigured ? readSearch().catch((e: Error) => e) : null,
+    storageConfigured ? readFeedback().catch(() => null) : null,
+    storageConfigured ? readNotice().catch(() => null) : null,
   ]);
 
   const downloads = (releases ?? []).reduce((sum, r) => sum + r.assets.reduce((s, a) => s + a.download_count, 0), 0);
   const history = storageConfigured && releases ? await snapshotDownloads(downloads).catch(() => null) : null;
 
-  return { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, now: Date.now() };
+  return { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, feedback, notice, now: Date.now() };
 }
 
 /** The latest run that finished with a verdict: skipped runs say nothing, and cancelled ones were
@@ -105,7 +110,7 @@ function lastRun(runs: Runs | null) {
 }
 
 export default async function Admin() {
-  const { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, now } = await load();
+  const { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, feedback, notice, now } = await load();
   const messages = mail && !(mail instanceof Error) ? mail.messages : [];
   const unread = messages.filter((m) => m.unread);
   const installs: StoredInstall[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
@@ -230,7 +235,7 @@ export default async function Admin() {
           alert={exits30.length > 0}
         />
         <Stat label="Downloads" value={unique?.all ?? "–"} note={`one per IP${unique?.since ? `, since ${unique.since}` : ""} · GitHub counts ${downloads}`} />
-        <Stat label="Open reports" value={openReports.length} note={`${reports.length} total`} alert={openReports.length > 0} />
+        <Stat label="Open reports" value={openReports.length} note={`${reports.length} issues, ${feedback?.total ?? 0} feedback messages`} alert={openReports.length > 0} />
         <Stat label="Stars" value={repoInfo?.stargazers_count ?? "–"} note={`${repoInfo?.forks_count ?? "–"} forks`} />
         <Stat label="Last ping" value={events[0] ? ago(events[0].t) : "–"} note={events[0] ? `${events[0].host}, ${events[0].os}` : "no data yet"} />
         <Stat
@@ -356,6 +361,42 @@ export default async function Admin() {
           </>
         ) : (
           <p className="text-sm text-faint">Not set up: add ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET and ZOHO_REFRESH_TOKEN to the Vercel project (see the README).</p>
+        )}
+      </Panel>
+
+      <Panel title="Feedback" note={`From the plugin's Feedback button and getsnaptune.com/feedback, newest first${feedback && feedback.total > feedback.messages.length ? `; ${feedback.total} in total` : ""}`}>
+        <Table
+          head={["When", "Message", "Answer to", "Sent from", "Country"]}
+          rows={(feedback?.messages ?? []).map((m) => [
+            ago(m.t),
+            <p key="m" className="max-w-[40rem] whitespace-pre-wrap">{m.message}</p>,
+            m.email ? <a key="e" href={`mailto:${m.email}`} className="text-teal hover:underline">{m.email}</a> : "–",
+            [m.version, m.format, m.host, m.os].filter(Boolean).join(" · ") || "the site",
+            m.country || "–",
+          ])}
+          empty="No messages yet."
+        />
+      </Panel>
+
+      <Panel title="Header notice" note="One line in the plugin's header, gold, until the user clicks it. Each computer asks once a day, so it takes a day or more to reach everyone. A newer version's notice shows first.">
+        {storageConfigured ? (
+          <form action={setNoticeAction} className="flex flex-wrap items-end gap-3 text-sm">
+            <label className="grid gap-1">
+              <span className="text-faint">Text, up to {NOTICE_LENGTH} characters</span>
+              <input name="text" maxLength={NOTICE_LENGTH} defaultValue={notice?.text ?? ""} placeholder="Join the Discord" className="w-72 rounded-lg border border-line bg-deep px-3 py-2 text-ink placeholder:text-faint focus:border-line-bright focus:outline-none" />
+            </label>
+            <label className="grid gap-1">
+              <span className="text-faint">Page it opens, on this site</span>
+              <input name="url" type="url" pattern="https://getsnaptune\.com/.*" defaultValue={notice?.url ?? NOTICE_ORIGIN} className="w-80 rounded-lg border border-line bg-deep px-3 py-2 text-ink focus:border-line-bright focus:outline-none" />
+            </label>
+            <button className="rounded-lg border border-line-bright px-4 py-2 hover:bg-line">{notice ? "Replace" : "Show"}</button>
+            {notice && (
+              <button name="clear" value="1" className="rounded-lg border border-line px-4 py-2 text-muted hover:bg-line">Take it down</button>
+            )}
+            <p className="basis-full text-faint">{notice ? `Showing since ${ago(Number(notice.id))}.` : "No notice is showing."}</p>
+          </form>
+        ) : (
+          <p className="text-sm text-faint">Needs the telemetry storage.</p>
         )}
       </Panel>
 

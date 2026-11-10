@@ -495,6 +495,7 @@ export default async function Home() {
               </Link>
             ))}
             <a href={links.repo}>Source on GitHub</a>
+            <Link href={links.feedback}>Send feedback</Link>
             <a href={links.issues}>Report a bug</a>
             <a href={links.support}>support@getsnaptune.com</a>
             <a href={links.x}>@getsnaptune on X</a>

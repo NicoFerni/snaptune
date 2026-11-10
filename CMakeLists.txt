@@ -42,6 +42,7 @@ set(SNAPTUNE_SOURCES
     Source/PluginProcessor.cpp
     Source/Telemetry.cpp
     Source/UpdateCheck.cpp
+    Source/Feedback.cpp
     Source/PluginEditor.cpp
     Source/ui/SnapLookAndFeel.cpp
     Source/ui/PitchGraph.cpp

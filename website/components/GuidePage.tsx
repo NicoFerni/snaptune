@@ -101,6 +101,7 @@ export async function GuidePage({ guide }: { guide: Guide }) {
               </Link>
             ))}
             <a href={links.repo}>Source on GitHub</a>
+            <Link href={links.feedback}>Send feedback</Link>
             <a href={links.support}>support@getsnaptune.com</a>
             <a href={links.x}>@getsnaptune on X</a>
           </nav>

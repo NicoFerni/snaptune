@@ -118,7 +118,7 @@ export async function snapshotDownloads(total: number): Promise<[string, number]
 // Downloads through the site's buttons (app/download/[os]), one per IP: each IP goes, hashed, into
 // HyperLogLogs (`dl:all`, `dl:<os>`, `dl:day:YYYY-MM-DD`), which keep only an estimate of how many
 // distinct values they've seen, never the values.
-async function hashIp(ip: string): Promise<string> {
+export async function hashIp(ip: string): Promise<string> {
   const data = new TextEncoder().encode(`snaptune:${ip}`);
   const digest = await crypto.subtle.digest("SHA-256", data);
   return Buffer.from(digest).toString("hex").slice(0, 32);

@@ -48,32 +48,67 @@ void UpdateCheck::start()
    #endif
 }
 
+VersionAnswer parseVersionAnswer (const juce::String& json)
+{
+    const auto answer = juce::JSON::parse (json);
+    VersionAnswer result;
+    result.version = answer["version"].toString().trim();
+
+    const auto notice = answer["notice"];
+    const Notice candidate { notice["id"].toString().trim(), notice["text"].toString().trim(), notice["url"].toString().trim() };
+
+    if (candidate.id.isNotEmpty() && candidate.text.isNotEmpty() && candidate.text.length() <= 40
+        && candidate.url.startsWith ("https://getsnaptune.com/"))
+        result.notice = candidate;
+
+    return result;
+}
+
 juce::String UpdateCheck::getNewerVersion() const
 {
     const juce::ScopedLock sl (lock);
     return newer;
 }
 
-void UpdateCheck::found (const juce::String& latest)
+Notice UpdateCheck::getNotice() const
 {
-    if (isNewerVersion (latest, JucePlugin_VersionString))
-    {
-        const juce::ScopedLock sl (lock);
-        newer = latest.trim();
-    }
+    const juce::ScopedLock sl (lock);
+    return notice;
+}
+
+void UpdateCheck::noticeOpened()
+{
+    const juce::ScopedLock sl (lock);
+
+    if (notice.id.isNotEmpty())
+        snapTuneDataDir().getChildFile ("notice-seen").replaceWithText (notice.id);
+
+    notice = {};
+}
+
+void UpdateCheck::found (const VersionAnswer& answer)
+{
+    const bool seen = snapTuneDataDir().getChildFile ("notice-seen").loadFileAsString().trim() == answer.notice.id;
+    const juce::ScopedLock sl (lock);
+
+    if (isNewerVersion (answer.version, JucePlugin_VersionString))
+        newer = answer.version;
+
+    if (! seen)
+        notice = answer.notice;
 }
 
 void UpdateCheck::run()
 {
     constexpr juce::int64 day = 24 * 60 * 60 * 1000;
-    const auto cache = snapTuneDataDir().getChildFile ("latest-version");
+    const auto cache = snapTuneDataDir().getChildFile ("latest-answer");
 
-    // "2.1.0 1761000000000": the version and when it was asked for.
-    const auto cached = juce::StringArray::fromTokens (cache.loadFileAsString(), " \n", {});
+    // When it was asked for, then the answer as it came: "1761000000000\n{"version": …}".
+    const auto cached = cache.loadFileAsString();
 
-    if (cached.size() >= 2 && juce::Time::currentTimeMillis() - cached[1].getLargeIntValue() < day)
+    if (juce::Time::currentTimeMillis() - cached.upToFirstOccurrenceOf ("\n", false, false).getLargeIntValue() < day)
     {
-        found (cached[0]);
+        found (parseVersionAnswer (cached.fromFirstOccurrenceOf ("\n", false, false)));
         return;
     }
 
@@ -89,15 +124,21 @@ void UpdateCheck::run()
     if (stream == nullptr || status != 200)
         return;
 
-    const auto latest = juce::JSON::parse (stream->readEntireStreamAsString())["version"].toString();
+    const auto body = stream->readEntireStreamAsString();
+    const auto answer = parseVersionAnswer (body);
 
-    if (latest.isEmpty() || threadShouldExit())
+    if (answer.version.isEmpty() || body.length() > 4000 || threadShouldExit())
         return;
 
     if (snapTuneDataDir().createDirectory().wasOk())
-        cache.replaceWithText (latest + " " + juce::String (juce::Time::currentTimeMillis()));
+    {
+        cache.replaceWithText (juce::String (juce::Time::currentTimeMillis()) + "\n" + body);
 
-    found (latest);
+        // What versions before 2.3 kept instead.
+        snapTuneDataDir().getChildFile ("latest-version").deleteFile();
+    }
+
+    found (answer);
 }
 
 } // namespace snaptune
