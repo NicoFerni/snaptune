@@ -22,15 +22,15 @@ const pixelScale = { studio: "8", live: "4" };
 
 for (const [mode, file] of Object.entries(windows)) execFileSync(runner, ["--snapshot", file, mode, "1.0", pixelScale[mode]], { stdio: "inherit" });
 
-// Regions of the 1000 x 640 window in its own pixels, the window they come from, and the CSS width
+// Regions of the 1000 x 672 window in its own pixels, the window they come from, and the CSS width
 // each is shown at. Each is cut close to square around one part, with its edges in the gaps between
 // panels and controls, so no neighbour is sliced through a word.
 const shots = {
   tuner: { from: "studio", region: { x: 8, y: 132, w: 334, h: 350 }, cssWidth: 700 },
   keys: { from: "studio", region: { x: 307, y: 56, w: 384, h: 414 }, cssWidth: 700 },
-  voice: { from: "studio", region: { x: 310, y: 485, w: 200, h: 132 }, cssWidth: 700 },
+  voice: { from: "studio", region: { x: 411, y: 526, w: 125, h: 122 }, cssWidth: 700 },
   graph: { from: "studio", region: { x: 335, y: 134, w: 410, h: 344 }, cssWidth: 700 },
-  modes: { from: "live", region: { x: 560, y: 0, w: 440, h: 400 }, cssWidth: 700 },
+  modes: { from: "live", region: { x: 648, y: 0, w: 352, h: 330 }, cssWidth: 700 },
 };
 
 const outDir = join(import.meta.dirname, "..", "public", "shots");
