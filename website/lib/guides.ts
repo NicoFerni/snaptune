@@ -48,13 +48,13 @@ export const guides: Guide[] = [
         heading: "What you get",
         paragraphs: [
           "A VST3 and an Audio Unit for Mac, a VST3 for 64-bit Windows, and a VST3 and an LV2 for Linux, plus a standalone app on all three. It loads in any DAW that loads those formats.",
-          "Set the key and one of 13 scales, or switch notes on and off by hand. Hold notes on a MIDI track and the voice follows those instead. Six factory presets cover the usual sounds, from Hard Tune to Subtle Polish.",
+          "Set the key and one of 13 scales, or switch notes on and off by hand. Hold notes on a MIDI track and the voice follows those instead. Eight factory presets cover the usual sounds, from Hard Tune to Smooth Glide.",
         ],
       },
       {
         heading: "The hard-tune sound",
         paragraphs: [
-          "Set Retune Speed to 0 ms, or pick the Hard Tune preset. The voice jumps straight onto each note with no glide between them: the stair-step effect from rap, trap and pop records. It works best when the key is set to the song’s key.",
+          "Set Retune Speed to 0 ms, or pick the Hard Tune preset. The voice jumps straight onto each note with no glide between them: the stair-step effect from rap, trap and pop records. It works best when the key is set to the song’s key. To keep your own vibrato on top of the snap, pick Hard Tune Vibrato.",
         ],
       },
       {
