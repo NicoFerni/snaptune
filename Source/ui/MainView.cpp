@@ -93,7 +93,16 @@ MainView::MainView (SnapTuneProcessor& p)
 
     // Scale bar.
     setUpCombo (keyBox, "Key", keys, ids::key, keyAttachment, "The key of the song.");
-    setUpCombo (scaleBox, "Scale", scales, ids::scale, scaleAttachment, "Which notes the voice may land on. Pick Chromatic if you don't know the key.");
+    setUpCombo (scaleBox, "Scale", scales, ids::scale, scaleAttachment, "Which notes the voice may land on. Don't know the key? Click Detect.");
+
+    detectButton.setClickingTogglesState (true);
+    detectButton.setWantsKeyboardFocus (true);
+    detectButton.setTitle ("Detect the key");
+    detectButton.setTooltip ("Don't know the key? Click, then sing or play the vocal. After a few seconds SnapTune shows the scales that fit "
+                             "what it hears; nothing changes until you pick one.");
+    detectButton.setHelpText (detectButton.getTooltip());
+    detectButton.onClick = [this] { setDetecting (detectButton.getToggleState()); };
+    addAndMakeVisible (detectButton);
 
     pills.setTooltip ("Lit notes are in the scale; the solid one is being tuned to right now. Click to add or remove a note (switches to Custom).");
     pills.onToggle = [this] (int pc) { toggleNote (pc); };
@@ -122,6 +131,11 @@ MainView::MainView (SnapTuneProcessor& p)
     graph.setTooltip ("Scroll or drag to move the note range (it then stays put). Double-click to follow the singer again.");
     graph.setHelpText ("Dashed sage: what you sang. Solid gold: what comes out.");
     addAndMakeVisible (graph);
+
+    // Detect's answer, over the top of the graph while it listens.
+    detectBanner.onChoose = [this] (int key, Scale scale) { chooseKey (key, scale); };
+    detectBanner.onCancel = [this] { setDetecting (false); };
+    addChildComponent (detectBanner);
 
     // Controls: the Correction page.
     addKnob (knobs, ids::humanize, "Humanize", false, 0.0, "Relaxes the correction on long notes so they keep their natural movement.");
@@ -240,7 +254,8 @@ void MainView::resized()
     keyBox.setBounds (scaleBar.getX() + 16, scaleBar.getY() + 26, 70, 30);
     scaleBox.setBounds (keyBox.getRight() + 12, keyBox.getY(), 168, 30);
     midiButton.setBounds (scaleBar.getRight() - 16 - 118, keyBox.getY(), 118, 30);
-    pills.setBounds (scaleBox.getRight() + 24, keyBox.getY(), midiButton.getX() - 28 - (scaleBox.getRight() + 24), 30);
+    detectButton.setBounds (scaleBox.getRight() + 12, keyBox.getY(), 78, 30);
+    pills.setBounds (detectButton.getRight() + 20, keyBox.getY(), midiButton.getX() - 28 - (detectButton.getRight() + 20), 30);
 
     heroPanel = { margin, 142, 310, 328 };
     gauge.setBounds (heroPanel.getX() + 10, heroPanel.getY() + 8, heroPanel.getWidth() - 20, 164);
@@ -248,6 +263,7 @@ void MainView::resized()
 
     graphPanel = { heroPanel.getRight() + 12, heroPanel.getY(), baseWidth - margin - (heroPanel.getRight() + 12), heroPanel.getHeight() };
     graph.setBounds (graphPanel.reduced (1));
+    detectBanner.setBounds (graphPanel.reduced (10).withHeight (44));
 
     // Bottom panel: the page tabs, then a row of knobs and the voice selector on the right.
     controlsPanel = { margin, heroPanel.getBottom() + 12, baseWidth - 2 * margin, 170 };
@@ -314,6 +330,7 @@ void MainView::paint (juce::Graphics& g)
 
     captionAbove (keyBox, "Key");
     captionAbove (scaleBox, "Scale");
+    captionAbove (detectButton, "Not sure?");
     captionAbove (pills, "Scale notes");
     captionAbove (midiButton, "Target");
 
@@ -442,7 +459,7 @@ void MainView::pillClicked()
     refreshPill();
 }
 
-void MainView::CompareButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
+void MainView::LitButton::paintButton (juce::Graphics& g, bool highlighted, bool down)
 {
     using namespace juce;
 
@@ -462,7 +479,7 @@ void MainView::CompareButton::paintButton (juce::Graphics& g, bool highlighted, 
 
     g.setColour (on ? palette::panel : palette::text);
     g.setFont (uiFont (13.5f, true));
-    g.drawText (on ? "Original" : getButtonText(), getLocalBounds(), Justification::centred);
+    g.drawText (on ? onText : getButtonText(), getLocalBounds(), Justification::centred);
 }
 
 void MainView::HeaderPill::paintButton (juce::Graphics& g, bool highlighted, bool down)
@@ -517,6 +534,9 @@ void MainView::consumeFrames (const PitchFrame* frames, int count)
         {
             ++framesSinceVoiced;
         }
+
+        if (detecting)
+            keyFinder.push (frames[i].inputNote, frames[i].voiced);
     }
 
     graph.setAllowedMask (allowedMask());
@@ -536,6 +556,9 @@ void MainView::refreshState()
     gauge.setState (singing, target, (lastVoiced.inputNote - (float) target) * 100.0f, (outputNote - (float) target) * 100.0f);
     gauge.setOutputContext (plainValue (ids::vibrato) > 0.5f || plainValue (ids::vibratoAdd) >= 0.5f, compareButton.getToggleState());
     gauge.animate();
+
+    if (detecting && --detectionCountdown <= 0)
+        refreshDetection();
 
     // Where the graph sits before anything is sung: the middle of the selected voice range.
     static constexpr int homeNotes[] = { 69, 57, 48, 60 }; // soprano A4, alto/tenor A3, low male C3, instrument C4
@@ -581,6 +604,53 @@ void MainView::refreshState()
 }
 
 //==============================================================================
+void MainView::setDetecting (bool shouldListen)
+{
+    detecting = shouldListen;
+    detectButton.setToggleState (shouldListen, juce::dontSendNotification);
+    detectBanner.setVisible (shouldListen);
+
+    if (shouldListen)
+    {
+        keyFinder.reset (audioProcessor.engine.getFramesPerSecond());
+        refreshDetection();
+    }
+    else
+    {
+        pills.setHeard (nullptr);
+    }
+}
+
+void MainView::refreshDetection()
+{
+    // Four times a second: often enough to watch it fill, slow enough that the answer can be read.
+    detectionCountdown = 15;
+
+    // Not while the pointer is on the answers: they could change places just before a click.
+    if (! detectBanner.isMouseOver (true))
+    {
+        KeyFinder::Suggestion suggestions[DetectBanner::maxSuggestions];
+        const int count = keyFinder.suggest (suggestions, DetectBanner::maxSuggestions);
+        detectBanner.setState (keyFinder.secondsSung(), suggestions, count, scaleMask());
+    }
+
+    const auto shares = keyFinder.noteShares();
+    pills.setHeard (&shares);
+}
+
+void MainView::chooseKey (int key, Scale scale)
+{
+    setParameter (ids::key, (float) key);
+    setParameter (ids::scale, (float) scale);
+    setDetecting (false);
+}
+
+uint16_t MainView::scaleMask() const
+{
+    const auto settings = audioProcessor.readSettings();
+    return pitchClassMask (settings.key, settings.scale, settings.customMask);
+}
+
 uint16_t MainView::allowedMask() const
 {
     const auto settings = audioProcessor.readSettings();
@@ -594,9 +664,7 @@ uint16_t MainView::allowedMask() const
 
 void MainView::toggleNote (int pc)
 {
-    const auto settings = audioProcessor.readSettings();
-    auto mask = pitchClassMask (settings.key, settings.scale, settings.customMask);
-    mask = (uint16_t) (mask ^ (1u << pc));
+    const auto mask = (uint16_t) (scaleMask() ^ (1u << pc));
 
     for (int i = 0; i < 12; ++i)
         setParameter (ids::note (i), ((mask >> i) & 1u) != 0 ? 1.0f : 0.0f);
