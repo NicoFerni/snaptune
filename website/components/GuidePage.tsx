@@ -104,6 +104,7 @@ export async function GuidePage({ guide }: { guide: Guide }) {
             <Link href={links.feedback}>Send feedback</Link>
             <a href={links.support}>support@getsnaptune.com</a>
             <a href={links.x}>@getsnaptune on X</a>
+            <Link href="/privacy">Privacy</Link>
           </nav>
           <p>Auto-Tune is a trademark of Antares Audio Technologies; SnapTune is an independent project, not affiliated with Antares.</p>
         </footer>

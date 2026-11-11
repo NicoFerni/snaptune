@@ -146,6 +146,9 @@ the DAW's name, the plugin format, and a random install id. Nothing about your a
 or your settings is sent, and no IP address is stored (only the country). The code is in
 `Source/Telemetry.cpp`.
 
+The Windows installer shows this notice and has a box to turn it off. The full privacy policy is at
+[getsnaptune.com/privacy](https://getsnaptune.com/privacy).
+
 To turn it off, create an empty file named `no-telemetry` in the SnapTune folder
 (`~/Library/Application Support/SnapTune` on a Mac, `%APPDATA%\SnapTune` on Windows,
 `~/.config/SnapTune` on Linux), or set the environment variable `SNAPTUNE_NO_TELEMETRY=1`. On Linux
