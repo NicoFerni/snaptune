@@ -25,7 +25,7 @@ const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNod
   {
     name: "Robot to natural",
     field: "gold",
-    text: "At 0 ms, Retune Speed jumps straight to the note: the hard, stair-step sound. Turn it up and your slides and vibrato come back. Humanize relaxes the long notes.",
+    text: "At 0 ms, Retune Speed jumps straight to the note: the hard, stair-step sound. Turn it up and your slides come back; Transition sets how long the voice glides to the next note. Keep my vibrato leaves your own vibrato in, even at hard tune.",
     shot: "tuner",
     alt: "The tuner reading G3, sung 40 cents flat, output in tune, above the Retune Speed knob at 8 ms",
   },
@@ -61,7 +61,7 @@ const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNod
 
 const receipt: { group: string; rows: string[] }[] = [
   { group: "The plugin", rows: ["VST3 for Mac", "Audio Unit for Mac", "VST3 for Windows, 64-bit", "VST3 and LV2 for Linux", "Standalone app"] },
-  { group: "Inside", rows: ["Six factory presets", "Thirteen scales", "MIDI target notes", "Studio and Live modes"] },
+  { group: "Inside", rows: ["Eight factory presets", "Thirteen scales", "MIDI target notes", "Vibrato, kept or added", "Studio and Live modes"] },
   { group: "Later", rows: ["Updates", "The source code"] },
 ];
 
@@ -86,7 +86,7 @@ const moments: Moment[] = [
   },
   {
     caption: "It decides how fast",
-    text: "Retune Speed smooths the move. At 0 ms it jumps; slower settings let vibrato through and still correct the drift.",
+    text: "Retune Speed smooths the move and Transition shapes the glide to a new note, along an S-curve. Vibrato is followed on its own, so it can stay in even at 0 ms.",
     gap: 124,
     picture: { src: "/archive/how-fast.jpg", width: 560, height: 700, alt: "Drawing of a phonautograph: a barrel-shaped horn, a hand crank and a drum", note: "A phonautograph, drawn in 1909." },
   },

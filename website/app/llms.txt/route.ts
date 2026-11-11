@@ -17,7 +17,8 @@ export async function GET() {
     "",
     "Key facts:",
     "",
-    "- Hard tune to natural: Retune Speed goes from 0 ms (the hard, robotic stair-step effect) to slow correction that keeps slides and vibrato. Six presets: Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop.",
+    "- Hard tune to natural: Retune Speed goes from 0 ms (the hard, robotic stair-step effect) to slow correction that keeps slides and vibrato. Eight presets: Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop, Hard Tune Vibrato, Smooth Glide.",
+    "- Note changes and vibrato: a Transition knob sets how long the voice glides to the next note, along an S-curve. Keep my vibrato tunes the note's centre and leaves the singer's vibrato in, even at hard tune (Depth 0 to 200 %); Add vibrato puts one on every held note (depth, rate, delay). A Compare button plays the untuned voice at the same level and delay.",
     "- Targets: a key and one of 13 scales, notes switched on and off by hand, or notes held on a MIDI track (MIDI target notes).",
     "- Two modes: Live, 2.7 ms of latency, for hearing yourself tuned while recording; Studio, 46 ms reported to the DAW for compensation, with formants preserved (TD-PSOLA). Pitch detection uses the YIN method.",
     "- A Formant knob shifts the voice's character up to five semitones either way; a pitch graph shows the sung and the corrected pitch.",
@@ -41,6 +42,8 @@ export async function GET() {
     "",
     `- [Source code, README and the method explained](${links.repo})`,
     `- [Report a problem](${links.issues}), or email support@getsnaptune.com`,
+    `- [Send feedback](${siteUrl}${links.feedback}): a short form, no account`,
+    `- [Privacy](${siteUrl}/privacy): what the plugin and the site send, and how to turn it off`,
     `- [Home page](${siteUrl}): an interactive demo of the plugin in the browser`,
     "",
   ]
