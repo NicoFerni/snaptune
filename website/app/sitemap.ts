@@ -7,6 +7,8 @@ import { homeUpdated, siteUrl } from "@/lib/seo";
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: siteUrl, lastModified: homeUpdated },
+    { url: `${siteUrl}/privacy`, lastModified: "2026-11-10" },
+    { url: `${siteUrl}/code-signing`, lastModified: "2026-11-10" },
     ...guides.map((g) => ({ url: `${siteUrl}/${g.slug}`, lastModified: g.updated })),
   ];
 }
