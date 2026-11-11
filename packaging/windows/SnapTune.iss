@@ -33,6 +33,11 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayName=SnapTune
+; The privacy notice, then the usage-data box on the Tasks page. SignPath Foundation's terms ask for
+; both in the installer of any program that sends data (https://signpath.org/terms).
+InfoBeforeFile=privacy.txt
+; The usage-data choice is a file in the data folder of the user running the installer (Code below).
+UsedUserAreasWarning=no
 
 [Types]
 Name: "full"; Description: "VST3 plugin and standalone app"
@@ -41,6 +46,9 @@ Name: "custom"; Description: "Custom"; Flags: iscustom
 [Components]
 Name: "vst3"; Description: "VST3 plugin (Common Files\VST3)"; Types: full custom
 Name: "standalone"; Description: "Standalone app, for trying it with a microphone and headphones"; Types: full
+
+[Tasks]
+Name: "usagedata"; Description: "Send anonymous usage data (version, system and DAW, never your audio) and check for updates"
 
 [InstallDelete]
 ; Clear the old bundle first so files dropped from a newer version don't linger.
@@ -56,3 +64,28 @@ Name: "{autoprograms}\SnapTune"; Filename: "{app}\SnapTune.exe"; Components: sta
 
 [Messages]
 FinishedLabel=SnapTune is installed.%n%nClose your DAW completely, open it again and rescan plugins (FL Studio: Options > Manage plugins > Find installed plugins).
+
+[Code]
+// The plugin stays quiet while %APPDATA%\SnapTune\no-telemetry exists (Source/Telemetry.h). The box
+// starts unticked when that file is already there, so reinstalling never turns usage data back on.
+function OptOutFile: String;
+begin
+  Result := ExpandConstant('{userappdata}\SnapTune\no-telemetry');
+end;
+
+procedure InitializeWizard;
+begin
+  if FileExists(OptOutFile) then
+    WizardSelectTasks('!usagedata');
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep <> ssPostInstall then
+    Exit;
+
+  if WizardIsTaskSelected('usagedata') then
+    DeleteFile(OptOutFile)
+  else if ForceDirectories(ExtractFileDir(OptOutFile)) then
+    SaveStringToFile(OptOutFile, '', False);
+end;

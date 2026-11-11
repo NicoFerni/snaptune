@@ -1,0 +1,12 @@
+Usage data
+
+Once per DAW session, SnapTune sends an anonymous note to getsnaptune.com: the plugin version, the
+Windows version, the CPU type, the DAW's name, the plugin format, and a random id made on this
+computer. Nothing about your audio, your projects or your settings is ever sent. The server keeps
+the country, never the IP address. When its window opens, SnapTune also checks once a day whether a
+newer version is out.
+
+On the next page you can untick "Send anonymous usage data" to turn both off. To change your mind
+later, delete or create an empty file named no-telemetry in %APPDATA%\SnapTune.
+
+The full privacy policy: https://getsnaptune.com/privacy

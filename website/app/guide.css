@@ -18,6 +18,12 @@
   line-height: 1.45;
 }
 
+.guide-updated {
+  margin-top: 16px;
+  font-size: var(--step-small);
+  color: var(--color-muted);
+}
+
 .guide-plate {
   margin: 56px 0 0;
 }
@@ -99,4 +105,9 @@
     rotate: 0deg;
     padding-inline: 24px;
   }
+}
+
+.guide-section ol + p,
+.guide-section ul + p {
+  margin-top: 16px;
 }
