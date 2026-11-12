@@ -1,6 +1,6 @@
 name: Build
 
-# Every push and pull request: build the plugins on macOS (universal), Windows (x64) and Linux (x64),
+# Every push and pull request: build the plugins on macOS (universal), Windows (x64) and Linux (x64, arm64),
 # run the tests, and keep the zips, tarballs and installers as artifacts. A push to main whose
 # project(VERSION) in CMakeLists.txt has no release yet (bump it, merge, done) tags that commit and
 # publishes them as a GitHub Release; pushing a tag like v2.0.0 by hand does the same.
@@ -175,8 +175,17 @@ jobs:
   linux:
     needs: version
     # The oldest Ubuntu the runners offer, so the build runs on any distribution with its glibc (2.35)
-    # or newer.
-    runs-on: ubuntu-22.04
+    # or newer. x64 for desktops and most servers, arm64 for ARM servers (AWS Graviton and the like);
+    # the arm64 tarball's name keeps it out of the website's Linux button (website/lib/release.ts).
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-22.04
+            suffix: Linux
+          - runner: ubuntu-22.04-arm
+            suffix: Linux-arm64
+    runs-on: ${{ matrix.runner }}
     timeout-minutes: 45
 
     steps:
@@ -201,7 +210,7 @@ jobs:
         # still load where it doesn't.
         run: |
           artefacts=build/SnapTune_artefacts/Release
-          for binary in "$artefacts"/VST3/SnapTune.vst3/Contents/x86_64-linux/SnapTune.so "$artefacts"/LV2/SnapTune.lv2/*.so "$artefacts"/Standalone/SnapTune; do
+          for binary in "$artefacts"/VST3/SnapTune.vst3/Contents/$(uname -m)-linux/SnapTune.so "$artefacts"/LV2/SnapTune.lv2/*.so "$artefacts"/Standalone/SnapTune; do
             echo "$binary"
             readelf -d "$binary" | grep NEEDED
             if readelf -d "$binary" | grep -q -e libcurl -e libstdc++; then
@@ -229,10 +238,19 @@ jobs:
             "$tests" --host "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3" &&
             "$tests" --host "$PWD/build/SnapTune_artefacts/Release/LV2/SnapTune.lv2"'
 
+      - name: Server rendering, with no display
+        # As a hosted service runs it: the VST3 loaded from Python with pedalboard, no X server,
+        # files rendered offline by parallel workers (tests/server_test.py, docs/server-rendering.md).
+        run: |
+          python3 -m venv /tmp/venv
+          /tmp/venv/bin/pip install --quiet pedalboard numpy
+          env -u DISPLAY /tmp/venv/bin/python tests/server_test.py "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3"
+          env -u DISPLAY ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host "$PWD/build/SnapTune_artefacts/Release/VST3/SnapTune.vst3"
+
       - name: Package
         run: |
           artefacts=build/SnapTune_artefacts/Release
-          name=SnapTune-${{ needs.version.outputs.name }}-Linux
+          name=SnapTune-${{ needs.version.outputs.name }}-${{ matrix.suffix }}
           stage=dist/stage/$name
           mkdir -p "$stage"
           cp -R "$artefacts/VST3/SnapTune.vst3" "$artefacts/LV2/SnapTune.lv2" "$stage/"
@@ -243,7 +261,7 @@ jobs:
 
       - uses: actions/upload-artifact@v7
         with:
-          name: SnapTune-${{ needs.version.outputs.name }}-Linux
+          name: SnapTune-${{ needs.version.outputs.name }}-${{ matrix.suffix }}
           path: dist/*.tar.gz
 
   release:
@@ -277,7 +295,7 @@ jobs:
         run: |
           assets=$(gh release view "v${{ needs.version.outputs.number }}" --json assets -q '.assets[].name')
           echo "$assets"
-          for ending in -macOS.pkg -Windows-Setup.exe -Linux.tar.gz; do
+          for ending in -macOS.pkg -Windows-Setup.exe -Linux.tar.gz -Linux-arm64.tar.gz; do
             if ! grep -q -- "$ending\$" <<< "$assets"; then
               echo "::error::The release has no file ending in $ending"
               exit 1

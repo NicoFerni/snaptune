@@ -18,7 +18,8 @@ that supports VST3 or LV2. These Linux builds are new and haven't been tried in 
 yours has trouble, open an issue with the DAW, its version and your distribution.
 
 Needs a 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04, Debian 12, Fedora 36 or later) and
-X11 or XWayland. The standalone app uses ALSA or JACK; use headphones with a microphone.
+X11 or XWayland. The -Linux tarball is for x86_64 (Intel/AMD), -Linux-arm64 for ARM (aarch64).
+To render audio on a server without a display, see docs/server-rendering.md in the source. The standalone app uses ALSA or JACK; use headphones with a microphone.
 
 To uninstall, delete ~/.vst3/SnapTune.vst3, ~/.lv2/SnapTune.lv2, ~/.local/bin/SnapTune,
 ~/.local/share/applications/snaptune.desktop and

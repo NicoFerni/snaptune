@@ -2757,6 +2757,18 @@ int runHostTest (const juce::String& path)
            "latency " + juce::String (liveLatency) + " samples (" + juce::String (1000.0 * liveLatency / sampleRate, 2) + " ms), median error "
                + juce::String (percentile (liveErrors, 0.5), 2) + " ct");
 
+   #if JUCE_LINUX || JUCE_BSD
+    // A server has no display: an editor needs one (and an LV2 UI also needs a window manager), so
+    // check only the audio side there.
+    if (juce::SystemStats::getEnvironmentVariable ("DISPLAY", {}).isEmpty()
+        && juce::SystemStats::getEnvironmentVariable ("WAYLAND_DISPLAY", {}).isEmpty())
+    {
+        std::printf ("[SKIP] %-46s %s\n", "Host: editor opens", "no display (headless server)");
+        instance->releaseResources();
+        return failures == 0 ? 0 : 1;
+    }
+   #endif
+
     const bool hasEditor = instance->hasEditor();
     std::unique_ptr<juce::AudioProcessorEditor> editor (hasEditor ? instance->createEditorAndMakeActive() : nullptr);
     check (editor != nullptr, "Host: editor opens", editor != nullptr ? juce::String (editor->getWidth()) + " x " + juce::String (editor->getHeight()) : "none");
