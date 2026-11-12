@@ -8,12 +8,15 @@ import { HowRow, type Moment } from "@/components/HowRow";
 import { Cent, LogoMark } from "@/components/Logo";
 import { Motion } from "@/components/Motion";
 import { SnapTuneDemo } from "@/components/demo/SnapTuneDemo";
-import { guides } from "@/lib/guides";
+import { guideBySlug } from "@/lib/guides";
 import { latestRelease } from "@/lib/release";
 import { JsonLd, faqPage, organization, softwareApplication, webSite } from "@/lib/seo";
 import shots from "@/lib/shots.json";
 import { hasPublicFile, kofi, links } from "@/lib/site";
 import "./landing.css";
+
+// The guides the postcard has room for; /guides lists them all.
+const footerGuides = ["free-autotune", "free-autotune-plugins", "autotune-fl-studio", "es/autotune-gratis"];
 
 // The page is set like the manual that ships with a precision instrument: a gold cover, a playable
 // plate, a sheet per feature, a receipt, the method with its 19th-century ancestors, a letter from the
@@ -489,11 +492,12 @@ export default async function Home() {
             <figure className="stamp">
               <Image src="/archive/phonautographe.jpg" width={1920} height={1074} alt="Engraving of the phonautograph" sizes="96px" />
             </figure>
-            {guides.map((g) => (
-              <Link key={g.slug} href={`/${g.slug}`}>
+            {footerGuides.map(guideBySlug).map((g) => (
+              <Link key={g.slug} href={`/${g.slug}`} hrefLang={g.lang}>
                 {g.heading}
               </Link>
             ))}
+            <Link href="/guides">All guides</Link>
             <a href={links.repo}>Source on GitHub</a>
             <Link href={links.feedback}>Send feedback</Link>
             <a href={links.issues}>Report a bug</a>

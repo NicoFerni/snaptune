@@ -8,7 +8,7 @@ import { links } from "@/lib/site";
 // Windows installer shows a short version of it (../packaging/windows/privacy.txt).
 
 export const metadata: Metadata = {
-  title: "Privacy",
+  title: "Privacy · SnapTune",
   description: "What the SnapTune plugin and getsnaptune.com send and keep, and how to turn it off.",
   alternates: { canonical: "/privacy" },
 };
