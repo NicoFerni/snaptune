@@ -10,6 +10,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
   return [
     { url: siteUrl, lastModified: homeUpdated },
     { url: `${siteUrl}/privacy`, lastModified: "2026-11-10" },
+    { url: `${siteUrl}/terms`, lastModified: "2026-11-12" },
     { url: `${siteUrl}/guides`, lastModified: latestGuide },
     ...guides.map((g) => ({
       url: `${siteUrl}/${g.slug}`,

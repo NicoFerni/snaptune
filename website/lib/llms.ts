@@ -62,6 +62,7 @@ export function llmsText(release: Release, full: boolean): string {
     `- [Report a problem](${links.issues}), or email support@getsnaptune.com`,
     `- [Send feedback](${siteUrl}${links.feedback}): a short form, no account`,
     `- [Privacy](${siteUrl}/privacy): what the plugin and the site send, and how to turn it off`,
+    `- [Terms](${siteUrl}/terms): the site, downloads, feedback and donations; the plugin itself is AGPL-3.0`,
     `- [Home page](${siteUrl}): an interactive demo of the plugin in the browser`,
     full ? null : `- [Every guide in full](${siteUrl}/llms-full.txt): the text of all the guides in one file`,
     "",

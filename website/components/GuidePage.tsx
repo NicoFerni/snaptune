@@ -31,6 +31,7 @@ const words = {
     source: "Source on GitHub",
     feedback: "Send feedback",
     privacy: "Privacy",
+    terms: "Terms",
     other: "En español",
     trademark: "Auto-Tune is a trademark of Antares Audio Technologies; SnapTune is an independent project, not affiliated with Antares.",
     locale: "en-GB",
@@ -51,6 +52,7 @@ const words = {
     source: "Código en GitHub",
     feedback: "Enviar comentarios",
     privacy: "Privacidad",
+    terms: "Términos",
     other: "In English",
     trademark: "Auto-Tune es una marca de Antares Audio Technologies; SnapTune es un proyecto independiente, sin relación con Antares.",
     locale: "es",
@@ -234,6 +236,7 @@ export async function GuidePage({ guide }: { guide: Guide }) {
             <a href={links.support}>support@getsnaptune.com</a>
             <a href={links.x}>@getsnaptune on X</a>
             <Link href="/privacy">{t.privacy}</Link>
+            <Link href="/terms">{t.terms}</Link>
           </nav>
           <p>{t.trademark}</p>
         </footer>
