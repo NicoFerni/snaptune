@@ -1,0 +1,308 @@
+/* The 404: the tuner and the pitch graph from the plugin, on a gold card. */
+
+@property --cents {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 404;
+}
+
+.lost {
+  min-height: 100vh;
+  padding-bottom: 64px;
+}
+
+.lost-card {
+  width: min(64rem, calc(100% - 2 * var(--margin)));
+  margin: clamp(48px, 9vh, 112px) auto 0;
+  padding: clamp(24px, 4vw, 56px);
+}
+
+.lost-top {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+  gap: clamp(24px, 4vw, 56px);
+  align-items: center;
+}
+
+.lost-text p {
+  margin-top: 20px;
+  font-size: var(--step-lead);
+  line-height: 1.4;
+}
+
+.lost-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 28px;
+  margin-top: 32px;
+}
+
+.lost .lost-link {
+  font-size: var(--step-body);
+}
+
+/* The meter. */
+.lost-meter {
+  margin: 0;
+}
+
+.lost-meter svg {
+  width: 100%;
+  height: auto;
+  display: block;
+  overflow: visible;
+}
+
+.meter-arc {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  opacity: 0.35;
+}
+
+.tick {
+  stroke: currentColor;
+  stroke-width: 2;
+  opacity: 0.5;
+}
+
+.tick-long {
+  stroke-width: 3;
+  opacity: 0.8;
+}
+
+.tick-centre {
+  stroke-width: 5;
+  opacity: 1;
+}
+
+.meter-label {
+  fill: currentColor;
+  font-family: var(--font-text);
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.needle {
+  fill: currentColor;
+  transform-box: view-box;
+  transform-origin: 120px 128px;
+  rotate: -54deg;
+  transition: rotate 380ms var(--ease-expo);
+}
+
+.lost-readout {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.readout-num::after {
+  counter-reset: cents var(--cents);
+  content: "−" counter(cents);
+  font-size: clamp(2.5rem, 1.5rem + 3vw, 4rem);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.readout-unit {
+  font-size: var(--step-lead);
+}
+
+/* Hovering or focusing the way home puts the needle on the note. */
+.lost:has(.snap:hover, .snap:focus-visible) .needle {
+  animation: none;
+  rotate: 0deg;
+}
+
+.lost:has(.snap:hover, .snap:focus-visible) .readout-num::after {
+  animation: none;
+  --cents: 0;
+  content: counter(cents);
+}
+
+/* The graph. */
+.lost-graph {
+  margin: clamp(32px, 5vw, 56px) 0 0;
+}
+
+.lost-graph svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.row line {
+  stroke: currentColor;
+  stroke-width: 1;
+  opacity: 0.25;
+}
+
+.row text {
+  fill: currentColor;
+  font-family: var(--font-text);
+  font-size: 12px;
+}
+
+.row-lost line {
+  stroke-dasharray: 2 6;
+}
+
+.row-lost text {
+  opacity: 0.6;
+}
+
+.line-sung {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+  opacity: 0.55;
+}
+
+.line-out {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 4;
+  stroke-linejoin: miter;
+}
+
+.landing-dot {
+  fill: currentColor;
+}
+
+.lost-legend {
+  display: flex;
+  gap: 24px;
+  margin-top: 12px;
+  font-size: var(--step-small);
+}
+
+.lost-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 24px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-top: 3px solid currentColor;
+}
+
+.lost-legend .key-sung::before {
+  border-top: 2px dashed currentColor;
+  opacity: 0.6;
+}
+
+@media (max-width: 720px) {
+  .lost-top {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .lost-meter {
+    width: min(18rem, 100%);
+    margin-inline: auto;
+  }
+
+  /* The graph shrinks to a third on a phone; its labels keep a readable size. */
+  .row text {
+    font-size: 19px;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* The needle hunts for a note, never finds one, and trembles where it stops. */
+  .needle {
+    animation:
+      hunt 2.2s var(--ease-out) both,
+      tremble 1.6s ease-in-out 2.2s infinite;
+  }
+
+  .readout-num::after {
+    animation: count 2.2s var(--ease-out) both;
+  }
+
+  .sweep {
+    animation: sweep 2.6s cubic-bezier(0.45, 0, 0.25, 1) 0.3s both;
+  }
+
+  .landing-dot {
+    animation:
+      land 300ms var(--ease-expo) 2.8s both,
+      pulse 1.8s ease-in-out 3.1s infinite;
+    transform-box: fill-box;
+    transform-origin: center;
+  }
+}
+
+@keyframes hunt {
+  0% {
+    rotate: 0deg;
+  }
+  22% {
+    rotate: 52deg;
+  }
+  44% {
+    rotate: -40deg;
+  }
+  64% {
+    rotate: 28deg;
+  }
+  82% {
+    rotate: -60deg;
+  }
+  100% {
+    rotate: -54deg;
+  }
+}
+
+@keyframes tremble {
+  0%,
+  100% {
+    rotate: -54deg;
+  }
+  50% {
+    rotate: -50deg;
+  }
+}
+
+@keyframes count {
+  from {
+    --cents: 0;
+  }
+  to {
+    --cents: 404;
+  }
+}
+
+@keyframes sweep {
+  from {
+    width: 0;
+  }
+  to {
+    width: 670px;
+  }
+}
+
+@keyframes land {
+  from {
+    scale: 0;
+  }
+  to {
+    scale: 1;
+  }
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    scale: 1;
+  }
+  50% {
+    scale: 1.5;
+  }
+}
