@@ -6,7 +6,7 @@ import { links } from "@/lib/site";
 const through = (href: string | null, os: string) => (href?.includes("/releases/download/") ? `/download/${os}` : href);
 
 /** The reply card's buttons: one per installer the published release has, then every file. */
-export function Downloads({ release }: { release: Release }) {
+export function Downloads({ release, lang = "en" }: { release: Release; lang?: "en" | "es" }) {
   const systems = [
     { name: "Mac", href: through(release.mac, "mac") },
     { name: "Windows", href: through(release.windows, "windows") },
@@ -19,12 +19,12 @@ export function Downloads({ release }: { release: Release }) {
         (s) =>
           s.href && (
             <a key={s.name} href={s.href} className="bar">
-              {`Download for ${s.name}`}
+              {lang === "es" ? `Descargar para ${s.name}` : `Download for ${s.name}`}
             </a>
           ),
       )}
       <a href={links.releases} className="reply-link">
-        Or every file, to install by hand
+        {lang === "es" ? "O todos los archivos, para instalar a mano" : "Or every file, to install by hand"}
       </a>
     </>
   );

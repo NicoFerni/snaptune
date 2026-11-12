@@ -8,7 +8,7 @@ import { links } from "@/lib/site";
 export const siteUrl = process.env.SITE_URL ?? "https://getsnaptune.com";
 
 /** When the home page's text last changed, for the sitemap. */
-export const homeUpdated = "2026-10-23";
+export const homeUpdated = "2026-11-11";
 
 export const keywords = [
   "free autotune",
@@ -39,20 +39,33 @@ export const webSite = {
   url: siteUrl,
 };
 
+// The one person behind SnapTune, as the author of the site's pages.
+export const author = {
+  "@type": "Person",
+  "@id": `${siteUrl}/#author`,
+  name: "Nico Fernandez",
+  url: "https://github.com/NicoFerni",
+  sameAs: ["https://github.com/NicoFerni"],
+};
+
 export const organization = {
   "@context": "https://schema.org",
   "@type": "Organization",
+  "@id": `${siteUrl}/#organization`,
   name: "SnapTune",
   url: siteUrl,
   logo: `${siteUrl}/logo.png`,
   email: "support@getsnaptune.com",
-  founder: { "@type": "Person", name: "Nico Fernandez" },
+  founder: author,
+  // Add the KVR, AlternativeTo and Product Hunt listings here as they go live: links from other
+  // sites are what ties the name "SnapTune" to this plugin for search engines and assistants.
   sameAs: [links.repo, links.x],
 };
 
 export const softwareApplication = (release: Release) => ({
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
+  "@id": `${siteUrl}/#software`,
   name: "SnapTune",
   alternateName: "SnapTune free autotune plugin",
   description:
@@ -66,7 +79,7 @@ export const softwareApplication = (release: Release) => ({
   license: "https://www.gnu.org/licenses/agpl-3.0.html",
   isAccessibleForFree: true,
   offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
-  author: { "@type": "Person", name: "Nico Fernandez" },
+  author,
   codeRepository: links.repo,
   sameAs: [links.repo, links.x],
   image: `${siteUrl}/screenshot.png`,
@@ -78,6 +91,34 @@ export function faqPage(faqs: { q: string; a: string }[]) {
     "@context": "https://schema.org",
     "@type": "FAQPage",
     mainEntity: faqs.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+  };
+}
+
+/** A guide as an article: who wrote it, when it changed and what it is about. */
+export function techArticle(a: { path: string; headline: string; description: string; lang: string; published: string; updated: string }) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "TechArticle",
+    headline: a.headline,
+    description: a.description,
+    inLanguage: a.lang,
+    url: `${siteUrl}${a.path}`,
+    mainEntityOfPage: `${siteUrl}${a.path}`,
+    datePublished: a.published,
+    dateModified: a.updated,
+    image: `${siteUrl}/screenshot.png`,
+    author,
+    publisher: { "@id": `${siteUrl}/#organization` },
+    about: { "@id": `${siteUrl}/#software` },
+  };
+}
+
+/** The trail search shows above a result: home, the guides, this page. */
+export function breadcrumbs(items: { name: string; path: string }[]) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, i) => ({ "@type": "ListItem", position: i + 1, name: item.name, item: `${siteUrl}${item.path}` })),
   };
 }
 

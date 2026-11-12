@@ -111,3 +111,74 @@
 .guide-section ul + p {
   margin-top: 16px;
 }
+
+/* A comparison table: scrolls sideways inside its own box on a phone instead of widening the page. */
+.guide-table {
+  margin-top: 8px;
+  overflow-x: auto;
+}
+
+.guide-table table {
+  width: 100%;
+  min-width: 40rem;
+  border-collapse: collapse;
+  font-size: var(--step-small);
+  line-height: 1.4;
+}
+
+.guide-table caption {
+  text-align: left;
+  margin-bottom: 12px;
+  color: var(--color-muted);
+}
+
+.guide-table th,
+.guide-table td {
+  padding: 10px 12px 10px 0;
+  border-top: 1px solid currentColor;
+  text-align: left;
+  vertical-align: top;
+}
+
+.guide-table thead th {
+  font-family: var(--font-display);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  border-top: 0;
+}
+
+.guide-table tbody th {
+  font-weight: 600;
+}
+
+.guide-sources {
+  margin-top: 12px;
+  padding-left: 1.2em;
+  list-style: disc;
+}
+
+.guide-sources li + li {
+  margin-top: 6px;
+}
+
+.guide-sources a,
+.guide-index a {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.guide-index {
+  padding-left: 0;
+  list-style: none;
+}
+
+.guide-index li + li {
+  margin-top: 20px;
+}
+
+.guide-index p {
+  margin-top: 4px;
+  color: var(--color-muted);
+  font-size: var(--step-small);
+}
