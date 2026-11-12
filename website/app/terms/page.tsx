@@ -96,7 +96,7 @@ export default function Terms() {
           heading: "Changes, law and contact",
           body: (
             <p>
-              If these terms change, this page will show the new date at the top. They are governed by the laws of Argentina. For questions, write to{" "}
+              If these terms change, this page will show the new date at the top. They are governed by the laws of the State of Delaware, United States, without regard to its conflict-of-law rules. For questions, write to{" "}
               <a href={links.support}>support@getsnaptune.com</a>. SnapTune is made by Nico Fernandez.
             </p>
           ),
