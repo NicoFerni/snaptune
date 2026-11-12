@@ -506,6 +506,7 @@ export default async function Home() {
             <a href={kofi.url}>Ko-fi</a>
             <a href={links.license}>AGPL-3.0 licence</a>
             <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
           </div>
           <p className="back-imprint">
             SnapTune {version} by Nico Fernandez. Auto-Tune is a trademark of Antares Audio Technologies; SnapTune is an independent project, not

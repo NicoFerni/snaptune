@@ -4,7 +4,7 @@ import { links } from "@/lib/site";
 import "@/app/landing.css";
 import "@/app/guide.css";
 
-// A page of plain policy text (privacy, code signing), set like the guides: the manual's reading
+// A page of plain policy text (privacy, terms), set like the guides: the manual's reading
 // column on the green ground, with the site's links below.
 
 export type PolicySection = { heading: string; body: React.ReactNode };
@@ -36,6 +36,7 @@ export function PolicyPage({ title, lead, updated, sections }: { title: string; 
         <nav aria-label="Site">
           <Link href="/">SnapTune home</Link>
           <Link href="/privacy">Privacy</Link>
+          <Link href="/terms">Terms</Link>
           <a href={links.repo}>Source on GitHub</a>
           <a href={links.support}>support@getsnaptune.com</a>
         </nav>

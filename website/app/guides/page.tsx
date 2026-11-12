@@ -77,6 +77,7 @@ export default function Guides() {
             <a href={links.repo}>Source on GitHub</a>
             <a href={links.support}>support@getsnaptune.com</a>
             <Link href="/privacy">Privacy</Link>
+            <Link href="/terms">Terms</Link>
           </nav>
           <p>Auto-Tune is a trademark of Antares Audio Technologies; SnapTune is an independent project, not affiliated with Antares.</p>
         </footer>
