@@ -46,7 +46,8 @@ and a standalone app.
 2. Restart your DAW and rescan plugins.
 
 **Linux** (64-bit, glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora 36 or later):
-**SnapTune-…-Linux.tar.gz** has the VST3, the LV2 and a standalone app.
+**SnapTune-…-Linux.tar.gz** has the VST3, the LV2 and a standalone app (**-Linux-arm64.tar.gz** on
+ARM). To render audio on a server with no display, see [docs/server-rendering.md](docs/server-rendering.md).
 
 1. Unpack it, open a terminal in the folder and run `./install.sh`. It installs for your user, no
    sudo: the VST3 in `~/.vst3`, the LV2 in `~/.lv2` and the app in `~/.local/bin`.
