@@ -132,18 +132,19 @@ export async function recordDownload(ip: string, os: string): Promise<void> {
   await redis(["SET", "dl:since", today, "NX"], ["PFADD", "dl:all", id], ["PFADD", `dl:${os}`, id], ["PFADD", `dl:day:${today}`, id]);
 }
 
-export type UniqueDownloads = { since: string | null; all: number; last7: number; lastDay: number; byOs: [string, number][] };
+export type UniqueDownloads = { since: string | null; all: number; last7: number; last30: number; lastDay: number; byOs: [string, number][] };
 
 export async function readUniqueDownloads(): Promise<UniqueDownloads> {
-  const days = Array.from({ length: 7 }, (_, i) => `dl:day:${new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)}`);
-  const [since, all, last7, lastDay, mac, windows, linux] = (await redis(
+  const days = Array.from({ length: 30 }, (_, i) => `dl:day:${new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)}`);
+  const [since, all, last7, last30, lastDay, mac, windows, linux] = (await redis(
     ["GET", "dl:since"],
     ["PFCOUNT", "dl:all"],
+    ["PFCOUNT", ...days.slice(0, 7)],
     ["PFCOUNT", ...days],
     ["PFCOUNT", days[0]],
     ["PFCOUNT", "dl:mac"],
     ["PFCOUNT", "dl:windows"],
     ["PFCOUNT", "dl:linux"],
   )) as [string | null, ...number[]];
-  return { since, all, last7, lastDay, byOs: [["Mac", mac], ["Windows", windows], ["Linux", linux]] };
+  return { since, all, last7, last30, lastDay, byOs: [["Mac", mac], ["Windows", windows], ["Linux", linux]] };
 }
