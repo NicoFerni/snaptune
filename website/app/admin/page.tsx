@@ -142,7 +142,9 @@ export default async function Admin() {
   // Health.
   const latest = releases?.[0];
   const latestVersion = latest?.tag_name.replace(/^v/, "");
-  const onLatest = active30.filter((i) => i.version === latestVersion).length;
+  // Adoption among installs used this week: someone who tried it a month ago and never came back
+  // can't update, so counting them would only say how many left.
+  const onLatest = active7.filter((i) => i.version === latestVersion).length;
   const downloadCheck = lastRun(checks);
   const build = lastRun(builds);
 
@@ -251,7 +253,7 @@ export default async function Admin() {
           alert={build?.conclusion === "failure"}
           href={build?.html_url}
         />
-        <Stat label={`On ${latestVersion ?? "latest"}`} value={percent(onLatest, active30.length)} note={`${onLatest} of ${active30.length} active installs`} />
+        <Stat label={`On ${latestVersion ?? "latest"}`} value={percent(onLatest, active7.length)} note={`${onLatest} of ${active7.length} active in 7 days`} />
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">

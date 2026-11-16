@@ -43,7 +43,9 @@ const IGNORED_INSTALLS = new Set(["3467e8d7-5552-466a-be7e-5374d0b31859"]);
 export const TOOL_HOSTS = new Set(["python", "vst3cat", "vst3_render", "Auralis-picker-pitch-live-fx"]);
 
 // Script runners, plugin scanners and validators, by executable name (python, python3, pythonw…).
-export const NOT_DAWS = /^(python[\d.]*w?|vstscanner|vst3cat|pluginval|.*scanner.*|.*validator.*)$/i;
+// auvaltool is Apple's Audio Unit validator: Logic and GarageBand run it on every new AU, so it
+// loads the plugin on Macs where nobody has used it yet.
+export const NOT_DAWS = /^(python[\d.]*w?|vstscanner|vst3cat|pluginval|auval(tool)?|AudioComponentRegistrar|.*scanner.*|.*validator.*)$/i;
 
 export function isDawHost(host: string): boolean {
   return Boolean(host) && !TOOL_HOSTS.has(host) && !NOT_DAWS.test(host);
