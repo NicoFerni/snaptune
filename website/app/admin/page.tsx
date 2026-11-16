@@ -4,7 +4,9 @@ import { NOTICE_LENGTH, NOTICE_ORIGIN, readFeedback, readNotice } from "@/lib/fe
 import { mailConfigured, readInboxes } from "@/lib/mail";
 import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
 import { setNoticeAction } from "./actions";
-import { isDawHost, NOT_DAWS, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
+import { buildFunnel, hostLabel } from "@/lib/funnel";
+import Funnel from "./Funnel";
+import { isDawHost, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
 // messages from the feedback form, Google searches from Search Console, and the latest mail in the
@@ -42,17 +44,6 @@ function assetOs(name: string): string {
   if (/windows/i.test(name)) return "Windows";
   if (/linux/i.test(name)) return "Linux";
   return "Other";
-}
-
-// Plugin scanners, script runners and processes with random names load the plugin without being a
-// DAW anyone records in, so the Host panel counts them together.
-function hostLabel(host: string): string {
-  if (!host) return "Unknown";
-  if (NOT_DAWS.test(host)) return "Other";
-  // One word with a run of six consonants, or digits in the middle of mixed case (not a trailing
-  // version like Audacity4): a generated name, not a product.
-  if (!/\s/.test(host) && (/[bcdfghjklmnpqrstvwxz]{6}/i.test(host) || (/\d[a-z]/i.test(host) && /[a-z]/.test(host) && /[A-Z]/.test(host)))) return "Other";
-  return host;
 }
 
 function countBy<T>(items: T[], key: (item: T) => string, weight: (item: T) => number = () => 1): [string, number][] {
@@ -206,6 +197,17 @@ export default async function Admin() {
     return [version, sessions, crashes, percent(crashes, sessions)] as React.ReactNode[];
   });
 
+  const funnel = buildFunnel({
+    now,
+    installs,
+    events,
+    downloads,
+    history,
+    siteDownloads: { "7": unique?.last7 ?? null, "30": unique?.last30 ?? null },
+    assets: assets.map((a) => ({ ...a, os: assetOs(a.name) })),
+    search: searchReport ? { clicks: searchClicks, impressions: searchImpressions } : null,
+  });
+
   // When people use it, by hour in Argentina.
   const perHour = Array.from({ length: 24 }, (_, h) => ({
     day: `${String(h).padStart(2, "0")}:00`,
@@ -255,8 +257,8 @@ export default async function Admin() {
       </section>
 
       <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Installs" value={installs.length} note="one per device that ran it in a DAW or the app" />
-        <Stat label="Active, 7 days" value={active7.length} note={`${active30.length} in 30 days`} />
+        <Stat funnel="30" label="Installs" value={installs.length} note="one per device that ran it in a DAW or the app" />
+        <Stat funnel="7" label="Active, 7 days" value={active7.length} note={`${active30.length} in 30 days`} />
         <Stat label="Sessions, 30 days" value={launches30.length} note="one per DAW session" />
         <Stat
           label="Unclean exits, 30 days"
@@ -264,31 +266,36 @@ export default async function Admin() {
           note={`${percent(exits30.length, launches30.length)} of sessions${toolExits30 ? `, +${toolExits30} from tools` : ""}`}
           alert={exits30.length > 0}
         />
-        <Stat label="Downloads" value={unique?.all ?? "–"} note={`one per IP${unique?.since ? `, since ${unique.since}` : ""} · GitHub counts ${downloads}`} />
+        <Stat funnel="30" label="Downloads" value={unique?.all ?? "–"} note={`one per IP${unique?.since ? `, since ${unique.since}` : ""} · GitHub counts ${downloads}`} />
         <Stat label="Open reports" value={openReports.length} note={`${reports.length} issues, ${feedback?.total ?? 0} feedback messages`} alert={openReports.length > 0} />
         <Stat label="Stars" value={repoInfo?.stargazers_count ?? "–"} note={`${repoInfo?.forks_count ?? "–"} forks`} />
         <Stat label="Last ping" value={events[0] ? ago(events[0].t) : "–"} note={events[0] ? `${events[0].host}, ${events[0].os}` : "no data yet"} />
         <Stat
+          funnel="30"
           label="Download → install"
           value={tracked ? percent(installsTracked, downloadsTracked) : percent(installs.length, downloads)}
           note={tracked ? `at least: ${installsTracked} of ${downloadsTracked} since ${tracked[0]}, ${updatesTracked} updates left out` : "installs that pinged, per download"}
         />
-        <Stat label="Returning" value={percent(returning, couldReturn.length)} note={`${returning} of ${couldReturn.length} came back a day or more later`} />
-        <Stat label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note={`all time; half have ${sessionsMedian} or fewer`} />
+        <Stat funnel="30" label="Returning" value={percent(returning, couldReturn.length)} note={`${returning} of ${couldReturn.length} came back a day or more later`} />
+        <Stat funnel="30" label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note={`all time; half have ${sessionsMedian} or fewer`} />
         <Stat
+          funnel="7"
           label={previous ? `Downloads since ${previous[0].slice(5)}` : "Downloads today"}
           value={downloadsSincePrevious ?? "–"}
           note={history ? `GitHub's count, since the panel's last look that day · ${unique?.lastDay ?? "–"} by IP today` : "needs telemetry storage"}
         />
-        <Stat label="Downloads, 7 days" value={downloads7 ?? "–"} note={weekAgo ? `GitHub's count since ${weekAgo[0]} · ${unique?.last7 ?? "–"} by IP` : "needs telemetry storage"} />
+        <Stat funnel="7" label="Downloads, 7 days" value={downloads7 ?? "–"} note={weekAgo ? `GitHub's count since ${weekAgo[0]} · ${unique?.last7 ?? "–"} by IP` : "needs telemetry storage"} />
         <Stat label="Google clicks, 28 days" value={searchReport ? searchClicks : "–"} note={searchReport ? `${searchImpressions} impressions` : "Search Console not set up"} />
         <Stat label="Google CTR, 28 days" value={searchReport ? percent(searchClicks, searchImpressions) : "–"} note="clicks per impression" />
         <Stat
+          funnel="7"
           label="New installs, 7 days"
           value={newInstalls7}
           note={`${percent(newInstalls7, Math.max(0, (downloads7 ?? 0) - updates7))} of downloads, ${updates7} updates left out`}
         />
       </section>
+      <p className="mt-2 text-xs text-faint">Download and install cards open the activation funnel.</p>
+      <Funnel data={funnel} />
 
       <div className="grid gap-x-6 md:grid-cols-2">
         <Panel title="New installs per day" note={`last 30 days, UTC; ${installs.length} in total`}>
@@ -484,7 +491,8 @@ function Notice({ children }: { children: React.ReactNode }) {
   return <p className="mb-4 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-sm">{children}</p>;
 }
 
-function Stat({ label, value, note, alert, href }: { label: string; value: number | string; note: string; alert?: boolean; href?: string }) {
+// A card with `funnel` opens the activation funnel on that window ("7" or "30" days).
+function Stat({ label, value, note, alert, href, funnel }: { label: string; value: number | string; note: string; alert?: boolean; href?: string; funnel?: "7" | "30" }) {
   const body = (
     <>
       <p className="caption">{label}</p>
@@ -492,6 +500,12 @@ function Stat({ label, value, note, alert, href }: { label: string; value: numbe
       <p className="mt-1 truncate text-sm text-faint">{note}</p>
     </>
   );
+  if (funnel)
+    return (
+      <button type="button" data-funnel={funnel} className="block w-full cursor-pointer rounded-xl border border-line bg-panel p-4 text-left hover:border-line-bright">
+        {body}
+      </button>
+    );
   return href ? (
     <a href={href} className="block rounded-xl border border-line bg-panel p-4 hover:border-line-bright">
       {body}
