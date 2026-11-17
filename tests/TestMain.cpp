@@ -1172,6 +1172,101 @@ void testNoteFlips()
     }
 }
 
+/** Runs of fewer than `shortest` voiced hops on one target between two other voiced hops: at hard
+    tune each is a semitone (or more) played for a few ms, heard as a glitch rather than a note. */
+int shortTargetRuns (const std::vector<PitchFrame>& frames, int shortest)
+{
+    int blips = 0;
+    size_t i = 0;
+
+    while (i < frames.size())
+    {
+        size_t j = i;
+
+        while (j + 1 < frames.size() && frames[j + 1].voiced == frames[i].voiced && frames[j + 1].targetNote == frames[i].targetNote)
+            ++j;
+
+        const bool inside = i > 0 && j + 1 < frames.size() && frames[i - 1].voiced && frames[j + 1].voiced;
+
+        if (frames[i].voiced && inside && (int) (j - i + 1) < shortest)
+            ++blips;
+
+        i = j + 1;
+    }
+
+    return blips;
+}
+
+void testHardTuneDoesntBlip()
+{
+    // A singer scoops into notes from below, falls off their ends and slides between them, and holds
+    // one note near the middle of two. At hard tune every note those pass used to play for a few ms
+    // (a scoop from 130 cents below plays the semitone under the note first): users hear those as
+    // glitches. Studio looks ahead, so no note shorter than ~19 ms is played; real notes still change
+    // on time. Live can't look ahead and is only reported.
+    const double sampleRate = 48000.0;
+    struct Phrase
+    {
+        double start, end, note;
+    };
+    const std::vector<Phrase> phrases { { 0.10, 0.45, 60.2 }, { 0.45, 0.80, 64.1 }, { 0.80, 1.15, 62.3 }, { 1.30, 1.70, 67.0 },
+                                        { 1.85, 2.30, 65.45 }, { 2.45, 2.90, 69.2 }, { 2.90, 3.30, 64.0 } };
+
+    auto f0 = [phrases] (double t)
+    {
+        for (size_t k = 0; k < phrases.size(); ++k)
+        {
+            const auto& p = phrases[k];
+
+            if (t < p.start || t >= p.end)
+                continue;
+
+            double note = p.note;
+            const bool legatoIn = k > 0 && std::abs (phrases[k - 1].end - p.start) < 1.0e-9;
+            const bool legatoOut = k + 1 < phrases.size() && std::abs (phrases[k + 1].start - p.end) < 1.0e-9;
+
+            if (legatoIn) // a 50 ms slide from the previous note
+                note += (phrases[k - 1].note - p.note) * std::max (0.0, 1.0 - (t - p.start) / 0.05);
+            else // a scoop from 130 cents below over 70 ms
+                note -= 1.3 * std::max (0.0, 1.0 - (t - p.start) / 0.07);
+
+            if (! legatoOut) // a fall of up to 1.5 semitones over the last 60 ms
+                note -= 1.5 * std::max (0.0, 1.0 - (p.end - t) / 0.06);
+
+            return midiToHz (note);
+        }
+
+        return 0.0;
+    };
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        int blips = 0;
+
+        for (auto scale : { Scale::chromatic, Scale::major })
+        {
+            for (uint32_t seed : { 11u, 12u })
+            {
+                auto settings = hardTune();
+                settings.mode = mode;
+                settings.scale = scale;
+                const auto input = renderRealisticVoice (sampleRate, 3.5, f0, { -12.0, 0.15, 0.006, 0.08 }, seed);
+                std::vector<PitchFrame> frames;
+                runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+                blips += shortTargetRuns (frames, 6);
+            }
+        }
+
+        const auto name = juce::String ("Hard tune doesn't blip through scoops, falls and slides") + (mode == LatencyMode::live ? " [Live]" : " [Studio]");
+        const auto detail = juce::String (blips) + " notes shorter than 16 ms in 4 takes";
+
+        if (mode == LatencyMode::studio)
+            check (blips == 0, name, detail);
+        else
+            std::printf ("[INFO] %-46s %s\n", name.toRawUTF8(), detail.toRawUTF8());
+    }
+}
+
 void testDropoutResume()
 {
     // A held note 35 cents sharp with a 15 ms burst of noise in the middle (a breath or a consonant
@@ -2593,15 +2688,15 @@ int runDiagnose (const juce::File& dir, const juce::StringArray& takes)
         }
     }
 
-    std::printf ("%-28s %8s %8s %8s %8s %8s %8s %8s\n", "case", "readAhd", "tailCut", "headCut", "splices", "weak", "meanCorr", "drifts");
+    std::printf ("%-28s %8s %8s %8s %8s %8s %8s %8s %8s\n", "case", "readAhd", "tailCut", "headCut", "splices", "weak", "meanCorr", "drifts", "early");
 
     for (const auto& c : cases)
     {
         const auto output = runEngine (c.input, c.sampleRate, c.settings, c.setup);
         const auto& d = lastDiagnostics;
-        std::printf ("%-28s %8lld %8lld %8lld %8lld %8lld %8.3f %8lld\n", c.name.toRawUTF8(), (long long) d.liveReadsAhead,
+        std::printf ("%-28s %8lld %8lld %8lld %8lld %8lld %8.3f %8lld %8lld\n", c.name.toRawUTF8(), (long long) d.liveReadsAhead,
                      (long long) d.grainTailCuts, (long long) d.grainHeadCuts, (long long) d.splices, (long long) d.weakSplices,
-                     d.splices > 0 ? d.spliceScoreSum / (double) d.splices : 0.0, (long long) d.driftBacks);
+                     d.splices > 0 ? d.spliceScoreSum / (double) d.splices : 0.0, (long long) d.driftBacks, (long long) d.earlyLead);
         writeWav (dir.getChildFile (c.name + "_in.wav"), c.input, c.sampleRate);
         writeWav (dir.getChildFile (c.name + "_out.wav"), output, c.sampleRate);
 
@@ -2911,6 +3006,7 @@ int main (int argc, char* argv[])
     testLiveNoteOnsets();
     testRealWorldVoices();
     testNoteFlips();
+    testHardTuneDoesntBlip();
     testDropoutResume();
     testOctaveErrors();
     testOctaveSlips();

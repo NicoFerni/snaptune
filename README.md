@@ -19,7 +19,7 @@ Try it in your browser at **[getsnaptune.com](https://getsnaptune.com)**.
 - **Smooth note changes:** a Transition knob sets how long the voice takes to glide to the next note, along a natural S-curve, while held notes stay tight
 - **Vibrato:** keep the vibrato you sing even at hard tune (and scale it from 0 to 200 %), or add one to every held note (depth, rate, delay)
 - **Formant-preserving:** pitch moves, your voice's character doesn't (no chipmunk). A Formant knob shifts it on purpose
-- **Studio and Live modes:** 46 ms formant-safe processing for mixing (compensated by the DAW), or 2.7 ms for hearing yourself tuned while recording. Switch any time; the DAW is told the new latency automatically
+- **Studio and Live modes:** 62 ms formant-safe processing for mixing (compensated by the DAW), or 2.7 ms for hearing yourself tuned while recording. Switch any time; the DAW is told the new latency automatically
 - **Key and scale:** 13 scales, or click the note pills to build your own
 - **MIDI target notes:** play or draw a melody and the voice follows it
 - **See what it's doing:** a tuner gauge (where you sang vs. where it lands) and a piano-roll pitch graph
@@ -112,7 +112,7 @@ number, add a **MIDI Out** channel on the same port, write the melody in its pia
 | Control | What it does |
 | --- | --- |
 | Presets | Starting points for the correction knobs. Key, scale and voice are left alone. |
-| Studio / Live | Studio: TD-PSOLA, formant-safe, 46 ms. Live: delay-line resampling, 2.7 ms (Formant is inactive). |
+| Studio / Live | Studio: TD-PSOLA, formant-safe, 62 ms. Live: delay-line resampling, 2.7 ms (Formant is inactive). |
 | Key / Scale | The notes the voice may land on. |
 | Scale notes | Lit = in the scale, solid = the note being tuned to now, violet dot = held MIDI note. Click to toggle. |
 | MIDI notes | Tune to held MIDI notes instead of the scale. |
@@ -186,9 +186,14 @@ session count behind that is a file in the SnapTune folder and never leaves your
    beat it: a strong second harmonic or breath noise otherwise makes a note read an octave off for a
    few hops.
 2. **Note selection.** The detected pitch is snapped to the nearest allowed note, with 0.12 semitone
-   hysteresis so a voice halfway between two notes doesn't flicker. In Live mode, whose shorter
-   analysis is noisier, a breathy voice's note is chosen from a lightly smoothed pitch (at most ~8 ms
-   later). A dropout of up to 40 ms inside a note doesn't restart it: if the voice comes back on the
+   hysteresis so a voice halfway between two notes doesn't flicker. A note change has to last: in
+   Studio the note choice runs ~16 ms behind the detector, and a note shorter than ~19 ms (a scoop
+   into a note, a fall off its end, a slide's passing notes) plays the nearer of the notes either side
+   of it instead, so hard tune doesn't flash a semitone for a few ms; real changes still land on time,
+   and never on a note over 2 semitones from the voice (a detector slip). Live can't look ahead, so
+   at hard tune it waits for the voice to be 0.25 semitone past the midpoint instead. In Live mode,
+   whose shorter analysis is noisier, a breathy voice's note is also chosen from a lightly smoothed
+   pitch (at most ~8 ms later). A dropout of up to 40 ms inside a note doesn't restart it: if the voice comes back on the
    same pitch, the note resumes with its target and correction instead of gliding in again.
 3. **Retune speed and transitions.** The correction (target − detected) passes through a one-pole
    smoother whose time constant is a third of the retune time. At 0 ms it jumps instantly (the
@@ -217,7 +222,8 @@ session count behind that is a file in the SnapTune folder and never leaves your
    alignment and return to the input's timing gradually (at once where it is quiet, or below 100% Mix),
    so at 100% Mix the hand-over doesn't crossfade two copies of the voice a fraction of a period apart.
    Grains need to see past the note they rebuild: for the lowest note (65 Hz) that is
-   3 × 15.4 ms = 46 ms, reported to the host for compensation.
+   3 × 15.4 ms = 46 ms, plus the note choice's 16 ms look-ahead: 62 ms, reported to the host for
+   compensation.
 6. **Live mode: pitch-synchronous resampling** (the original Auto-Tune method). The input is read
    through a delay line at the corrected speed; when the read point drifts a full cycle it jumps back or
    forward exactly one period (found by cross-correlation, crossfaded with a gain that keeps the level

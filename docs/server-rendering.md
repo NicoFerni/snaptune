@@ -55,15 +55,15 @@ between calls, and the same input always gives the same output.
 builds that list by sampling the knob, which is logarithmic, so a few values near the top of the
 range are missing (`"375 ms"`, for one); pick a neighbour.
 
-Use the default **Studio** latency mode for offline work: it looks ahead about 46 ms and tracks
+Use the default **Studio** latency mode for offline work: it looks ahead about 62 ms and tracks
 pitch better. **Live** is for real-time monitoring only.
 
 ## Latency compensation: warm up each new instance
 
-SnapTune's latency depends on the sample rate (2037 samples at 44.1 kHz, 2217 at 48 kHz, 4431 at
+SnapTune's latency depends on the sample rate (2745 samples at 44.1 kHz, 2985 at 48 kHz, 5967 at
 96 kHz). pedalboard loads a plugin at 44.1 kHz and, on the first render at another rate, still
-compensates with the 44.1 kHz figure: that first file comes out late by the difference, 180 samples
-(3.75 ms) at 48 kHz, 2394 samples (50 ms) at 96 kHz, enough to put a vocal visibly out of time
+compensates with the 44.1 kHz figure: that first file comes out late by the difference, 240 samples
+(5 ms) at 48 kHz, 3222 samples (34 ms) at 96 kHz, enough to put a vocal visibly out of time
 with the rest of a mix. Every later render is right.
 
 Render a tenth of a second of silence at the job's sample rate right after loading, as in the
