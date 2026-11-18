@@ -2774,8 +2774,12 @@ int runHostTest (const juce::String& path)
         return instance->getLatencySamples();
     };
 
+    // Studio: three periods of the lowest note for the grains, plus the note choice's six-hop look-ahead.
+    const int hop = std::max (32, (int) std::lround (sampleRate / 375.0));
+    const int expectedLatency = 3 * (int) std::ceil (sampleRate / 65.0) + 6 * hop;
     const int latency = settledLatency();
-    check (latency == 3 * (int) std::ceil (sampleRate / 65.0), "Host: reported latency", juce::String (latency) + " samples");
+    check (latency == expectedLatency, "Host: reported latency",
+           juce::String (latency) + " samples, expected " + juce::String (expectedLatency));
 
     const auto voice = renderVoice (sampleRate, 5.7, melodyPitch (offKeyMelody));
     juce::AudioBuffer<float> buffer (2, block);
