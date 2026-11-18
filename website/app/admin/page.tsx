@@ -1,17 +1,38 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { NOTICE_LENGTH, NOTICE_ORIGIN, readFeedback, readNotice } from "@/lib/feedback";
-import { mailConfigured, readInboxes } from "@/lib/mail";
-import { readSearch, searchConfigured, type SearchRow } from "@/lib/search-console";
-import { setNoticeAction } from "./actions";
-import { buildFunnel, hostLabel } from "@/lib/funnel";
+import { Suspense } from "react";
+import { hostLabel } from "@/lib/funnel";
+import { storageConfigured } from "@/lib/telemetry";
+import {
+  ago,
+  countBy,
+  DAY,
+  day,
+  EXIT_ALERT,
+  getBuilds,
+  getChecks,
+  getFeedback,
+  getInbox,
+  getIssues,
+  getMetrics,
+  getNotice,
+  getReleases,
+  getRepo,
+  getSearch,
+  getTelemetry,
+  lastRun,
+  percent,
+  repo,
+  requestTime,
+} from "@/lib/admin-data";
 import Funnel from "./Funnel";
-import { isDawHost, readTelemetry, readUniqueDownloads, snapshotDownloads, storageConfigured, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
+import Tabs from "./Tabs";
+import { AdminNav, Bars, DailyBars, Loading, Notice, Panel, Stat, Table, ValueBars } from "./ui";
 
-// The private panel: plugin usage from the telemetry pings, downloads and reports from GitHub,
-// messages from the feedback form, Google searches from Search Console, and the latest mail in the
-// Zoho inboxes. It also sets the notice the plugin shows in its header.
-// proxy.ts keeps it behind ADMIN_PASSWORD.
+// The private panel's overview: what needs an answer first (mail, feedback, issues), then whether
+// anything is broken, then the usage numbers. Google search, all the feedback, the mailbox and the
+// plugin's header notice have their own pages. Each section streams in on its own, so a slow source
+// (Zoho, Search Console) doesn't hold up the rest. proxy.ts keeps it behind ADMIN_PASSWORD.
 
 export const dynamic = "force-dynamic";
 
@@ -20,486 +41,392 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-const repo = "NicoFerni/snaptune";
-const DAY = 24 * 60 * 60 * 1000;
-
-type Release = { tag_name: string; published_at: string; assets: { name: string; download_count: number }[] };
-type Issue = { number: number; title: string; html_url: string; state: string; created_at: string; labels: { name: string }[]; pull_request?: unknown };
-type Repo = { stargazers_count: number; forks_count: number };
-type Runs = { workflow_runs: { name: string; conclusion: string | null; status: string; created_at: string; html_url: string }[] };
-
-async function github<T>(path: string): Promise<T | null> {
-  const headers: HeadersInit = { Accept: "application/vnd.github+json" };
-  if (process.env.GITHUB_TOKEN) headers.Authorization = `Bearer ${process.env.GITHUB_TOKEN}`;
-  try {
-    const res = await fetch(`https://api.github.com/repos/${repo}${path}`, { headers, next: { revalidate: 60 } });
-    return res.ok ? ((await res.json()) as T) : null;
-  } catch {
-    return null;
-  }
-}
-
-function assetOs(name: string): string {
-  if (/macos/i.test(name)) return "macOS";
-  if (/windows/i.test(name)) return "Windows";
-  if (/linux/i.test(name)) return "Linux";
-  return "Other";
-}
-
-function countBy<T>(items: T[], key: (item: T) => string, weight: (item: T) => number = () => 1): [string, number][] {
-  const counts = new Map<string, number>();
-  for (const item of items) {
-    const k = key(item) || "Unknown";
-    counts.set(k, (counts.get(k) ?? 0) + weight(item));
-  }
-  return [...counts].sort((a, b) => b[1] - a[1]);
-}
-
-function day(t: number): string {
-  return new Date(t).toISOString().slice(0, 10);
-}
-
-function ago(t: number): string {
-  const minutes = Math.round((Date.now() - t) / 60000);
-  if (minutes < 60) return `${minutes} min ago`;
-  if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h ago`;
-  return `${Math.round(minutes / 1440)} d ago`;
-}
-
-function percent(part: number, whole: number): string {
-  return whole ? `${((part / whole) * 100).toFixed(1)} %` : "–";
-}
-
-/** Change from one period to the next, signed: "+40 %", "−12 %". */
-function growth(current: number, before: number): string {
-  if (!before) return "–";
-  const change = (current / before - 1) * 100;
-  return `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(0)} %`;
-}
-
-/** Argentina time (UTC-3, no daylight saving), for the hour-of-day chart. */
-const LOCAL_OFFSET = -3;
-
-async function load() {
-  const [telemetry, unique, releases, issues, repoInfo, checks, builds, mail, search, feedback, notice] = await Promise.all([
-    storageConfigured ? readTelemetry().catch((e: Error) => e) : null,
-    storageConfigured ? readUniqueDownloads().catch(() => null) : null,
-    github<Release[]>("/releases?per_page=100"),
-    github<Issue[]>("/issues?state=all&per_page=100"),
-    github<Repo>(""),
-    github<Runs>("/actions/workflows/downloads.yml/runs?per_page=20"),
-    github<Runs>("/actions/workflows/build.yml/runs?branch=main&per_page=5"),
-    mailConfigured ? readInboxes(8).catch((e: Error) => e) : null,
-    searchConfigured ? readSearch().catch((e: Error) => e) : null,
-    storageConfigured ? readFeedback().catch(() => null) : null,
-    storageConfigured ? readNotice().catch(() => null) : null,
-  ]);
-
-  const downloads = (releases ?? []).reduce((sum, r) => sum + r.assets.reduce((s, a) => s + a.download_count, 0), 0);
-  const history = storageConfigured && releases ? await snapshotDownloads(downloads).catch(() => null) : null;
-
-  return { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, feedback, notice, now: Date.now() };
-}
-
-/** The latest run that finished with a verdict: skipped runs say nothing, and cancelled ones were
-    only replaced by a newer push (the workflow cancels in-progress runs on the same branch). */
-function lastRun(runs: Runs | null) {
-  return runs?.workflow_runs.find((r) => r.status === "completed" && r.conclusion !== "skipped" && r.conclusion !== "cancelled") ?? null;
-}
-
-export default async function Admin() {
-  const { telemetry, unique, releases, issues, repoInfo, checks, builds, history, mail, search, feedback, notice, now } = await load();
-  const messages = mail && !(mail instanceof Error) ? mail.messages : [];
-  const unread = messages.filter((m) => m.unread);
-  const installs: StoredInstall[] = telemetry && !(telemetry instanceof Error) ? telemetry.installs : [];
-  const events: TelemetryEvent[] = telemetry && !(telemetry instanceof Error) ? telemetry.events : [];
-
-  const active7 = installs.filter((i) => now - i.last < 7 * DAY);
-  const active30 = installs.filter((i) => now - i.last < 30 * DAY);
-  const recent = events.filter((e) => now - e.t < 30 * DAY);
-  // Sessions and unclean exits count DAWs only: scripts, offline renderers and scanners load the
-  // plugin and exit without destroying it, so their exits say nothing about crashes.
-  const launches30 = recent.filter((e) => e.type === "launch" && isDawHost(e.host));
-  const allExits30 = recent.filter((e) => e.type === "unclean_exit");
-  const exits30 = allExits30.filter((e) => isDawHost(e.host));
-  const toolExits30 = allExits30.length - exits30.length;
-  const exits = events.filter((e) => e.type === "unclean_exit");
-
-  const days = Array.from({ length: 30 }, (_, i) => day(now - (29 - i) * DAY));
-  const perDay = days.map((d) => ({
-    day: d,
-    launches: launches30.filter((e) => day(e.t) === d).length,
-    exits: exits30.filter((e) => day(e.t) === d).length,
-  }));
-
-  const assets = (releases ?? []).flatMap((r) => r.assets.map((a) => ({ ...a, version: r.tag_name })));
-  const downloads = assets.reduce((sum, a) => sum + a.download_count, 0);
-  const reports = (issues ?? []).filter((i) => !i.pull_request);
-  const openReports = reports.filter((i) => i.state === "open");
-
-  // Health.
-  const latest = releases?.[0];
-  const latestVersion = latest?.tag_name.replace(/^v/, "");
-  // Adoption among installs used this week: someone who tried it a month ago and never came back
-  // can't update, so counting them would only say how many left.
-  const onLatest = active7.filter((i) => i.version === latestVersion).length;
-  const downloadCheck = lastRun(checks);
-  const build = lastRun(builds);
-
-  // Growth: installs by the day they were first seen, and how many came back. Coming back is a
-  // session a full day or more after the first: two sessions either side of midnight UTC (nine in the
-  // evening in Argentina) are one evening, not a return. Installs less than a day old haven't had the
-  // chance yet, so they aren't in the rate.
-  const newPerDay = days.map((d) => ({ day: d, value: installs.filter((i) => day(i.first) === d).length }));
-  const couldReturn = installs.filter((i) => now - i.first > DAY);
-  const returning = couldReturn.filter((i) => i.last - i.first > DAY).length;
-  const sessionsTotal = installs.reduce((sum, i) => sum + i.launches, 0);
-  const sessionsMedian = [...installs].sort((a, b) => a.launches - b.launches)[Math.floor(installs.length / 2)]?.launches ?? 0;
-
-  // Downloads per day, from the daily totals the panel keeps. A total is only saved on the days the
-  // panel is opened, so the downloads between two saved days are spread evenly over the days between.
-  const downloadsPerDay = (history ?? [])
-    .slice(1)
-    .flatMap(([d, total], i) => {
-      const gap = Math.max(1, Math.round((Date.parse(d) - Date.parse(history![i][0])) / DAY));
-      const each = Math.max(0, total - history![i][1]) / gap;
-      return Array.from({ length: gap }, (_, k) => ({ day: day(Date.parse(d) - (gap - 1 - k) * DAY), value: Math.round(each) }));
-    })
-    .slice(-30);
-  const previous = history?.at(-2);
-  const downloadsSincePrevious = previous ? downloads - previous[1] : null;
-  const weekAgo = (history ?? []).filter(([d]) => d <= day(now - 7 * DAY)).at(-1) ?? history?.[0];
-  const downloads7 = weekAgo ? downloads - weekAgo[1] : null;
-
-  // Someone updating downloads again without becoming a new install. Each time an install shows up
-  // on a different version than its session before, that was one of those downloads.
-  const versionChanges: number[] = [];
-  const lastVersion = new Map<string, string>();
-  for (const e of [...events].reverse()) {
-    if (e.type !== "launch") continue;
-    const before = lastVersion.get(e.install);
-    if (before && before !== e.version) versionChanges.push(e.t);
-    lastVersion.set(e.install, e.version);
-  }
-  const updatesSince = (t: number) => versionChanges.filter((c) => c >= t).length;
-
-  // Download → install since the daily snapshots began, so older downloads of builds that never
-  // pinged don't drag the rate down, and without the downloads that were updates. Still a floor:
-  // GitHub's count also has bots, link scanners and retried downloads in it, and installs that
-  // opted out of pings or never went online are missing.
-  const tracked = history?.[0];
-  const updatesTracked = tracked ? updatesSince(Date.parse(tracked[0])) : 0;
-  const downloadsTracked = tracked ? Math.max(0, downloads - tracked[1] - updatesTracked) : 0;
-  const installsTracked = tracked ? installs.filter((i) => day(i.first) >= tracked[0]).length : 0;
-  const newInstalls7 = installs.filter((i) => now - i.first < 7 * DAY).length;
-  const updates7 = weekAgo ? updatesSince(Date.parse(weekAgo[0])) : 0;
-
-  // Install pace and growth: new installs in a window against the same window just before it. The
-  // 30-day comparison needs 60 days of installs; until then it says when it will have them.
-  const firstSeen = installs.length ? Math.min(...installs.map((i) => i.first)) : now;
-  const newBetween = (from: number, to: number) => installs.filter((i) => now - i.first >= from * DAY && now - i.first < to * DAY).length;
-  const previous7 = newBetween(7, 14);
-  const newInstalls30 = newBetween(0, 30);
-  const previous30 = newBetween(30, 60);
-  const span30 = Math.min(30, Math.max(1, (now - firstSeen) / DAY));
-  const hasTwoMonths = now - firstSeen >= 60 * DAY;
-
-  const searchReport = search && !(search instanceof Error) ? search : null;
-  const searchClicks = searchReport?.perDay.reduce((sum, r) => sum + r.clicks, 0) ?? 0;
-  const searchImpressions = searchReport?.perDay.reduce((sum, r) => sum + r.impressions, 0) ?? 0;
-
-  // Stability by version: sessions and unclean exits in DAWs, all recorded time.
-  const dawEvents = events.filter((e) => isDawHost(e.host));
-  const stability = countBy(dawEvents, (e) => e.version).map(([version]) => {
-    const sessions = dawEvents.filter((e) => e.version === version && e.type === "launch").length;
-    const crashes = dawEvents.filter((e) => e.version === version && e.type === "unclean_exit").length;
-    return [version, sessions, crashes, percent(crashes, sessions)] as React.ReactNode[];
-  });
-
-  const funnel = buildFunnel({
-    now,
-    installs,
-    events,
-    downloads,
-    history,
-    siteDownloads: { "7": unique?.last7 ?? null, "30": unique?.last30 ?? null },
-    assets: assets.map((a) => ({ ...a, os: assetOs(a.name) })),
-    search: searchReport ? { clicks: searchClicks, impressions: searchImpressions } : null,
-  });
-
-  // When people use it, by hour in Argentina.
-  const perHour = Array.from({ length: 24 }, (_, h) => ({
-    day: `${String(h).padStart(2, "0")}:00`,
-    value: launches30.filter((e) => (new Date(e.t).getUTCHours() + 24 + LOCAL_OFFSET) % 24 === h).length,
-  }));
-
+export default function Admin() {
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="caption">SnapTune</p>
-          <h1 className="headline text-3xl">Admin</h1>
-        </div>
-        <nav className="flex flex-wrap gap-4 text-sm text-muted">
-          <a className="hover:text-ink" href="https://vercel.com/nicofernandev/snaptune/analytics">Site visits (Vercel) ↗</a>
-          <a className="hover:text-ink" href={`https://github.com/${repo}/issues`}>Issues ↗</a>
-          <a className="hover:text-ink" href={`https://github.com/${repo}/releases`}>Releases ↗</a>
-          <Link className="hover:text-ink" href="/admin/mail">Mail</Link>
-        </nav>
-      </header>
+    <>
+      <AdminNav current="overview" />
+      <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6">
+        <Suspense fallback={null}>
+          <Problems />
+        </Suspense>
+        <Suspense fallback={<Loading title="Needs attention" height="h-44" />}>
+          <Attention />
+        </Suspense>
+        <Suspense fallback={<Loading height="h-10" />}>
+          <Health />
+        </Suspense>
+        <Suspense fallback={<Loading title="Numbers" height="h-64" />}>
+          <Numbers />
+        </Suspense>
+        <Suspense fallback={<Loading title="Last 30 days" />}>
+          <Trends />
+        </Suspense>
+        <Suspense fallback={<Loading title="Active installs, 30 days" height="h-72" />}>
+          <Breakdown />
+        </Suspense>
+        <Suspense fallback={<Loading title="Stability by version" />}>
+          <Stability />
+        </Suspense>
+        <Suspense fallback={null}>
+          <LatestPings />
+        </Suspense>
+      </main>
+    </>
+  );
+}
 
-      {!storageConfigured && (
-        <Notice>Telemetry storage isn&apos;t set up: add Upstash Redis to the Vercel project. Downloads and reports below still work.</Notice>
-      )}
+async function Problems() {
+  const [telemetry, releases, issues, search] = await Promise.all([getTelemetry(), getReleases(), getIssues(), getSearch()]);
+  return (
+    <>
+      {!storageConfigured && <Notice>Telemetry storage isn&apos;t set up: add Upstash Redis to the Vercel project. Downloads and issues still work.</Notice>}
       {telemetry instanceof Error && <Notice>Couldn&apos;t read telemetry: {telemetry.message}</Notice>}
       {search instanceof Error && <Notice>Couldn&apos;t read Search Console: {search.message}</Notice>}
-      {mail instanceof Error && <Notice>Couldn&apos;t read mail: {mail.message}</Notice>}
       {(!releases || !issues) && <Notice>GitHub didn&apos;t answer (rate limit?). Set GITHUB_TOKEN to raise it.</Notice>}
+    </>
+  );
+}
 
-      <section className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat label="Latest release" value={latest?.tag_name ?? "–"} note={latest ? `published ${ago(Date.parse(latest.published_at))}` : "no releases"} />
-        <Stat
-          label="Site downloads check"
-          value={downloadCheck ? (downloadCheck.conclusion === "success" ? "OK" : "Failing") : "–"}
-          note={downloadCheck ? `ran ${ago(Date.parse(downloadCheck.created_at))}` : "no run yet"}
-          alert={downloadCheck?.conclusion === "failure"}
-          href={downloadCheck?.html_url}
-        />
-        <Stat
-          label="Build on main"
-          value={build ? (build.conclusion === "success" ? "Passing" : "Failing") : "–"}
-          note={build ? `ran ${ago(Date.parse(build.created_at))}` : "no run yet"}
-          alert={build?.conclusion === "failure"}
-          href={build?.html_url}
-        />
-        <Stat label={`On ${latestVersion ?? "latest"}`} value={percent(onLatest, active7.length)} note={`${onLatest} of ${active7.length} active in 7 days`} />
-      </section>
+// Unread mail, this week's feedback and open issues, five of each.
+async function Attention() {
+  const [inbox, feedback, issues] = await Promise.all([getInbox(), getFeedback(50), getIssues()]);
+  const now = requestTime();
+  const unread = inbox && !(inbox instanceof Error) ? inbox.messages.filter((m) => m.unread) : [];
+  const fresh = (feedback?.messages ?? []).filter((m) => now - m.t < 7 * DAY);
+  const open = (issues ?? []).filter((i) => !i.pull_request && i.state === "open");
+  // An issue nobody has answered in two days.
+  const waiting = (i: (typeof open)[number]) => i.comments === 0 && now - Date.parse(i.created_at) > 2 * DAY;
 
-      <section className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <Stat funnel="30" label="Installs" value={installs.length} note="one per device that ran it in a DAW or the app" />
-        <Stat funnel="7" label="Active, 7 days" value={active7.length} note={`${active30.length} in 30 days`} />
-        <Stat label="Sessions, 30 days" value={launches30.length} note="one per DAW session" />
-        <Stat
-          label="Unclean exits, 30 days"
-          value={exits30.length}
-          note={`${percent(exits30.length, launches30.length)} of sessions${toolExits30 ? `, +${toolExits30} from tools` : ""}`}
-          alert={exits30.length > 0}
+  if (!unread.length && !fresh.length && !open.length && !(inbox instanceof Error))
+    return (
+      <p className="rounded-xl border border-line bg-panel px-4 py-3 text-sm text-muted">
+        All caught up: no unread mail, no feedback this week, no open issues.{" "}
+        <Link className="text-teal hover:underline" href="/admin/mail/new">Write an email</Link>
+      </p>
+    );
+
+  return (
+    <section>
+      <h2 className="mb-3 text-lg font-semibold">Needs attention</h2>
+      <div className="grid gap-3 md:grid-cols-3">
+        <Column
+          title="Unread mail"
+          count={unread.length}
+          links={[
+            { href: "/admin/mail", label: "Mailbox" },
+            { href: "/admin/mail/new", label: "Write" },
+          ]}
+        >
+          {inbox instanceof Error ? (
+            <p className="text-sm text-coral">Couldn&apos;t read mail: {inbox.message}</p>
+          ) : inbox === null ? (
+            <p className="text-sm text-faint">Zoho isn&apos;t set up (ZOHO_* in Vercel).</p>
+          ) : (
+            <Rows
+              empty="No unread mail."
+              rows={unread.slice(0, 5).map((m) => ({
+                key: `${m.accountId}-${m.messageId}`,
+                href: `/admin/mail/${m.accountId}/${m.folderId}/${m.messageId}`,
+                top: m.from,
+                when: ago(m.received),
+                text: m.subject,
+              }))}
+            />
+          )}
+        </Column>
+        <Column title="Feedback, 7 days" count={fresh.length} links={[{ href: "/admin/feedback", label: `All ${feedback?.total ?? ""}` }]}>
+          <Rows
+            empty="Nothing new this week."
+            rows={fresh.slice(0, 5).map((m) => ({
+              key: String(m.t),
+              href: `/admin/feedback?open=${m.t}#f-${m.t}`,
+              top: m.email ? `✉ ${m.email}` : m.country || "anonymous",
+              when: ago(m.t),
+              text: m.message,
+            }))}
+          />
+        </Column>
+        <Column title="Open issues" count={open.length} alert={open.some(waiting)} links={[{ href: `https://github.com/${repo}/issues`, label: "GitHub ↗" }]}>
+          <Rows
+            empty="No open issues."
+            rows={open.slice(0, 5).map((i) => ({
+              key: String(i.number),
+              href: i.html_url,
+              top: `#${i.number}${waiting(i) ? " · no reply yet" : ""}`,
+              alert: waiting(i),
+              when: ago(Date.parse(i.created_at)),
+              text: i.title,
+            }))}
+          />
+        </Column>
+      </div>
+    </section>
+  );
+}
+
+function Column({ title, count, alert, links, children }: { title: string; count: number; alert?: boolean; links: { href: string; label: string }[]; children: React.ReactNode }) {
+  return (
+    <div className="flex min-w-0 flex-col rounded-xl border border-line bg-panel p-4">
+      <p className="mb-2 flex items-baseline justify-between gap-2">
+        <span className="font-semibold">{title}</span>
+        <span className={`text-2xl font-semibold tabular-nums ${alert ? "text-coral" : count ? "" : "text-faint"}`}>{count}</span>
+      </p>
+      <div className="flex-1">{children}</div>
+      <p className="mt-3 flex gap-4 text-sm">
+        {links.map((l) => (
+          <Link key={l.href} href={l.href} className="text-teal hover:underline">
+            {l.label} →
+          </Link>
+        ))}
+      </p>
+    </div>
+  );
+}
+
+function Rows({ rows, empty }: { rows: { key: string; href: string; top: string; when: string; text: string; alert?: boolean }[]; empty: string }) {
+  if (rows.length === 0) return <p className="text-sm text-faint">{empty}</p>;
+  return (
+    <ul className="-mx-2">
+      {rows.map((r) => (
+        <li key={r.key}>
+          <Link href={r.href} className="block rounded-lg px-2 py-1.5 text-sm hover:bg-line/50">
+            <span className="flex justify-between gap-3">
+              <span className={`truncate ${r.alert ? "text-coral" : "text-muted"}`}>{r.top}</span>
+              <span className="shrink-0 text-xs text-faint">{r.when}</span>
+            </span>
+            <span className="block truncate text-ink">{r.text}</span>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+// One line: is the latest release out, are the builds and the download links fine, are pings
+// arriving. Anything failing turns coral and gets its own line above.
+async function Health() {
+  const [releases, checks, builds, repoInfo, notice, m] = await Promise.all([getReleases(), getChecks(), getBuilds(), getRepo(), getNotice(), getMetrics()]);
+  const latest = releases?.[0];
+  const downloadCheck = lastRun(checks);
+  const build = lastRun(builds);
+  const lastPing = m.events[0];
+  const silent = storageConfigured && (!lastPing || m.now - lastPing.t > DAY);
+
+  const failing = [
+    build?.conclusion === "failure" && { text: "The build on main is failing.", href: build.html_url },
+    downloadCheck?.conclusion === "failure" && { text: "The site's download links check is failing.", href: downloadCheck.html_url },
+    silent && { text: `No pings for ${lastPing ? ago(lastPing.t).replace(" ago", "") : "ever"}: check the telemetry endpoint.`, href: null },
+  ].filter(Boolean) as { text: string; href: string | null }[];
+
+  return (
+    <section className="mt-6">
+      {failing.map((f) => (
+        <Notice key={f.text}>
+          {f.text}{" "}
+          {f.href && (
+            <a className="underline" href={f.href}>
+              See the run ↗
+            </a>
+          )}
+        </Notice>
+      ))}
+      <div className="flex flex-wrap gap-2 text-sm">
+        <Pill href={`https://github.com/${repo}/releases`} label="Release" value={latest ? `${latest.tag_name} · ${ago(Date.parse(latest.published_at))}` : "–"} />
+        <Pill href={build?.html_url} label="Build" value={build ? (build.conclusion === "success" ? "✓ passing" : "✗ failing") : "–"} alert={build?.conclusion === "failure"} />
+        <Pill href={downloadCheck?.html_url} label="Download links" value={downloadCheck ? (downloadCheck.conclusion === "success" ? "✓ ok" : "✗ failing") : "–"} alert={downloadCheck?.conclusion === "failure"} />
+        <Pill
+          label={`On ${m.latestVersion ?? "latest"}`}
+          value={percent(m.onLatest, m.active7.length)}
+          title={`${m.onLatest} of the ${m.active7.length} installs used in the last 7 days`}
         />
-        <Stat funnel="30" label="Downloads" value={unique?.all ?? "–"} note={`one per IP${unique?.since ? `, since ${unique.since}` : ""} · GitHub counts ${downloads}`} />
-        <Stat label="Open reports" value={openReports.length} note={`${reports.length} issues, ${feedback?.total ?? 0} feedback messages`} alert={openReports.length > 0} />
-        <Stat label="Stars" value={repoInfo?.stargazers_count ?? "–"} note={`${repoInfo?.forks_count ?? "–"} forks`} />
-        <Stat label="Last ping" value={events[0] ? ago(events[0].t) : "–"} note={events[0] ? `${events[0].host}, ${events[0].os}` : "no data yet"} />
+        <Pill label="Last ping" value={lastPing ? ago(lastPing.t) : "–"} title={lastPing ? `${lastPing.host}, ${lastPing.os}` : undefined} alert={silent} />
+        <Pill href="/admin/search" label="Google, 28 d" value={m.searchReport ? `${m.searchClicks} clicks` : "–"} />
+        <Pill href={`https://github.com/${repo}/stargazers`} label="Stars" value={repoInfo ? `★ ${repoInfo.stargazers_count}` : "–"} />
+        <Pill href="/admin/notice" label="Notice" value={notice ? `“${notice.text}”` : "none"} />
+      </div>
+    </section>
+  );
+}
+
+function Pill({ label, value, href, alert, title }: { label: string; value: string; href?: string | null; alert?: boolean; title?: string }) {
+  const body = (
+    <>
+      <span className="text-faint">{label}</span> <span className={`font-semibold tabular-nums ${alert ? "text-coral" : "text-ink"}`}>{value}</span>
+    </>
+  );
+  const box = `rounded-lg border px-3 py-1.5 ${alert ? "border-coral/60 bg-coral/10" : "border-line bg-panel"}`;
+  return href ? (
+    <Link href={href} title={title} className={`${box} hover:border-line-bright`}>
+      {body}
+    </Link>
+  ) : (
+    <span title={title} className={box}>
+      {body}
+    </span>
+  );
+}
+
+// Eight cards. The ones marked "funnel" open the activation funnel on their window, and show
+// exactly the funnel's numbers for it.
+async function Numbers() {
+  const m = await getMetrics();
+  const { w7, w30, pace7, pace30 } = m;
+  const short = (d: string) => d.slice(5);
+  const exitRate = m.launches30.length ? m.exits30.length / m.launches30.length : 0;
+  const pings = m.installs.length ? short(day(Math.min(...m.installs.map((i) => i.first)))) : null;
+
+  return (
+    <section className="mt-8">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-lg font-semibold">Numbers</h2>
+        <button type="button" data-funnel="30" className="rounded-lg border border-line-bright px-3 py-1 text-sm hover:bg-line">
+          Activation funnel →
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <Stat
+          label="Installs"
+          value={m.installs.length}
+          note={pings ? `devices, since ${pings}` : "devices"}
+          info="One per device that ran it in a DAW or the app, since the pings began. A device a scanner or validator only loaded doesn't count, and installs that opted out of pings are missing."
+        />
+        <Stat label="Active, 7 days" value={m.active7.length} note={`${m.active30.length} in 30 days`} info="Installs with a session in the last 7 days." />
+        <Stat
+          funnel="7"
+          label={`New installs, ${w7.days} days`}
+          value={w7.installed}
+          alert={pace7.down}
+          note={`${pace7.perDay.toFixed(1)}/day · ${pace7.change} vs before`}
+          info={`Installs first seen from ${w7.since}, the same days as the funnel. Against ${pace7.previous} in the ${w7.days} days before (${pace7.previousPerDay.toFixed(1)} a day).`}
+        />
+        <Stat
+          funnel="30"
+          label={`New installs, ${w30.days} days`}
+          value={w30.installed}
+          alert={pace30.down}
+          note={pace30.complete ? `${pace30.perDay.toFixed(1)}/day · ${pace30.change} vs before` : `${pace30.perDay.toFixed(1)}/day · growth from ${short(pace30.readyOn)}`}
+          info={
+            w30.days === 30
+              ? `Installs first seen from ${w30.since}, the same days as the funnel.`
+              : `Installs first seen from ${w30.since}, the same days as the funnel: its 30 days start where the saved download totals do, so downloads and installs cover the same days. It reaches 30 days by itself.`
+          }
+        />
+        <Stat
+          funnel="7"
+          label={`Downloads, ${w7.days} days`}
+          value={w7.downloaded ?? "–"}
+          note={`${m.unique?.last7 ?? "–"} by IP · ${m.downloads} all time`}
+          info={`GitHub's count over the same days as the 7-day installs, with the ${w7.updated} downloads that were updates left out. "By IP" counts the site's download buttons once per IP.`}
+        />
         <Stat
           funnel="30"
           label="Download → install"
-          value={tracked ? percent(installsTracked, downloadsTracked) : percent(installs.length, downloads)}
-          note={tracked ? `at least: ${installsTracked} of ${downloadsTracked} since ${tracked[0]}, ${updatesTracked} updates left out` : "installs that pinged, per download"}
+          value={percent(w30.installed, w30.downloaded)}
+          note={w30.downloaded === null ? "needs saved download totals" : `${w30.installed} of ${w30.downloaded} since ${short(w30.since)}`}
+          info="A floor: GitHub's count has bots, link scanners and retried downloads in it, and installs that opted out of pings or never went online are missing."
         />
-        <Stat funnel="30" label="Returning" value={percent(returning, couldReturn.length)} note={`${returning} of ${couldReturn.length} came back a day or more later`} />
-        <Stat funnel="30" label="Sessions per install" value={installs.length ? (sessionsTotal / installs.length).toFixed(1) : "–"} note={`all time; half have ${sessionsMedian} or fewer`} />
         <Stat
-          funnel="7"
-          label={previous ? `Downloads since ${previous[0].slice(5)}` : "Downloads today"}
-          value={downloadsSincePrevious ?? "–"}
-          note={history ? `GitHub's count, since the panel's last look that day · ${unique?.lastDay ?? "–"} by IP today` : "needs telemetry storage"}
+          label="Returning"
+          value={percent(m.returning, m.couldReturn.length)}
+          note={`${m.returning} of ${m.couldReturn.length}, all time`}
+          info="Installs with a session a full day or more after their first, of the installs at least a day old."
         />
-        <Stat funnel="7" label="Downloads, 7 days" value={downloads7 ?? "–"} note={weekAgo ? `GitHub's count since ${weekAgo[0]} · ${unique?.last7 ?? "–"} by IP` : "needs telemetry storage"} />
-        <Stat label="Google clicks, 28 days" value={searchReport ? searchClicks : "–"} note={searchReport ? `${searchImpressions} impressions` : "Search Console not set up"} />
-        <Stat label="Google CTR, 28 days" value={searchReport ? percent(searchClicks, searchImpressions) : "–"} note="clicks per impression" />
         <Stat
-          funnel="7"
-          label="New installs, 7 days"
-          value={newInstalls7}
-          note={`${percent(newInstalls7, Math.max(0, (downloads7 ?? 0) - updates7))} of downloads, ${updates7} updates left out`}
+          label="Sessions, 30 days"
+          value={m.launches30.length}
+          alert={exitRate > EXIT_ALERT}
+          note={`${m.exits30.length} unclean · ${percent(m.exits30.length, m.launches30.length)}`}
+          info={`DAW sessions. Unclean: the DAW quit or crashed without SnapTune shutting down; coral above ${EXIT_ALERT * 100} %.${m.toolExits30 ? ` ${m.toolExits30} more from scripts and scanners, left out.` : ""}`}
         />
-        <Stat label="Installs per day, 7 days" value={(newInstalls7 / 7).toFixed(1)} note={`${(previous7 / 7).toFixed(1)} a day the 7 days before`} />
-        <Stat
-          label="Installs per day, 30 days"
-          value={(newInstalls30 / span30).toFixed(1)}
-          note={span30 < 30 ? `over ${Math.floor(span30)} days, since the first install` : `${newInstalls30} new installs`}
-        />
-        <Stat label="Growth, week on week" value={growth(newInstalls7, previous7)} note={`${newInstalls7} new installs against ${previous7}`} alert={newInstalls7 < previous7} />
-        <Stat
-          label="Growth, month on month"
-          value={hasTwoMonths ? growth(newInstalls30, previous30) : "–"}
-          note={hasTwoMonths ? `${newInstalls30} new installs against ${previous30}` : `needs 60 days of installs, from ${day(firstSeen + 60 * DAY)}`}
-          alert={hasTwoMonths && newInstalls30 < previous30}
-        />
-      </section>
-      <p className="mt-2 text-xs text-faint">Download and install cards open the activation funnel.</p>
-      <Funnel data={funnel} />
-
-      <div className="grid gap-x-6 md:grid-cols-2">
-        <Panel title="New installs per day" note={`last 30 days, UTC; ${installs.length} in total`}>
-          <ValueBars data={newPerDay} />
-        </Panel>
-        <Panel title="Downloads per day" note="GitHub's count, updates and bots included, from a total saved each day this panel is opened; days it wasn't share the difference">
-          {downloadsPerDay.length ? <ValueBars data={downloadsPerDay} /> : <p className="text-sm text-faint">Starts filling in tomorrow.</p>}
-        </Panel>
       </div>
+      <Funnel data={m.funnel} />
+    </section>
+  );
+}
 
-      <Panel title="Google search" note="Search Console, last 28 days. Position is the average rank in the results.">
-        {searchReport ? (
-          <>
-            <ValueBars data={searchReport.perDay.map((r) => ({ day: r.key, value: r.clicks, detail: `${r.clicks} clicks, ${r.impressions} impressions` }))} unit="clicks" />
-            <div className="mt-6 grid gap-6 md:grid-cols-2">
-              <Table head={["Query", "Clicks", "Impr.", "Pos."]} rows={searchRows(searchReport.queries)} empty="No searches yet." />
-              <Table head={["Page", "Clicks", "Impr.", "Pos."]} rows={searchRows(searchReport.pages, (p) => p.replace(/^https?:\/\/getsnaptune\.com/, "") || "/")} empty="No pages yet." />
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-faint">
-            {searchConfigured ? "Search Console didn't answer." : "Not set up: add GSC_CLIENT_ID, GSC_CLIENT_SECRET and GSC_REFRESH_TOKEN to the Vercel project."}
-          </p>
-        )}
-      </Panel>
+async function Trends() {
+  const m = await getMetrics();
+  return (
+    <Panel
+      title="Last 30 days"
+      info={
+        <>
+          By day, Argentina time. <b>Downloads</b>: GitHub&apos;s count, updates and bots included, from a total saved each day this panel is opened; days it wasn&apos;t share the
+          difference. <b>Sessions</b>: coral is sessions that ended without a clean shutdown.
+        </>
+      }
+    >
+      <Tabs
+        id="trends"
+        tabs={[
+          { label: `New installs · ${m.newPerDay.reduce((s, d) => s + d.value, 0)}`, content: <ValueBars data={m.newPerDay} unit="installs" /> },
+          {
+            label: `Downloads · ${m.downloadsPerDay.reduce((s, d) => s + d.value, 0)}`,
+            content: m.downloadsPerDay.length ? <ValueBars data={m.downloadsPerDay} unit="downloads" /> : <p className="text-sm text-faint">Starts filling in tomorrow.</p>,
+          },
+          { label: `Sessions · ${m.launches30.length}`, content: <DailyBars data={m.sessionsPerDay} /> },
+        ]}
+      />
+    </Panel>
+  );
+}
 
-      <Panel title="Sessions per day" note="last 30 days, UTC. Coral: sessions that ended without a clean shutdown.">
-        <DailyBars data={perDay} />
-      </Panel>
+async function Breakdown() {
+  const { active30 } = await getMetrics();
+  return (
+    <Panel title="Active installs, 30 days" info={`The ${active30.length} installs with a session in the last 30 days, by what they run on. Scanners and unnamed processes count as Other under Host.`}>
+      <Tabs
+        id="breakdown"
+        tabs={[
+          { label: "OS", content: <Bars rows={countBy(active30, (i) => i.os)} /> },
+          { label: "Host", content: <Bars rows={countBy(active30, (i) => hostLabel(i.host))} /> },
+          { label: "Version", content: <Bars rows={countBy(active30, (i) => i.version)} /> },
+          { label: "Format · CPU", content: <Bars rows={countBy(active30, (i) => `${i.format} · ${i.arch}`)} /> },
+          { label: "Country", content: <Bars rows={countBy(active30, (i) => i.country)} /> },
+        ]}
+      />
+    </Panel>
+  );
+}
 
-      <div className="grid gap-x-6 md:grid-cols-2">
-        <Panel title="Operating system" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => i.os)} />
-        </Panel>
-        <Panel title="Host" note="active installs, 30 days; scanners and unnamed processes as Other">
-          <Bars rows={countBy(active30, (i) => hostLabel(i.host))} />
-        </Panel>
-        <Panel title="Plugin version" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => i.version)} />
-        </Panel>
-        <Panel title="Format and CPU" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => `${i.format} · ${i.arch}`)} />
-        </Panel>
-        <Panel title="Country" note="active installs, 30 days">
-          <Bars rows={countBy(active30, (i) => i.country)} />
-        </Panel>
-        <Panel title="Downloads by OS" note="GitHub release assets, all versions">
-          <Bars rows={countBy(assets, (a) => assetOs(a.name), (a) => a.download_count)} />
-        </Panel>
-      </div>
+async function Stability() {
+  const { stability } = await getMetrics();
+  return (
+    <Panel
+      title="Stability by version"
+      info={`DAW sessions and unclean exits (the DAW quit or crashed without SnapTune shutting down), all recorded time, newest ten versions. Coral: over ${EXIT_ALERT * 100} % on 20 sessions or more. A cluster on one host or OS is the thing to look at.`}
+    >
+      <Table
+        head={["Version", "Sessions", "Unclean", "Rate", "Where", "Last"]}
+        align={["left", "right", "right", "right", "left", "left"]}
+        rows={stability.map((s) => {
+          const high = s.sessions >= 20 && s.exits / s.sessions > EXIT_ALERT;
+          return [
+            s.version,
+            s.sessions,
+            s.exits,
+            <span key="r" className={high ? "font-semibold text-coral" : ""}>{percent(s.exits, s.sessions)}</span>,
+            <span key="w" className="block max-w-[20rem] truncate text-muted" title={s.where.map(([w, n]) => `${w}: ${n}`).join("\n")}>
+              {s.where.slice(0, 2).map(([w, n]) => `${w} (${n})`).join(", ") || "–"}
+            </span>,
+            <span key="l" className="whitespace-nowrap text-faint">{s.last ? ago(s.last) : "–"}</span>,
+          ];
+        })}
+        empty="No data yet."
+      />
+    </Panel>
+  );
+}
 
-      <div className="grid gap-x-6 md:grid-cols-2">
-        <Panel title="Stability by version" note="sessions and unclean exits in DAWs, all recorded time">
-          <Table head={["Version", "Sessions", "Unclean exits", "Rate"]} rows={stability} empty="No data yet." />
-        </Panel>
-        <Panel title="Sessions by hour" note="last 30 days, Argentina time (UTC-3)">
-          <ValueBars data={perHour} />
-        </Panel>
-      </div>
-
-      <Panel
-        title="Unclean exits"
-        note="The DAW quit or crashed without SnapTune shutting down. Grouped by where it happened; a cluster on one version or host is the thing to look at."
-      >
-        <Table
-          head={["Version", "Host", "OS", "Count", "Last"]}
-          rows={countBy(exits, (e) => `${e.version}|${e.host}|${e.os}`).map(([key, count]) => {
-            const [version, host, os] = key.split("|");
-            const last = exits.find((e) => `${e.version}|${e.host}|${e.os}` === key)!;
-            return [version, host, os, count, ago(last.t)];
-          })}
-          empty="None recorded."
-        />
-      </Panel>
-
-      <Panel
-        title={unread.length ? `Mail · ${unread.length} unread` : "Mail"}
-        note={
-          mail && !(mail instanceof Error)
-            ? `latest ${messages.length} in ${mail.accounts.map((a) => a.address).join(" and ")}`
-            : "Zoho Mail inboxes"
-        }
-      >
-        {mailConfigured ? (
-          <>
-            <Table
-              head={["Received", "From", "Subject", "To"]}
-              rows={messages.map((m) => [
-                <span key="t" className="whitespace-nowrap">{ago(m.received)}</span>,
-                <span key="f" className={m.unread ? "font-semibold" : "text-muted"} title={m.fromAddress}>{m.from}</span>,
-                <Link key="s" href={`/admin/mail/${m.accountId}/${m.folderId}/${m.messageId}`} className="block max-w-xl hover:underline">
-                  <span className={m.unread ? "font-semibold text-teal" : "text-teal"}>{m.subject}</span>
-                  {m.attachment && <span className="ml-2 text-xs text-faint">📎</span>}
-                  <span className="block truncate text-faint">{m.summary}</span>
-                </Link>,
-                <span key="to" className="text-faint">{m.to.replace(/^.*<|>.*$/g, "") || m.inbox}</span>,
-              ])}
-              empty="The inboxes are empty."
-            />
-            <p className="mt-3 flex gap-4 text-sm">
-              <Link href="/admin/mail" className="text-teal hover:underline">Open the mailbox →</Link>
-              <Link href="/admin/mail/new" className="text-teal hover:underline">Write</Link>
-            </p>
-          </>
-        ) : (
-          <p className="text-sm text-faint">Not set up: add ZOHO_CLIENT_ID, ZOHO_CLIENT_SECRET and ZOHO_REFRESH_TOKEN to the Vercel project (see the README).</p>
-        )}
-      </Panel>
-
-      <Panel title="Feedback" note={`From the plugin's Feedback button and getsnaptune.com/feedback, newest first${feedback && feedback.total > feedback.messages.length ? `; ${feedback.total} in total` : ""}`}>
-        <Table
-          head={["When", "Message", "Answer to", "Sent from", "Country"]}
-          rows={(feedback?.messages ?? []).map((m) => [
-            ago(m.t),
-            <p key="m" className="max-w-[40rem] whitespace-pre-wrap">{m.message}</p>,
-            m.email ? <a key="e" href={`mailto:${m.email}`} className="text-teal hover:underline">{m.email}</a> : "–",
-            [m.version, m.format, m.host, m.os].filter(Boolean).join(" · ") || "the site",
-            m.country || "–",
-          ])}
-          empty="No messages yet."
-        />
-      </Panel>
-
-      <Panel title="Header notice" note="One line in the plugin's header, gold, until the user clicks it. Each computer asks once a day, so it takes a day or more to reach everyone. A newer version's notice shows first.">
-        {storageConfigured ? (
-          <form action={setNoticeAction} className="flex flex-wrap items-end gap-3 text-sm">
-            <label className="grid gap-1">
-              <span className="text-faint">Text, up to {NOTICE_LENGTH} characters</span>
-              <input name="text" maxLength={NOTICE_LENGTH} defaultValue={notice?.text ?? ""} placeholder="Join the Discord" className="w-72 rounded-lg border border-line bg-deep px-3 py-2 text-ink placeholder:text-faint focus:border-line-bright focus:outline-none" />
-            </label>
-            <label className="grid gap-1">
-              <span className="text-faint">Page it opens, on this site</span>
-              <input name="url" type="url" pattern="https://getsnaptune\.com/.*" defaultValue={notice?.url ?? NOTICE_ORIGIN} className="w-80 rounded-lg border border-line bg-deep px-3 py-2 text-ink focus:border-line-bright focus:outline-none" />
-            </label>
-            <button className="rounded-lg border border-line-bright px-4 py-2 hover:bg-line">{notice ? "Replace" : "Show"}</button>
-            {notice && (
-              <button name="clear" value="1" className="rounded-lg border border-line px-4 py-2 text-muted hover:bg-line">Take it down</button>
-            )}
-            <p className="basis-full text-faint">{notice ? `Showing since ${ago(Number(notice.id))}.` : "No notice is showing."}</p>
-          </form>
-        ) : (
-          <p className="text-sm text-faint">Needs the telemetry storage.</p>
-        )}
-      </Panel>
-
-      <Panel title="Reports" note="GitHub issues, newest first">
-        <Table
-          head={["#", "Title", "State", "Opened"]}
-          rows={reports.slice(0, 15).map((i) => [
-            i.number,
-            <a key={i.number} href={i.html_url} className="text-teal hover:underline">
-              {i.title}
-              {i.labels.map((l) => (
-                <span key={l.name} className="ml-2 rounded border border-line px-1.5 text-xs text-muted">{l.name}</span>
-              ))}
-            </a>,
-            i.state,
-            ago(Date.parse(i.created_at)),
-          ])}
-          empty="No issues yet."
-        />
-      </Panel>
-
-      <Panel title="Downloads by release">
-        <Table
-          head={["Release", "File", "OS", "Downloads"]}
-          rows={assets.map((a) => [a.version, a.name, assetOs(a.name), a.download_count])}
-          empty="No releases."
-        />
-      </Panel>
-
-      <Panel title="Recent sessions" note="latest 25 pings">
+// For checking a ping arrived, mostly while testing a build: closed by default.
+async function LatestPings() {
+  const { events } = await getMetrics();
+  return (
+    <details className="group mt-8">
+      <summary className="cursor-pointer text-sm text-muted hover:text-ink">
+        Latest pings <span className="text-faint">· the 25 newest sessions and exits, raw</span>
+      </summary>
+      <div className="mt-3 rounded-xl border border-line bg-panel p-4">
         <Table
           head={["When", "Event", "Version", "Host", "OS", "Format", "Country", "Install"]}
           rows={events.slice(0, 25).map((e) => [
@@ -514,160 +441,7 @@ export default async function Admin() {
           ])}
           empty="No pings yet."
         />
-      </Panel>
-    </main>
-  );
-}
-
-function Notice({ children }: { children: React.ReactNode }) {
-  return <p className="mb-4 rounded-lg border border-coral/40 bg-coral/10 px-4 py-3 text-sm">{children}</p>;
-}
-
-// A card with `funnel` opens the activation funnel on that window ("7" or "30" days).
-function Stat({ label, value, note, alert, href, funnel }: { label: string; value: number | string; note: string; alert?: boolean; href?: string; funnel?: "7" | "30" }) {
-  const body = (
-    <>
-      <p className="caption">{label}</p>
-      <p className={`mt-1 text-3xl font-semibold tabular-nums ${alert ? "text-coral" : ""}`}>{value}</p>
-      <p className="mt-1 truncate text-sm text-faint">{note}</p>
-    </>
-  );
-  if (funnel)
-    return (
-      <button type="button" data-funnel={funnel} className="block w-full cursor-pointer rounded-xl border border-line bg-panel p-4 text-left hover:border-line-bright">
-        {body}
-      </button>
-    );
-  return href ? (
-    <a href={href} className="block rounded-xl border border-line bg-panel p-4 hover:border-line-bright">
-      {body}
-    </a>
-  ) : (
-    <div className="rounded-xl border border-line bg-panel p-4">{body}</div>
-  );
-}
-
-function searchRows(rows: SearchRow[], label: (key: string) => string = (k) => k): React.ReactNode[][] {
-  return rows.map((r) => [<span key="k" className="block max-w-[16rem] truncate" title={r.key}>{label(r.key)}</span>, r.clicks, r.impressions, r.position.toFixed(1)]);
-}
-
-// The day and its numbers, shown at once over the hovered bar (the browser's own title tooltip
-// takes a second to appear and often doesn't).
-function Tip({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="pointer-events-none absolute bottom-full left-1/2 z-10 mb-1 hidden -translate-x-1/2 whitespace-nowrap rounded-md border border-line-bright bg-panel px-2 py-1 text-xs text-ink shadow-lg group-hover:block">
-      {children}
-    </span>
-  );
-}
-
-// One series per chart: a bar per day (or hour), the value on hover and the peak below.
-function ValueBars({ data, unit }: { data: { day: string; value: number; detail?: string }[]; unit?: string }) {
-  const max = Math.max(1, ...data.map((d) => d.value));
-  return (
-    <div>
-      <div className="flex h-24 items-end gap-[2px]">
-        {data.map((d) => (
-          <div key={d.day} className="group relative flex h-full flex-1 flex-col justify-end hover:bg-line/40">
-            <Tip>
-              <span className="text-faint">{d.day}</span> · <span className="font-semibold tabular-nums">{d.detail ?? `${d.value}${unit ? ` ${unit}` : ""}`}</span>
-            </Tip>
-            <div className="rounded-t-sm bg-teal-deep group-hover:bg-teal" style={{ height: `${(d.value / max) * 100}%`, minHeight: d.value ? 2 : 0 }} />
-          </div>
-        ))}
       </div>
-      <div className="mt-2 flex justify-between text-xs text-faint">
-        <span>{data[0]?.day}</span>
-        <span>max {max}</span>
-        <span>{data[data.length - 1]?.day}</span>
-      </div>
-    </div>
-  );
-}
-
-function Panel({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
-  return (
-    <section className="mt-8">
-      <h2 className="text-lg font-semibold">{title}</h2>
-      {note && <p className="mb-3 text-sm text-faint">{note}</p>}
-      <div className="rounded-xl border border-line bg-panel p-4">{children}</div>
-    </section>
-  );
-}
-
-// One series, so a single hue: bar length is the value, and the number is printed beside it.
-// Ten rows show; a long tail (hosts, macOS versions) scrolls inside the panel.
-function Bars({ rows }: { rows: [string, number][] }) {
-  if (rows.length === 0) return <p className="text-sm text-faint">No data yet.</p>;
-  const max = Math.max(...rows.map(([, n]) => n));
-  return (
-    <>
-      <ul className="max-h-[17.5rem] space-y-2 overflow-y-auto pr-1">
-        {rows.map(([label, n]) => (
-          <li key={label} className="grid grid-cols-[minmax(0,10rem)_1fr_3rem] items-center gap-3 text-sm" title={`${label}: ${n}`}>
-            <span className="truncate text-muted">{label}</span>
-            <span className="h-2.5 rounded-r bg-line">
-              <span className="block h-full rounded-r bg-teal-deep" style={{ width: `${(n / max) * 100}%` }} />
-            </span>
-            <span className="text-right tabular-nums">{n}</span>
-          </li>
-        ))}
-      </ul>
-      {rows.length > 10 && <p className="mt-3 text-xs text-faint">{rows.length} in total, scroll for the rest</p>}
-    </>
-  );
-}
-
-function DailyBars({ data }: { data: { day: string; launches: number; exits: number }[] }) {
-  const max = Math.max(1, ...data.map((d) => d.launches + d.exits));
-  return (
-    <div>
-      <div className="flex h-32 items-end gap-[2px]">
-        {data.map((d) => (
-          <div key={d.day} className="group relative flex h-full flex-1 flex-col justify-end gap-[2px] hover:bg-line/40">
-            <Tip>
-              <span className="text-faint">{d.day}</span> · <span className="font-semibold tabular-nums">{d.launches} sessions</span>
-              {d.exits > 0 && <span className="text-coral"> · {d.exits} unclean</span>}
-            </Tip>
-            {d.exits > 0 && <div className="rounded-t-sm bg-coral" style={{ height: `${(d.exits / max) * 100}%` }} />}
-            <div
-              className={`bg-teal-deep ${d.exits > 0 ? "" : "rounded-t-sm"}`}
-              style={{ height: `${(d.launches / max) * 100}%`, minHeight: d.launches ? 2 : 0 }}
-            />
-          </div>
-        ))}
-      </div>
-      <div className="mt-2 flex justify-between text-xs text-faint">
-        <span>{data[0].day}</span>
-        <span>max {max} / day</span>
-        <span>{data[data.length - 1].day}</span>
-      </div>
-    </div>
-  );
-}
-
-function Table({ head, rows, empty }: { head: string[]; rows: React.ReactNode[][]; empty: string }) {
-  if (rows.length === 0) return <p className="text-sm text-faint">{empty}</p>;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full text-left text-sm">
-        <thead className="text-faint">
-          <tr>
-            {head.map((h) => (
-              <th key={h} className="whitespace-nowrap pb-2 pr-4 font-normal">{h}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row, i) => (
-            <tr key={i} className="border-t border-line">
-              {row.map((cell, j) => (
-                <td key={j} className="py-2 pr-4 tabular-nums">{cell}</td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+    </details>
   );
 }

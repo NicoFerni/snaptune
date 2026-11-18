@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FOLDERS, mailConfigured, readFolder, webmail, type FolderType } from "@/lib/mail";
+import { AdminNav } from "../ui";
 
 // The mailbox: Inbox, Sent, Spam and Trash across the Zoho accounts, 30 at a time.
 
@@ -28,12 +29,11 @@ export default async function Mailbox({ searchParams }: { searchParams: Promise<
   const sentFolder = folder === "Sent";
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-10 sm:px-6">
-      <header className="mb-6 flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <Link className="caption hover:text-ink" href="/admin">← Admin</Link>
-          <h1 className="headline text-3xl">Mail</h1>
-        </div>
+    <>
+    <AdminNav current="mail" />
+    <main className="mx-auto w-full max-w-6xl px-4 pb-16 pt-6 sm:px-6">
+      <header className="mb-4 flex flex-wrap items-center justify-between gap-4">
+        <h1 className="text-2xl font-semibold">Mail</h1>
         <div className="flex items-center gap-4 text-sm">
           <a className="text-muted hover:text-ink" href={webmail}>Zoho Mail ↗</a>
           <Link href="/admin/mail/new" className="rounded-lg bg-accent px-4 py-2 font-semibold text-accent-ink">Write</Link>
@@ -94,6 +94,7 @@ export default async function Mailbox({ searchParams }: { searchParams: Promise<
         </nav>
       )}
     </main>
+    </>
   );
 }
 

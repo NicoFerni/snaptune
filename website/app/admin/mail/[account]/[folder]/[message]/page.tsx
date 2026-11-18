@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { markRead, readMessage, webmail } from "@/lib/mail";
 import { markUnreadAction, trashAction } from "../../../actions";
+import { AdminNav } from "../../../../ui";
 
 // One email from the admin mailbox. proxy.ts keeps it behind ADMIN_PASSWORD like /admin.
 
@@ -29,7 +30,9 @@ export default async function Message({ params }: { params: Promise<{ account: s
   const ids = `a=${account}&f=${folder}&m=${message}`;
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+    <>
+    <AdminNav current="mail" />
+    <main className="mx-auto w-full max-w-4xl px-4 pb-16 pt-6 sm:px-6">
       <nav className="mb-6 flex flex-wrap justify-between gap-4 text-sm text-muted">
         <Link className="hover:text-ink" href="/admin/mail">← Mail</Link>
         <a className="hover:text-ink" href={webmail}>Zoho Mail ↗</a>
@@ -87,5 +90,6 @@ export default async function Message({ params }: { params: Promise<{ account: s
         </>
       )}
     </main>
+    </>
   );
 }

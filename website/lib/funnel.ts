@@ -1,10 +1,10 @@
+import { DAY, day, dayStart } from "@/lib/days";
 import { isDawHost, NOT_DAWS, type StoredInstall, type TelemetryEvent } from "@/lib/telemetry";
 
 // The activation funnel behind the admin panel's download and install cards: from a download to
 // someone still using SnapTune a week later, for the installs first seen in a window, with the same
 // steps split by DAW, OS and the version they started on so the leaks show where they are.
 
-const DAY = 24 * 60 * 60 * 1000;
 
 /** One step: `count` installs made it out of `base`, the installs from the step before that have
     been around long enough to make it (a day-old install can't have come back a week later). */
@@ -17,7 +17,17 @@ export type SegmentRow = { label: string; installs: number; base: number; twice:
 export type FunnelWindow = {
   key: string;
   label: string;
+  /** The window's first day (Argentina time, lib/days.ts); it runs to today. */
   since: string;
+  /** How many days it covers, today included: shorter than asked while the saved totals are newer. */
+  days: number;
+  /** New installs in the window: the admin cards that open the funnel show these same numbers. */
+  installed: number;
+  /** GitHub downloads in the window, updates left out; null without saved totals. */
+  downloaded: number | null;
+  updated: number;
+  /** Sessions per install in the window, all of their sessions so far. */
+  sessions: { mean: number | null; median: number | null };
   steps: FunnelStep[];
   /** The whole window as one segment, to compare each group against. */
   overall: SegmentRow;
@@ -59,10 +69,6 @@ function compareVersions(a: string, b: string): number {
     if (d) return d;
   }
   return 0;
-}
-
-function day(t: number): string {
-  return new Date(t).toISOString().slice(0, 10);
 }
 
 /** What each install did in DAWs, from the event list: sessions, first and last, and where it
@@ -165,14 +171,17 @@ export function buildFunnel({ now, installs, events, downloads, history, siteDow
     { key: "7", days: 7, label: "Last 7 days" },
     { key: "30", days: 30, label: "Last 30 days" },
   ].map(({ key, days, label }): FunnelWindow => {
-    // The window starts at the download total saved on its first day, or on the first day the panel
-    // saved one, so downloads and installs cover the same days.
+    // Downloads are counted from a saved daily total: the one on the day before the window, or the
+    // first the panel ever saved when it doesn't go back that far. That total is GitHub's count at
+    // the panel's last look that day, so the downloads after it are the days after it, and installs
+    // and updates are counted from the next day on too, so both sides cover the same days.
     const from = day(now - days * DAY);
     const baseline = history?.filter(([d]) => d <= from).at(-1) ?? history?.[0] ?? null;
-    const since = baseline?.[0] ?? from;
-    const start = Date.parse(since);
+    const start = dayStart(baseline?.[0] ?? from) + DAY;
+    const since = day(start);
+    const span = Math.max(1, Math.round((dayStart(day(now)) - start) / DAY) + 1);
 
-    const cohort = used.filter((u) => day(u.install.first) >= since);
+    const cohort = used.filter((u) => u.install.first >= start);
     const updated = changes.filter((c) => c.t >= start).length;
     const downloaded = baseline ? Math.max(0, downloads - baseline[1] - updated) : null;
 
@@ -216,10 +225,19 @@ export function buildFunnel({ now, installs, events, downloads, history, siteDow
         : []),
     ];
 
+    const sessions = cohort.map((u) => u.install.launches).sort((a, b) => a - b);
     return {
       key,
-      label,
+      label: span === days ? label : `Since ${since.slice(5)}`,
       since,
+      days: span,
+      installed: cohort.length,
+      downloaded,
+      updated,
+      sessions: {
+        mean: sessions.length ? sessions.reduce((sum, n) => sum + n, 0) / sessions.length : null,
+        median: sessions[Math.floor(sessions.length / 2)] ?? null,
+      },
       steps,
       overall: row("All", cohort, now),
       segments: [

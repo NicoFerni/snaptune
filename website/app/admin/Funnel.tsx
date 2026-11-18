@@ -52,7 +52,9 @@ export default function Funnel({ data }: { data: FunnelData }) {
           <div>
             <p className="caption">Activation</p>
             <h2 className="headline text-2xl">From download to using it a week later</h2>
-            <p className="mt-1 text-sm text-faint">Installs first seen since {view.since}, and what each of them did after.</p>
+            <p className="mt-1 text-sm text-faint">
+              Installs first seen from {view.since} to today ({view.days} {view.days === 1 ? "day" : "days"}), and what each of them did after. The cards that open this show the same numbers.
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <div className="flex rounded-lg border border-line p-0.5 text-sm" role="tablist">
@@ -87,6 +89,11 @@ export default function Funnel({ data }: { data: FunnelData }) {
             <Step key={s.label} step={s} top={top} worst={i === worst} lost={s.base !== null ? s.base - s.count : null} />
           ))}
         </ol>
+        {view.sessions.mean !== null && (
+          <p className="mt-4 text-sm text-muted">
+            Sessions per install so far: <span className="font-semibold text-ink tabular-nums">{view.sessions.mean.toFixed(1)}</span> on average; half have {view.sessions.median} or fewer.
+          </p>
+        )}
         {!view.steps.some((s) => s.label === "Still using it a week later") && (
           <p className="mt-3 text-xs text-faint">No &ldquo;still using it a week later&rdquo; here: installs from these seven days can&apos;t be a week old yet. The 30 days have it.</p>
         )}
