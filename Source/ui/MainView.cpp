@@ -82,7 +82,7 @@ MainView::MainView (SnapTuneProcessor& p)
     addAndMakeVisible (compareButton);
 
     modeSwitch = std::make_unique<ModeSwitch> (*audioProcessor.apvts.getParameter (ids::mode));
-    modeSwitch->setTooltip ("Studio: best quality, formants preserved, 46 ms (FL compensates it). "
+    modeSwitch->setTooltip ("Studio: best quality, formants preserved, 62 ms (FL compensates it). "
                             "Live: about 3 ms, for hearing yourself tuned while you record.");
     addAndMakeVisible (*modeSwitch);
 

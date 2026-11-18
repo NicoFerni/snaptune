@@ -23,6 +23,9 @@ namespace
     constexpr double settleMs = 20.0;    // the output settles this fast where the vibrato split jumps
     constexpr int leapGraceHops = 6;     // Live: ~16 ms in which a further note change belongs to the same leap
     constexpr float widestGlidedJump = 9.5f; // semitones the pitch can jump in one hop and still count as the singer moving
+    constexpr int studioLookaheadHops = 6; // Studio: a note shorter than this + 1 hops (~19 ms) is a blip, not a note
+    constexpr float noteHysteresis = 0.12f;     // semitones past the midpoint before the target moves to the next note
+    constexpr float liveHardHysteresis = 0.25f; // the same in Live at hard tune, which can't look ahead
 
     // Studio grain offsets (see emitGrain).
     constexpr double quietLevel = 1.0e-4; // power 40 dB under the voice: moving the grid there can't be heard
@@ -166,7 +169,9 @@ void AutoTuneEngine::prepare (double newSampleRate, int newMaxChannels)
     maxPeriod = (int) std::ceil (sampleRate / lowestDetectableHz);
     hopSize = std::max (32, (int) std::lround (sampleRate / 375.0));
     unvoicedPeriod = (int) std::lround (sampleRate / 200.0);
-    studioLatency = 3 * maxPeriod;
+    // Studio's correction runs studioLookaheadHops behind the detector; the latency grows by as much,
+    // so the grains still read corrections that have been computed.
+    studioLatency = 3 * maxPeriod + studioLookaheadHops * hopSize;
     scheduleAhead = (int) std::ceil (1.4 * maxPeriod);
 
     // Live mode reads between a few samples and about one period behind the input; report the
@@ -178,6 +183,7 @@ void AutoTuneEngine::prepare (double newSampleRate, int newMaxChannels)
 
     activeMode = settings.mode;
     latency = activeMode == LatencyMode::live ? liveLatency : studioLatency;
+    lookaheadHops = activeMode == LatencyMode::live ? 0 : studioLookaheadHops;
 
     detector.prepare (maxPeriod, maxPeriod + 2);
     frame.assign ((size_t) detector.getFrameSize(), 0.0f);
@@ -226,6 +232,9 @@ void AutoTuneEngine::reset()
     steadyHops = 0;
     guardedHops = 0;
     bridgedHops = 0;
+    detectedVoiced = false;
+    detectedUnvoicedHops = maxHeldHops + 1;
+    correctedCount = 0;
     anchorPeriod = 0.0f;
     typicalAperiodicity = 0.0f;
 
@@ -280,6 +289,11 @@ void AutoTuneEngine::switchMode (LatencyMode mode)
 {
     activeMode = mode;
     latency = mode == LatencyMode::live ? liveLatency : studioLatency;
+    lookaheadHops = mode == LatencyMode::live ? 0 : studioLookaheadHops;
+
+    // Live corrects each hop as it is detected: catch up with the hops Studio was still looking past.
+    while (correctedCount < trackCount - lookaheadHops)
+        updateCorrection (correctedCount++);
 
     // Restart whichever renderer is taking over from the current position.
     for (auto& ring : outputRing)
@@ -749,20 +763,20 @@ void AutoTuneEngine::analyseHop()
 
     if (live)
     {
-        const double reference = wasVoiced ? (double) stampPeriod
-                                           : std::max (0.5 * maxPeriodForVoice, unvoicedHops <= maxHeldHops ? (double) stampPeriod : 0.0);
+        const double reference = detectedVoiced ? (double) stampPeriod
+                                                : std::max (0.5 * maxPeriodForVoice, detectedUnvoicedHops <= maxHeldHops ? (double) stampPeriod : 0.0);
         window = (int) juce::jlimit (0.35 * maxPeriod, (double) maxPeriod, (1.5 + breathiness()) * reference);
     }
 
     const float tracked = bridgedHops > 0 ? anchorPeriod : stampPeriod;
-    const auto result = detector.analyse (frame.data(), minPeriod, maxPeriodForVoice, pickThreshold, window, wasVoiced ? tracked : 0.0f);
+    const auto result = detector.analyse (frame.data(), minPeriod, maxPeriodForVoice, pickThreshold, window, detectedVoiced ? tracked : 0.0f);
 
     // Hysteresis on both the level gate and the periodicity threshold keeps the voicing
     // decision from chattering at the ends of notes.
     // The level gate only has to ignore near-silence (-76 dBFS); the periodicity test is what
     // rejects noise. A higher gate cuts quiet mic signals into fragments.
-    const float gate = wasVoiced ? 0.0001f : 0.00016f;
-    const float aperiodicityLimit = wasVoiced ? voicedThreshold + 0.1f : voicedThreshold;
+    const float gate = detectedVoiced ? 0.0001f : 0.00016f;
+    const float aperiodicityLimit = detectedVoiced ? voicedThreshold + 0.1f : voicedThreshold;
     bool voiced = result.period > 0.0f && result.rms > gate && result.aperiodicity < aperiodicityLimit;
     float period = result.period;
     float periodAperiodicity = result.aperiodicity;
@@ -773,7 +787,7 @@ void AutoTuneEngine::analyseHop()
     // to another dip. Without this, real (and especially low, roomy) voices drop out for 15-35 ms at
     // a time. The dip is looked for around the last period that passed on its own, and for ~40 ms at
     // most, so a stretch of noise can't walk the period off somewhere else.
-    if (! voiced && wasVoiced && bridgedHops < maxBridgedHops && result.rms > gate && result.trackedPeriod > 0.0f
+    if (! voiced && detectedVoiced && bridgedHops < maxBridgedHops && result.rms > gate && result.trackedPeriod > 0.0f
         && result.trackedAperiodicity < aperiodicityLimit + 0.2f)
     {
         voiced = true;
@@ -796,7 +810,7 @@ void AutoTuneEngine::analyseHop()
     // errors last a few hops; anything still held after ~32 ms is let through.
     bool jumpHeld = false;
 
-    if (voiced && wasVoiced && result.trackedPeriod > 0.0f)
+    if (voiced && detectedVoiced && result.trackedPeriod > 0.0f)
     {
         const float atTracked = result.trackedAperiodicity, picked = result.aperiodicity;
         const bool steady = steadyHops >= steadyHopsNeeded;
@@ -821,9 +835,11 @@ void AutoTuneEngine::analyseHop()
     // into a pitch blip (and Studio's pitch marks into a wrongly spaced grain), so the first hop waits
     // for the next to agree within 1.5 semitones. A note resuming at the pitch it was held at after a
     // short dropout needs no proof.
-    if (voiced && ! wasVoiced)
+    if (voiced && ! detectedVoiced)
     {
-        const bool resumes = unvoicedHops <= maxHeldHops && currentTarget >= 0 && std::abs (std::log2 (period / stampPeriod)) < 0.125f;
+        // (With the correction looking ahead, whether the note is still held is judged from the detector.)
+        const bool held = detectedUnvoicedHops <= maxHeldHops && (lookaheadHops > 0 || currentTarget >= 0);
+        const bool resumes = held && std::abs (std::log2 (period / stampPeriod)) < 0.125f;
         const bool confirms = onsetCandidate > 0.0f && std::abs (std::log2 (period / onsetCandidate)) < 0.125f;
 
         if (resumes || confirms)
@@ -884,7 +900,7 @@ void AutoTuneEngine::analyseHop()
         estimateDelay += live ? 0 : hopSize;
     }
 
-    steadyHops = voiced && wasVoiced && std::abs (std::log2 (period / stampPeriod)) < 1.0f / 24.0f ? steadyHops + 1 : 0;
+    steadyHops = voiced && detectedVoiced && std::abs (std::log2 (period / stampPeriod)) < 1.0f / 24.0f ? steadyHops + 1 : 0;
 
     // How breathy the voice is shows only where the pitch holds still: attacks, glides, trills and
     // bridged dropouts read aperiodic on any voice. So learn it at least 10 hops into a note, on a
@@ -900,7 +916,24 @@ void AutoTuneEngine::analyseHop()
     if (voiced && ! bridged)
         anchorPeriod = period;
 
-    updateCorrection (voiced, period);
+    // YIN compares the newest W samples with audio one period older, so its estimate describes the
+    // point (W + period) / 2 back from the newest sample (plus a hop when the median filter is on).
+    if (voiced)
+        stampPeriod = period;
+
+    detectedVoiced = voiced;
+    detectedUnvoicedHops = voiced ? 0 : std::min (detectedUnvoicedHops + 1, maxHeldHops + 1);
+
+    auto& entry = track[(size_t) (trackCount & (trackCapacity - 1))];
+    entry.time = std::max (lastTrackTime + 1.0, (double) writePos - estimateDelay - 0.5 * (double) stampPeriod);
+    lastTrackTime = entry.time;
+    entry.period = voiced ? period : 0.0f;
+    entry.correction = correction; // until its own is computed
+    entry.voiced = voiced;
+    ++trackCount;
+
+    while (correctedCount < trackCount - lookaheadHops)
+        updateCorrection (correctedCount++);
 }
 
 void AutoTuneEngine::advanceGlide (Glide& g, double seconds, double timeMs) const noexcept
@@ -930,8 +963,11 @@ float AutoTuneEngine::glidePosition (const Glide& g, double seconds, double time
     return (float) (((double) g.offset + ((double) g.velocity + w * (double) g.offset) * seconds) * std::exp (-w * seconds));
 }
 
-void AutoTuneEngine::updateCorrection (bool voiced, float period)
+void AutoTuneEngine::updateCorrection (int64_t index)
 {
+    auto& entry = track[(size_t) (index & (trackCapacity - 1))];
+    const bool voiced = entry.voiced;
+    const float period = entry.period;
     const auto hopSeconds = (float) (hopSize / sampleRate);
     const int previousTarget = currentTarget;
     const bool continuingNote = voiced && wasVoiced;
@@ -974,18 +1010,71 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
 
         // Under a vibrato the note is chosen from its centre: the swings would otherwise cross into
         // the neighbouring notes and hard tune would trill between them on every cycle.
-        int target = chooseTargetNote (vibrato.locked ? vibrato.centre : inputNote, mask, currentTarget, 0.12f);
+        // Live at hard tune can't look ahead for notes too short to be notes (see below), and plays
+        // every one as a semitone blip, so it waits until the voice is a quarter of a semitone past
+        // the midpoint: that halves the blips of a voice hovering between two notes, and a real
+        // note change crosses that quarter in a few ms. (Scoops, falls and slides still blip there.)
+        const float hysteresis = activeMode == LatencyMode::live && baseRetuneMs < 0.5f ? liveHardHysteresis : noteHysteresis;
+        int target = chooseTargetNote (vibrato.locked ? vibrato.centre : inputNote, mask, currentTarget, hysteresis);
 
         if (activeMode == LatencyMode::live && ! vibrato.locked)
         {
             rawChoiceHops = wasVoiced && target != currentTarget ? rawChoiceHops + 1 : 0;
 
             if (rawChoiceHops < rawChoiceWinHops)
-                target = chooseTargetNote (choiceNote, mask, currentTarget, 0.12f);
+                target = chooseTargetNote (choiceNote, mask, currentTarget, hysteresis);
         }
         else
         {
             rawChoiceHops = 0;
+        }
+
+        // Hard tune follows every note the pitch passes: a scoop into a note, a fall off its end, a
+        // slide, or a voice hovering halfway between two notes would each play a semitone for a few ms,
+        // which sounds like a glitch rather than a note. Studio's correction runs a few hops behind
+        // the detector, so a note change is taken only if the new note lasts ~19 ms (the hops ahead
+        // are already known). A shorter one plays whichever is nearer of the note before it and the
+        // note after it (at an onset, the note after it), so real note changes still happen on time
+        // and a slide skips its passing notes. Never a note further than maxHoldSemitones from the
+        // voice: past that, the short note is a real leap or the detector slipping (an octave or a
+        // fifth off, which picks a note with about the same correction), and replacing it would
+        // shift the voice by the size of the slip. A vibrato is chosen from its centre.
+        if (lookaheadHops > 0 && target >= 0 && ! vibrato.locked)
+        {
+            constexpr float maxHoldSemitones = 2.0f;
+            const int64_t end = std::min (trackCount, index + 1 + lookaheadHops);
+
+            auto choiceAt = [&] (int64_t j, int held)
+            {
+                const auto& e = entryAt (j);
+
+                if (! e.voiced || e.period <= 1.0f)
+                    return -1;
+
+                const auto note = (float) (69.0 + 12.0 * std::log2 (sampleRate / e.period / settings.referenceHz));
+                return chooseTargetNote (note, mask, held, noteHysteresis);
+            };
+
+            int64_t j = index + 1;
+            int next = -1;
+
+            for (; j < end; ++j)
+                if ((next = choiceAt (j, target)) != target)
+                    break;
+
+            if (j < index + 1 + lookaheadHops)
+            {
+                int replacement = -1;
+                auto distance = [inputNote] (int note) { return std::abs (inputNote - (float) note); };
+
+                if (currentTarget >= 0 && target != currentTarget)
+                    replacement = next >= 0 && next != currentTarget && distance (next) + noteHysteresis < distance (currentTarget) ? next : currentTarget;
+                else if (currentTarget < 0)
+                    replacement = next;
+
+                if (replacement >= 0 && distance (replacement) <= maxHoldSemitones)
+                    target = replacement;
+            }
         }
 
         // After a short dropout the note carries on where it was if it comes back on the same target
@@ -1122,18 +1211,9 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
 
     wasVoiced = voiced;
 
-    // YIN compares the newest W samples with audio one period older, so its estimate describes the
-    // point (W + period) / 2 back from the newest sample (plus a hop when the median filter is on).
-    if (voiced)
-        stampPeriod = period;
-
-    auto& entry = track[(size_t) (trackCount & (trackCapacity - 1))];
-    entry.time = std::max (lastTrackTime + 1.0, (double) writePos - estimateDelay - 0.5 * (double) stampPeriod);
-    lastTrackTime = entry.time;
-    entry.period = voiced ? period : 0.0f;
-    entry.correction = correction;
-    entry.voiced = voiced;
-    ++trackCount;
+    // This entry's correction, and the best guess for the ones after it until theirs are computed.
+    for (auto j = index; j < trackCount; ++j)
+        track[(size_t) (j & (trackCapacity - 1))].correction = correction;
 
     // Live mode reads just a few ms behind the input, but this estimate describes audio ~10 ms
     // older. Within a note, extrapolate the input-driven part of the correction (the in-note
@@ -1152,9 +1232,9 @@ void AutoTuneEngine::updateCorrection (bool voiced, float period)
         const double aheadSeconds = std::max (0.0, ahead) / sampleRate;
         liveTarget = driven + glidePosition (glide, aheadSeconds, glideMs) + glidePosition (settle, aheadSeconds, settleMs) + addedVibrato;
 
-        if (continuingNote && ! discontinuity && currentTarget == previousTarget && trackCount >= 2)
+        if (continuingNote && ! discontinuity && currentTarget == previousTarget && index >= 1)
         {
-            const auto& previous = track[(size_t) ((trackCount - 2) & (trackCapacity - 1))];
+            const auto& previous = entryAt (index - 1);
             const double span = entry.time - previous.time;
 
             if (previous.voiced && span > 0.0)
@@ -1598,6 +1678,14 @@ void AutoTuneEngine::emitGrain (int64_t now)
             // correction at the centre of that same period: on fast glides, sampling it anywhere
             // else leaves the note off by the pitch change in between.
             ratio = juce::jlimit (0.5, 2.0, std::exp2 ((double) trackAt (m.position + 0.5 * right).correction / 12.0));
+
+#if SNAPTUNE_DIAGNOSTICS
+            if (correctedCount > 0 && correctedCount < trackCount && m.position + 0.5 * right > entryAt (correctedCount - 1).time)
+            {
+                ++diagnostics.earlyReads;
+                diagnostics.earlyLead = std::max (diagnostics.earlyLead, m.position + 0.5 * right - entryAt (correctedCount - 1).time);
+            }
+#endif
             step = right / ratio;
             source = m.position;
 

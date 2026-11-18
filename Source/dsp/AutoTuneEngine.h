@@ -22,7 +22,7 @@ enum class VoiceType : int
     numTypes
 };
 
-/** Studio: TD-PSOLA, formant-preserving, ~46 ms latency (compensated by the host).
+/** Studio: TD-PSOLA, formant-preserving, ~62 ms latency (compensated by the host).
     Live: pitch-synchronous delay-line resampling (the original Auto-Tune method), a few ms of
     latency for monitoring while recording; formants move with the (usually small) correction. */
 enum class LatencyMode : int
@@ -122,6 +122,8 @@ public:
         int64_t liveReadsAhead = 0; // Live reads that interpolated past the newest sample written
         int64_t grainTailCuts = 0;  // Studio grains cut short because their source hadn't arrived
         int64_t grainHeadCuts = 0;  // Studio grains whose start had already been played
+        int64_t earlyReads = 0;     // Studio grains that read a correction not computed yet
+        double earlyLead = 0.0;     // furthest such read past the newest computed entry, in samples
         int64_t splices = 0, driftBacks = 0, weakSplices = 0; // weak: the cycles correlate under 0.8
         double spliceScoreSum = 0.0, lastSpliceScore = 0.0;
 
@@ -161,7 +163,10 @@ private:
     };
 
     void analyseHop();
-    void updateCorrection (bool voiced, float period);
+    /** Computes the correction of track entry `index` (Studio: a few hops after it was detected, so the
+        note choice can look at the hops that follow it). */
+    void updateCorrection (int64_t index);
+    const TrackEntry& entryAt (int64_t index) const noexcept { return track[(size_t) index & (track.size() - 1)]; }
     TrackSample trackAt (double time) const noexcept;
 
     /** 0 for a clean voice, 1 for a breathy or noisy one (typical aperiodicity 0.035 and up). */
@@ -227,6 +232,10 @@ private:
     int steadyHops = 0; // consecutive voiced hops whose period changed by less than half a semitone
     int guardedHops = 0; // consecutive hops the octave guard has wanted to hold a jump (it holds the first maxGuardedHops)
     int bridgedHops = 0; // consecutive hops pitch continuity kept voiced
+    bool detectedVoiced = false; // the detector's voicing of the last hop (the correction may lag behind it)
+    int detectedUnvoicedHops = 0; // since the detector's last voiced hop
+    int lookaheadHops = 0; // hops the correction runs behind the detector (Studio)
+    int64_t correctedCount = 0; // track entries whose correction has been computed
     float anchorPeriod = 0.0f; // period of the last hop that was voiced on its own
     float typicalAperiodicity = 0.0f; // of the voice, averaged over recent steady hops
 
