@@ -6,6 +6,8 @@
 //   installs  hash: install id -> Install (latest version/OS/host, first and last seen, launches)
 //   events    list, newest first, capped at MAX_EVENTS: every launch and unclean exit
 
+import { DAY, day } from "@/lib/days";
+
 export type Install = {
   first: number;
   last: number;
@@ -108,8 +110,10 @@ export async function readTelemetry(): Promise<{ installs: StoredInstall[]; even
 
 // GitHub only reports each release file's total downloads, so the admin panel keeps one total per
 // day (hash `downloads`: YYYY-MM-DD -> total) each time it's opened, to draw downloads over time.
+// Days are Argentine calendar days (lib/days.ts); the keys saved before 2026-11-18 are UTC days,
+// three hours off, which only blurs the evening of those days.
 export async function snapshotDownloads(total: number): Promise<[string, number][]> {
-  const today = new Date().toISOString().slice(0, 10);
+  const today = day(Date.now());
   const [, all] = await redis(["HSET", "downloads", today, String(total)], ["HGETALL", "downloads"]);
   const fields = (all as string[]) ?? [];
   const days: [string, number][] = [];
@@ -128,14 +132,14 @@ export async function hashIp(ip: string): Promise<string> {
 
 export async function recordDownload(ip: string, os: string): Promise<void> {
   const id = await hashIp(ip);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = day(Date.now());
   await redis(["SET", "dl:since", today, "NX"], ["PFADD", "dl:all", id], ["PFADD", `dl:${os}`, id], ["PFADD", `dl:day:${today}`, id]);
 }
 
 export type UniqueDownloads = { since: string | null; all: number; last7: number; last30: number; lastDay: number; byOs: [string, number][] };
 
 export async function readUniqueDownloads(): Promise<UniqueDownloads> {
-  const days = Array.from({ length: 30 }, (_, i) => `dl:day:${new Date(Date.now() - i * 86_400_000).toISOString().slice(0, 10)}`);
+  const days = Array.from({ length: 30 }, (_, i) => `dl:day:${day(Date.now() - i * DAY)}`);
   const [since, all, last7, last30, lastDay, mac, windows, linux] = (await redis(
     ["GET", "dl:since"],
     ["PFCOUNT", "dl:all"],

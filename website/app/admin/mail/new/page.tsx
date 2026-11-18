@@ -2,8 +2,10 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { accounts, addresses, readMessage } from "@/lib/mail";
 import { ComposeForm, type ComposeDefaults } from "../ComposeForm";
+import { AdminNav } from "../../ui";
 
 // Write a new email, or reply / reply all / forward with ?mode=…&a=account&f=folder&m=message.
+// A new one can come filled in: ?to=…&subject=…&from=support (the start of one of our addresses).
 
 export const dynamic = "force-dynamic";
 
@@ -12,7 +14,7 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false },
 };
 
-type Search = { mode?: string; a?: string; f?: string; m?: string; to?: string };
+type Search = { mode?: string; a?: string; f?: string; m?: string; to?: string; subject?: string; from?: string };
 
 const prefix = (p: string, subject: string) => (subject.toLowerCase().startsWith(p.toLowerCase()) ? subject : `${p} ${subject}`);
 
@@ -23,7 +25,9 @@ export default async function Compose({ searchParams }: { searchParams: Promise<
   const loaded = await Promise.all([accounts(), mode === "new" ? null : readMessage(q.a ?? "", q.f ?? "", q.m ?? "")]).catch((e: Error) => e);
 
   return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6">
+    <>
+    <AdminNav current="mail" />
+    <main className="mx-auto w-full max-w-4xl px-4 pb-16 pt-6 sm:px-6">
       <nav className="mb-6 text-sm text-muted">
         <Link className="hover:text-ink" href={q.m && q.a && q.f ? `/admin/mail/${q.a}/${q.f}/${q.m}` : "/admin/mail"}>← Back</Link>
       </nav>
@@ -35,6 +39,7 @@ export default async function Compose({ searchParams }: { searchParams: Promise<
         <ComposeForm defaults={defaults(mode, ...loaded, q)} />
       )}
     </main>
+    </>
   );
 }
 
@@ -49,9 +54,14 @@ function defaults(
   const from = usable.flatMap((a) => a.sendFrom.map((address) => ({ value: `${a.accountId}|${address}`, label: address })));
   const ours = new Set(from.map((o) => o.label.toLowerCase()));
   const addressedTo = original ? addresses(`${original.to},${original.cc}`).find((x) => ours.has(x.toLowerCase())) : undefined;
-  const defaultFrom = from.find((o) => o.label.toLowerCase() === addressedTo?.toLowerCase())?.value ?? from[0]?.value ?? "";
+  const asked = q.from?.toLowerCase();
+  const defaultFrom =
+    from.find((o) => o.label.toLowerCase() === addressedTo?.toLowerCase())?.value ??
+    (asked ? from.find((o) => o.label.toLowerCase().startsWith(`${asked}@`))?.value : undefined) ??
+    from[0]?.value ??
+    "";
 
-  if (!original) return { mode, from, defaultFrom, to: q.to ?? "", cc: "", subject: "" };
+  if (!original) return { mode, from, defaultFrom, to: q.to ?? "", cc: "", subject: q.subject ?? "" };
 
   const others = (header: string) => addresses(header).filter((x) => !ours.has(x.toLowerCase()) && x !== original.fromAddress);
   return {

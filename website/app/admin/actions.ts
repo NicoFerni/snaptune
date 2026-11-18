@@ -22,4 +22,5 @@ export async function setNoticeAction(form: FormData): Promise<void> {
   else if (text.length <= NOTICE_LENGTH && url.startsWith(NOTICE_ORIGIN)) await saveNotice(text, url);
 
   revalidatePath("/admin");
+  revalidatePath("/admin/notice");
 }
