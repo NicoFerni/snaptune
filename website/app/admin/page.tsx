@@ -70,6 +70,13 @@ function percent(part: number, whole: number): string {
   return whole ? `${((part / whole) * 100).toFixed(1)} %` : "–";
 }
 
+/** Change from one period to the next, signed: "+40 %", "−12 %". */
+function growth(current: number, before: number): string {
+  if (!before) return "–";
+  const change = (current / before - 1) * 100;
+  return `${change >= 0 ? "+" : "−"}${Math.abs(change).toFixed(0)} %`;
+}
+
 /** Argentina time (UTC-3, no daylight saving), for the hour-of-day chart. */
 const LOCAL_OFFSET = -3;
 
@@ -187,6 +194,16 @@ export default async function Admin() {
   const newInstalls7 = installs.filter((i) => now - i.first < 7 * DAY).length;
   const updates7 = weekAgo ? updatesSince(Date.parse(weekAgo[0])) : 0;
 
+  // Install pace and growth: new installs in a window against the same window just before it. The
+  // 30-day comparison needs 60 days of installs; until then it says when it will have them.
+  const firstSeen = installs.length ? Math.min(...installs.map((i) => i.first)) : now;
+  const newBetween = (from: number, to: number) => installs.filter((i) => now - i.first >= from * DAY && now - i.first < to * DAY).length;
+  const previous7 = newBetween(7, 14);
+  const newInstalls30 = newBetween(0, 30);
+  const previous30 = newBetween(30, 60);
+  const span30 = Math.min(30, Math.max(1, (now - firstSeen) / DAY));
+  const hasTwoMonths = now - firstSeen >= 60 * DAY;
+
   const searchReport = search && !(search instanceof Error) ? search : null;
   const searchClicks = searchReport?.perDay.reduce((sum, r) => sum + r.clicks, 0) ?? 0;
   const searchImpressions = searchReport?.perDay.reduce((sum, r) => sum + r.impressions, 0) ?? 0;
@@ -294,6 +311,19 @@ export default async function Admin() {
           label="New installs, 7 days"
           value={newInstalls7}
           note={`${percent(newInstalls7, Math.max(0, (downloads7 ?? 0) - updates7))} of downloads, ${updates7} updates left out`}
+        />
+        <Stat label="Installs per day, 7 days" value={(newInstalls7 / 7).toFixed(1)} note={`${(previous7 / 7).toFixed(1)} a day the 7 days before`} />
+        <Stat
+          label="Installs per day, 30 days"
+          value={(newInstalls30 / span30).toFixed(1)}
+          note={span30 < 30 ? `over ${Math.floor(span30)} days, since the first install` : `${newInstalls30} new installs`}
+        />
+        <Stat label="Growth, week on week" value={growth(newInstalls7, previous7)} note={`${newInstalls7} new installs against ${previous7}`} alert={newInstalls7 < previous7} />
+        <Stat
+          label="Growth, month on month"
+          value={hasTwoMonths ? growth(newInstalls30, previous30) : "–"}
+          note={hasTwoMonths ? `${newInstalls30} new installs against ${previous30}` : `needs 60 days of installs, from ${day(firstSeen + 60 * DAY)}`}
+          alert={hasTwoMonths && newInstalls30 < previous30}
         />
       </section>
       <p className="mt-2 text-xs text-faint">Download and install cards open the activation funnel.</p>
