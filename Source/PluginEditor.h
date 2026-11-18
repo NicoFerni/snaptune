@@ -19,6 +19,9 @@ public:
     /** Feeds pitch frames straight to the display (used by the offline snapshot test). */
     void injectFrames (const snaptune::PitchFrame* frames, int count) { view.injectFrames (frames, count); }
 
+    /** Presses Detect (the snapshot test shows it listening). */
+    void startKeyDetection() { view.setDetecting (true); }
+
 private:
     SnapTuneProcessor& audioProcessor;
     snaptune::SnapLookAndFeel lookAndFeel;

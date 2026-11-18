@@ -49,6 +49,7 @@ set(SNAPTUNE_SOURCES
     Source/ui/ModeSwitch.cpp
     Source/ui/TabSwitch.cpp
     Source/ui/NotePills.cpp
+    Source/ui/DetectBanner.cpp
     Source/ui/TunerGauge.cpp
     Source/ui/MainView.cpp)
 

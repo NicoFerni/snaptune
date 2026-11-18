@@ -2,6 +2,8 @@
 #include "../dsp/Scales.h"
 #include "SnapLookAndFeel.h"
 
+#include <algorithm>
+
 namespace snaptune
 {
 namespace
@@ -35,6 +37,17 @@ void NotePills::Pill::paintButton (juce::Graphics& g, bool hover, bool)
     g.fillRoundedRectangle (pill, radius);
     g.setColour (hover ? palette::textDim.withAlpha (0.6f) : (inScale ? palette::lineBright : palette::line));
     g.drawRoundedRectangle (pill, radius, 1.0f);
+
+    // What Detect has heard on this note so far: a sage level, the colour of the pitch as sung.
+    if (heard > 0.0f)
+    {
+        Graphics::ScopedSaveState state (g);
+        Path shape;
+        shape.addRoundedRectangle (pill.reduced (1.0f), radius - 1.0f);
+        g.reduceClipRegion (shape);
+        g.setColour (palette::input.withAlpha (0.38f));
+        g.fillRect (pill.withTop (pill.getBottom() - jmax (2.0f, heard * pill.getHeight())));
+    }
 
     if (hasKeyboardFocus (false))
         drawFocusRing (g, pill, radius);
@@ -96,6 +109,22 @@ void NotePills::setState (uint16_t newAllowed, uint16_t newHeld, int newTarget)
         }
 
         pill->setToggleState (((allowed >> pc) & 1u) != 0, juce::dontSendNotification);
+    }
+}
+
+void NotePills::setHeard (const std::array<float, 12>* shares)
+{
+    const float most = shares != nullptr ? *std::max_element (shares->begin(), shares->end()) : 0.0f;
+
+    for (auto* pill : pills)
+    {
+        const float heard = shares == nullptr ? -1.0f : (most > 0.0f ? (*shares)[(size_t) pill->pitchClass] / most : 0.0f);
+
+        if (std::abs (heard - pill->heard) > 0.01f || (heard < 0.0f) != (pill->heard < 0.0f))
+        {
+            pill->heard = heard;
+            pill->repaint();
+        }
     }
 }
 
