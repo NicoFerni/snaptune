@@ -21,6 +21,7 @@ Try it in your browser at **[getsnaptune.com](https://getsnaptune.com)**.
 - **Formant-preserving:** pitch moves, your voice's character doesn't (no chipmunk). A Formant knob shifts it on purpose
 - **Studio and Live modes:** 46 ms formant-safe processing for mixing (compensated by the DAW), or 2.7 ms for hearing yourself tuned while recording. Switch any time; the DAW is told the new latency automatically
 - **Key and scale:** 13 scales, or click the note pills to build your own
+- **Detect the key:** don't know it? Click Detect and sing: after a few seconds SnapTune shows the scales that fit what it hears
 - **MIDI target notes:** play or draw a melody and the voice follows it
 - **See what it's doing:** a tuner gauge (where you sang vs. where it lands) and a piano-roll pitch graph
 - **Factory presets:** Hard Tune, Melodic Trap, Natural, Subtle Polish, Deep Robot, Bright Pop, Hard Tune Vibrato, Smooth Glide
@@ -97,7 +98,7 @@ cmake --build build --config Release --target SnapTune_VST3 SnapTune_Standalone
 ## Quick start (FL Studio)
 
 1. **Options > Manage plugins > Find installed plugins**, then load SnapTune on the vocal's mixer insert.
-2. Set **Key** and **Scale** to the song (Chromatic if you don't know it).
+2. Set **Key** and **Scale** to the song. If you don't know them, click **Detect**, play the vocal and pick the scale it suggests.
 3. Pick a preset: **Hard Tune** for the robotic effect, **Melodic Trap** for tight modern vocals, **Natural** for invisible correction.
 4. Set **Voice** to match the singer (Low Male for deep voices).
 5. Use **Live** while recording and **Studio** when mixing.
@@ -113,6 +114,7 @@ number, add a **MIDI Out** channel on the same port, write the melody in its pia
 | Presets | Starting points for the correction knobs. Key, scale and voice are left alone. |
 | Studio / Live | Studio: TD-PSOLA, formant-safe, 46 ms. Live: delay-line resampling, 2.7 ms (Formant is inactive). |
 | Key / Scale | The notes the voice may land on. |
+| Detect | Listens to the voice and, after 5 seconds of singing, shows the three scales that fit it best; click one to set Key and Scale. Meanwhile the scale notes fill with the time sung on each. It gets surer the longer it listens, and changes nothing until you pick. |
 | Scale notes | Lit = in the scale, solid = the note being tuned to now, violet dot = held MIDI note. Click to toggle. |
 | MIDI notes | Tune to held MIDI notes instead of the scale. |
 | Retune Speed | Time to reach the note. 0 ms = instant (hard tune); slower keeps slides and vibrato. |
@@ -198,6 +200,13 @@ session count behind that is a file in the SnapTune folder and never leaves your
    the target moves again mid-glide (a fast run passes the notes in between instead of stopping on
    each). The first estimate of a new note waits for the next one to agree, since it often still
    hears the consonant or the previous note.
+   **Detect** works from the same pitch: it adds up the time the voice spends on each of the twelve
+   notes (less the further a moment is from the centre of a semitone, and not at all during slides),
+   and scores each major scale by the share of the singing that lands on its notes, plus how well
+   those times match the way music in that key uses its notes (Temperley's key profiles). A major
+   scale and its relative minor are the same notes, so the name is whichever the melody leans on.
+   On 378 pop melodies sung 30 cents off by a simulated singer, after 20 s of singing the right
+   scale is the first suggestion 79 % of the time and one of the three 99 %.
 4. **Vibrato.** A tracker follows the turning points of the pitch curve. Once it has seen a cycle and a
    half of regular swings (3.5–9 Hz, 10–100 cents, centred on a note rather than alternating between two
    as a trill does), the note's centre is the mean pitch over the last vibrato period, which cancels
@@ -230,7 +239,7 @@ session count behind that is a file in the SnapTune folder and never leaves your
 ## Project layout
 
 ```
-Source/dsp/     PitchDetector (YIN), VibratoTracker and AutoTuneEngine (both modes); no UI code
+Source/dsp/     PitchDetector (YIN), VibratoTracker, KeyFinder and AutoTuneEngine (both modes); no UI code
 Source/ui/      LookAndFeel, tuner gauge, pitch graph, note pills, main view
 Source/         plugin processor, parameters, presets, editor shell, usage pings (Telemetry)
 tests/          offline test runner (DSP suite, plugin host test, file processing, UI snapshots)
@@ -251,6 +260,7 @@ cmake --build build --target SnapTuneTests
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --out build/demo        # DSP suite + demo WAVs
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --host ~/Library/Audio/Plug-Ins/VST3/SnapTune.vst3
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --process in.wav out.wav --key A --scale Minor --retune 0 --mode live
+./build/SnapTuneTests_artefacts/Release/SnapTuneTests --detect take.wav               # what Detect suggests for a recording
 ./build/SnapTuneTests_artefacts/Release/SnapTuneTests --snapshot ui.png studio 1.0 4   # 4000 x 2560 render
 (cd website && npm run shots)                                                    # README + site images
 auval -v aumf Snpt Ncfz
@@ -261,6 +271,7 @@ off-key melody and checks, with an independent pitch tracker, that (in both mode
 - notes land within 1 cent
 - retune speed keeps or removes vibrato as intended
 - scales, fast glides and MIDI targets snap correctly
+- Detect finds the key of an off-key melody, and a four-note hook's scales all hold its notes
 - a breathy note held near the switching point keeps its target (a few note flips at most; the old
   Live engine had 85)
 - a short dropout inside a note doesn't make the correction glide in again
@@ -286,3 +297,5 @@ trademark of Antares Audio Technologies; SnapTune is not affiliated with Antares
 - H. Hildebrand, US patent 5,973,252, "Pitch detection and intonation correction apparatus and method"
 - E. Moulines, F. Charpentier, "Pitch-synchronous waveform processing techniques for text-to-speech synthesis using diphones", Speech Communication 9, 1990
 - P. McLeod, G. Wyvill, "A smarter way to find pitch", ICMC 2005
+- D. Temperley, "Music and Probability", MIT Press, 2007
+- Z. Wang et al., "POP909: A Pop-song Dataset for Music Arrangement Generation", ISMIR 2020

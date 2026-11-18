@@ -2,6 +2,7 @@
 
 #include <juce_gui_basics/juce_gui_basics.h>
 
+#include <array>
 #include <functional>
 
 namespace snaptune
@@ -18,6 +19,10 @@ public:
 
     void setState (uint16_t allowedMask, uint16_t heldMask, int targetPitchClass);
 
+    /** While Detect listens: each note's share of the singing heard, drawn as a level inside its
+        pill (the most sung note fills it). nullptr when it isn't listening. */
+    void setHeard (const std::array<float, 12>* shares);
+
     /** Also applied to each note, which is what the pointer and VoiceOver land on. */
     void setTooltip (const juce::String& newTooltip) override;
 
@@ -31,6 +36,7 @@ private:
 
         const int pitchClass;
         bool isTarget = false, isHeld = false;
+        float heard = -1.0f; // 0..1 of the most sung note; negative when Detect isn't listening
     };
 
     juce::OwnedArray<Pill> pills;

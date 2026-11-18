@@ -3,15 +3,17 @@
 //   SnapTuneTests [--out <dir>]                 DSP test suite (+ demo WAVs when --out is given)
 //   SnapTuneTests --process <in> <out> [opts]   tune an audio file: --key C --scale Major --retune 0 --formant 0
 //   SnapTuneTests --host <plugin path>          load the built VST3 / AU and check it corrects pitch
-//   SnapTuneTests --snapshot <out.png> [studio|live|studio-vibrato] [uiScale] [pixelScale]
+//   SnapTuneTests --snapshot <out.png> [studio|live|studio-vibrato|studio-detect] [uiScale] [pixelScale]
 //                                               render the editor with real pitch data (pixelScale 2 = Retina)
 //   SnapTuneTests --diagnose <dir> [take.wav ...] gap / click event counters over stress cases, plus the audio
+//   SnapTuneTests --detect <take.wav>           what Detect suggests for a recording, as it listens
 
 #include "Parameters.h"
 #include "PluginEditor.h"
 #include "PluginProcessor.h"
 #include "UpdateCheck.h"
 #include "dsp/AutoTuneEngine.h"
+#include "dsp/KeyFinder.h"
 #include "dsp/PitchDetector.h"
 
 #include <juce_audio_formats/juce_audio_formats.h>
@@ -2206,6 +2208,125 @@ void testBlockSizesAndCpu()
            "Studio " + juce::String (100.0 * studioSeconds / audioSeconds, 2) + "%, Live " + juce::String (100.0 * liveSeconds / audioSeconds, 2) + "%");
 }
 
+// Twelve seconds in A major, every note 15 to 35 cents off, with a vibrato and two scoops.
+const std::vector<SungNote> aMajorMelody {
+    { 0.10, 0.95, 57, +30 },             // A3
+    { 1.05, 1.90, 61, -25 },             // C#4
+    { 2.00, 3.10, 64, +20, 25.0 },       // E4, with vibrato
+    { 3.20, 3.95, 62, -35 },             // D4
+    { 4.05, 4.80, 59, +25 },             // B3
+    { 4.90, 5.90, 57, -20, 0.0, -100 },  // A3, scooping up from a semitone below
+    { 6.00, 6.80, 66, +30 },             // F#4
+    { 6.90, 7.80, 64, -25 },             // E4
+    { 7.90, 8.60, 56, +20 },             // G#3
+    { 8.70, 9.60, 57, +15 },             // A3
+    { 9.70, 10.50, 61, -30, 0.0, -100 }, // C#4, scooping
+    { 10.60, 11.30, 59, +25 },           // B3
+    { 11.40, 12.40, 57, -20 }            // A3
+};
+
+/** What Detect would hear of a melody with a perfect pitch tracker, at the engine's frame rate. */
+KeyFinder hearMelody (const std::vector<SungNote>& notes)
+{
+    const double framesPerSecond = 375.0;
+    const auto pitch = melodyPitch (notes);
+    KeyFinder finder;
+    finder.reset (framesPerSecond);
+
+    for (int i = 0; i < (int) ((notes.back().end + 0.1) * framesPerSecond); ++i)
+    {
+        const double hz = pitch (i / framesPerSecond);
+        finder.push (hz > 0.0 ? (float) hzToMidi (hz) : 0.0f, hz > 0.0);
+    }
+
+    return finder;
+}
+
+juce::String suggestionNames (const KeyFinder::Suggestion* suggestions, int count)
+{
+    juce::StringArray names;
+
+    for (int i = 0; i < count; ++i)
+        names.add (juce::String (noteNames[(size_t) suggestions[i].key]) + " " + scaleNames[(size_t) suggestions[i].scale]);
+
+    return names.joinIntoString (", ");
+}
+
+void testKeyDetection()
+{
+    const double sampleRate = 48000.0;
+    const auto aMajor = pitchClassMask (9, Scale::major, 0);
+    KeyFinder::Suggestion suggestions[3];
+
+    // Through the engine: Detect reads the frames the window gets, so this is what it hears of a
+    // voice, with the detector's own slips, in both modes.
+    const auto input = renderVoice (sampleRate, 12.6, melodyPitch (aMajorMelody));
+
+    for (auto mode : { LatencyMode::studio, LatencyMode::live })
+    {
+        auto settings = hardTune();
+        settings.mode = mode;
+        std::vector<PitchFrame> frames;
+        runEngine (input, sampleRate, settings, {}, 256, nullptr, &frames);
+
+        KeyFinder finder;
+        finder.reset (375.0);
+
+        for (const auto& frame : frames)
+            finder.push (frame.inputNote, frame.voiced);
+
+        const int count = finder.suggest (suggestions, 3);
+        // 11.1 s of notes; the synthetic voice rings on through the short gaps between them.
+        check (count == 3 && suggestions[0].mask() == aMajor && finder.secondsSung() > 10.5 && finder.secondsSung() < 12.6,
+               juce::String ("Detect: an off-key melody in A major") + (mode == LatencyMode::live ? " [Live]" : " [Studio]"),
+               suggestionNames (suggestions, count) + " after " + juce::String (finder.secondsSung(), 1) + " s of singing");
+    }
+
+    // Four notes only (D#, F, G, A#, as in a short hook): three major scales hold them all. The
+    // tonic it leans on comes first, and every scale offered has the notes that were sung.
+    const std::vector<SungNote> hook { { 0.1, 1.2, 63, +25 }, { 1.3, 2.0, 65, -30 }, { 2.1, 2.9, 67, +20 }, { 3.0, 3.6, 70, -25 },
+                                       { 3.7, 4.5, 67, +30 }, { 4.6, 5.2, 65, -20 }, { 5.3, 6.6, 63, +15 } };
+    const auto sung = (uint16_t) ((1u << 3) | (1u << 5) | (1u << 7) | (1u << 10));
+    int count = hearMelody (hook).suggest (suggestions, 3);
+    bool allHoldTheNotes = count == 3;
+
+    for (int i = 0; i < count; ++i)
+        allHoldTheNotes = allHoldTheNotes && (suggestions[i].mask() & sung) == sung;
+
+    check (allHoldTheNotes && suggestions[0].key == 3 && suggestions[0].scale == Scale::major, "Detect: a four-note hook",
+           suggestionNames (suggestions, count) + ": each holds D#, F, G and A#");
+
+    // The same seven notes as C major, leaning on A, C and E: it is called A minor.
+    const std::vector<SungNote> minorTune { { 0.1, 1.1, 57, +25 }, { 1.2, 1.8, 60, -20 }, { 1.9, 2.8, 64, +30 }, { 2.9, 3.4, 62, -25 },
+                                            { 3.5, 4.0, 60, +20 }, { 4.1, 4.6, 59, -30 }, { 4.7, 5.8, 57, +15 }, { 5.9, 6.4, 55, -20 },
+                                            { 6.5, 7.3, 57, +25 }, { 7.4, 8.2, 64, -15 }, { 8.3, 8.8, 65, +20 }, { 8.9, 9.6, 64, -25 },
+                                            { 9.7, 11.0, 57, +20 } };
+    count = hearMelody (minorTune).suggest (suggestions, 3);
+    check (count == 3 && suggestions[0].key == 9 && suggestions[0].scale == Scale::minor, "Detect: names the relative minor",
+           suggestionNames (suggestions, count));
+
+    // Nothing sung, nothing suggested; and a slide through the notes isn't singing on them.
+    KeyFinder silence;
+    silence.reset (375.0);
+
+    for (int i = 0; i < 2000; ++i)
+        silence.push (0.0f, false);
+
+    KeyFinder slide;
+    slide.reset (375.0);
+
+    for (int i = 0; i < 750; ++i)
+        slide.push (57.0f + 24.0f * (float) i / 750.0f, true); // two octaves in two seconds
+
+    float slideShares = 0.0f;
+
+    for (auto share : slide.noteShares())
+        slideShares += share;
+
+    check (silence.suggest (suggestions, 3) == 0 && slide.suggest (suggestions, 3) == 0 && slideShares == 0.0f && std::abs (slide.secondsSung() - 2.0) < 0.01,
+           "Detect: silence and slides aren't counted", "no suggestion from either; the slide still reads as 2 s of singing");
+}
+
 void testCompareButton()
 {
     // Compare plays the input at the plugin's delay (so the two line up) and isn't saved.
@@ -2766,7 +2887,60 @@ int runHostTest (const juce::String& path)
     return failures == 0 ? 0 : 1;
 }
 
-int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pixelScale, bool vibratoPage = false)
+int runDetect (const juce::File& file)
+{
+    juce::AudioFormatManager formats;
+    formats.registerBasicFormats();
+    std::unique_ptr<juce::AudioFormatReader> reader (formats.createReaderFor (file));
+
+    if (reader == nullptr)
+    {
+        std::printf ("Can't read %s\n", file.getFullPathName().toRawUTF8());
+        return 1;
+    }
+
+    juce::AudioBuffer<float> audio ((int) reader->numChannels, (int) reader->lengthInSamples);
+    reader->read (&audio, 0, (int) reader->lengthInSamples, 0, true, true);
+    const std::vector<float> mono (audio.getReadPointer (0), audio.getReadPointer (0) + audio.getNumSamples());
+
+    std::vector<PitchFrame> frames;
+    runEngine (mono, reader->sampleRate, hardTune(), {}, 256, nullptr, &frames);
+
+    KeyFinder finder;
+    finder.reset (375.0);
+    KeyFinder::Suggestion suggestions[3];
+    double nextReport = 5.0;
+
+    auto report = [&]
+    {
+        const int count = finder.suggest (suggestions, 3);
+        std::printf ("%5.1f s of singing: %s\n", finder.secondsSung(), count > 0 ? suggestionNames (suggestions, count).toRawUTF8() : "nothing yet");
+    };
+
+    for (const auto& frame : frames)
+    {
+        finder.push (frame.inputNote, frame.voiced);
+
+        if (finder.secondsSung() >= nextReport)
+        {
+            report();
+            nextReport *= 2.0;
+        }
+    }
+
+    report();
+    const auto shares = finder.noteShares();
+    juce::StringArray notes;
+
+    for (int pc = 0; pc < 12; ++pc)
+        if (shares[(size_t) pc] >= 0.01f)
+            notes.add (juce::String (noteNames[(size_t) pc]) + " " + juce::String (juce::roundToInt (100.0f * shares[(size_t) pc])) + "%");
+
+    std::printf ("time on each note: %s\n", notes.joinIntoString (", ").toRawUTF8());
+    return 0;
+}
+
+int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pixelScale, bool vibratoPage = false, bool detecting = false)
 {
     const double sampleRate = 48000.0;
     SnapTuneProcessor processor;
@@ -2795,7 +2969,11 @@ int runSnapshot (const juce::File& file, bool liveMode, double uiScale, float pi
 
     std::unique_ptr<SnapTuneEditor> editor (dynamic_cast<SnapTuneEditor*> (processor.createEditor()));
 
-    const auto voice = renderVoice (sampleRate, 4.15, melodyPitch (offKeyMelody));
+    // Detect listening to a melody in A major while the scale is still C major.
+    if (detecting)
+        editor->startKeyDetection();
+
+    const auto voice = detecting ? renderVoice (sampleRate, 9.3, melodyPitch (aMajorMelody)) : renderVoice (sampleRate, 4.15, melodyPitch (offKeyMelody));
     juce::AudioBuffer<float> buffer (2, 512);
     juce::MidiBuffer midi;
     std::vector<PitchFrame> frames (4096);
@@ -2869,9 +3047,12 @@ int main (int argc, char* argv[])
         return runDiagnose (juce::File (args[2]), takes);
     }
 
+    if (args[1] == "--detect" && args.size() >= 3)
+        return runDetect (juce::File (args[2]));
+
     if (args[1] == "--snapshot" && args.size() >= 3)
         return runSnapshot (juce::File (args[2]), args[3].startsWith ("live"), args.size() > 4 ? args[4].getDoubleValue() : 1.0,
-                            args.size() > 5 ? juce::jlimit (1.0f, 8.0f, args[5].getFloatValue()) : 2.0f, args[3].endsWith ("vibrato"));
+                            args.size() > 5 ? juce::jlimit (1.0f, 8.0f, args[5].getFloatValue()) : 2.0f, args[3].endsWith ("vibrato"), args[3].endsWith ("detect"));
 
     juce::File outDir;
 
@@ -2920,6 +3101,7 @@ int main (int argc, char* argv[])
     testModeSwitch();
     testGraphStaysStill();
     testBlockSizesAndCpu();
+    testKeyDetection();
     testCompareButton();
     testProcessorStereoAndState();
 
