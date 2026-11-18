@@ -1,16 +1,13 @@
 Real-time pitch correction: VST3, Audio Unit and a standalone app for macOS (universal, Apple Silicon + Intel), VST3 and a standalone app for Windows (64-bit), and VST3, LV2 and a standalone app for Linux (64-bit).
 
-### What's new in 2.3
+### What's new in 2.4
 
-- **Note changes that sound sung:** the voice now glides from one note to the next along a curve instead of jumping, and the new **Transition** knob sets how long that takes. Turn it to zero for the hard, stepped sound.
-- **Vibrato page:** **Keep my vibrato** leaves your own vibrato in while the note is tuned (with a Depth knob), and you can add one with its own rate and delay.
-- **Clearer highs in Studio mode:** consonants and breath had lost some brightness since 2.2. They're back.
-- **Fewer blips:** a moment where the pitch was misread by an octave could bend the voice for an instant. It no longer does.
-- **Compare:** a button in the header plays your untuned voice at the same level and delay, to hear what the correction is doing.
-- **Smaller things:** the preset box says when you've moved a knob off a preset, and holding Shift while dragging a knob moves it five times slower.
-- **Feedback:** a button in the header opens a short form in your browser, no account needed. Tell me what works and what doesn't.
+- **Detect the key:** a **Detect** button next to Key and Scale. Sing or play the vocal, and after a few seconds SnapTune suggests the three scales that fit best. One click sets them. While it listens, each note lights up with how long you've sung it.
+- **Cleaner hard tune:** a scoop into a note, a fall off its end or a slide no longer flashes a wrong semitone for a few milliseconds. Real note changes still land on time. In Studio mode this needs a short look-ahead, so its latency goes from 46 to 62 ms; your DAW compensates it automatically.
+- **Linux on ARM:** a new **SnapTune-…-Linux-arm64.tar.gz** for 64-bit ARM Linux machines and servers. SnapTune also runs on servers with no display; see the [server guide](https://github.com/NicoFerni/snaptune/blob/main/docs/server-rendering.md).
+- **Privacy:** the Windows installer now says what usage data SnapTune sends and has a box to turn it off. The full policy is at [getsnaptune.com/privacy](https://getsnaptune.com/privacy).
 
-Sessions saved with earlier versions open as before.
+Sessions saved with earlier versions open as before. In Studio mode the processed vocal lines up as before, since your DAW compensates the new latency.
 
 ### Install on macOS
 
@@ -32,7 +29,7 @@ The VST3 goes to `C:\Program Files\Common Files\VST3`. **SnapTune-…-Windows.zi
 
 ### Install on Linux
 
-1. Download **SnapTune-…-Linux.tar.gz** below and unpack it.
+1. Download **SnapTune-…-Linux.tar.gz** (x86_64) or **SnapTune-…-Linux-arm64.tar.gz** (64-bit ARM) below and unpack it.
 2. In a terminal, in the unpacked folder, run `./install.sh`. It installs for your user, no sudo: the VST3 in `~/.vst3`, the LV2 in `~/.lv2`, and the standalone app in `~/.local/bin` with an entry in the applications menu.
 3. Restart your DAW and rescan plugins.
 
