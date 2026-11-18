@@ -56,7 +56,7 @@ const sheets: { name: string; field: "gold" | "surface" | "deep"; text: ReactNod
   {
     name: "Two speeds",
     field: "surface",
-    text: "Live answers in 2.7 ms, so you can hear yourself tuned while you record. Studio takes 46 ms for the cleanest result, and tells your DAW so everything stays lined up.",
+    text: "Live answers in 2.7 ms, so you can hear yourself tuned while you record. Studio takes 62 ms for the cleanest result, and tells your DAW so everything stays lined up.",
     shot: "modes",
     alt: "The latency reading 2.7 ms with Live selected",
   },
@@ -101,7 +101,7 @@ const moments: Moment[] = [
   },
   {
     caption: "You hear it tuned",
-    text: "46 ms later in Studio, which your DAW compensates; 2.7 ms later in Live, quick enough to sing through.",
+    text: "62 ms later in Studio, which your DAW compensates; 2.7 ms later in Live, quick enough to sing through.",
     gap: 140,
     picture: { src: "/archive/hear-it.jpg", width: 560, height: 700, alt: "Photograph of Thomas Edison seated beside his phonograph", note: "Thomas Edison with the phonograph, around 1878. It played the sound back." },
   },
@@ -157,7 +157,7 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
   },
   {
     q: "Studio or Live?",
-    a: "Live while you record: 2.7 ms, so you hear yourself tuned. Studio when you mix: 46 ms, compensated by your DAW, and the voice keeps its character on big jumps.",
+    a: "Live while you record: 2.7 ms, so you hear yourself tuned. Studio when you mix: 62 ms, compensated by your DAW, and the voice keeps its character on big jumps.",
   },
   {
     q: "Can it follow a melody I write?",

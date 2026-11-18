@@ -84,7 +84,7 @@ export const guides: Guide[] = [
       {
         heading: "Hear it while you record",
         paragraphs: [
-          "Live mode answers in 2.7 ms, quick enough to sing through and hear yourself tuned. Studio mode takes 46 ms for the cleanest result and reports it to your DAW, which lines everything up.",
+          "Live mode answers in 2.7 ms, quick enough to sing through and hear yourself tuned. Studio mode takes 62 ms for the cleanest result and reports it to your DAW, which lines everything up.",
         ],
       },
       {
@@ -157,7 +157,7 @@ export const guides: Guide[] = [
       {
         heading: "Recording through it",
         paragraphs: [
-          "Switch to Live while you record: SnapTune answers in 2.7 ms, so you hear yourself tuned in your headphones. Switch back to Studio when you mix; FL Studio compensates its 46 ms automatically.",
+          "Switch to Live while you record: SnapTune answers in 2.7 ms, so you hear yourself tuned in your headphones. Switch back to Studio when you mix; FL Studio compensates its 62 ms automatically.",
         ],
       },
       {
@@ -216,7 +216,7 @@ export const guides: Guide[] = [
       {
         heading: "Hard tune or natural",
         paragraphs: [
-          "Set the key and scale, then pick Hard Tune (Retune Speed at 0 ms) for the robotic snap or Natural for a fix that keeps your vibrato. Live mode answers in 2.7 ms for recording; Studio mode reports its 46 ms to the host, which compensates.",
+          "Set the key and scale, then pick Hard Tune (Retune Speed at 0 ms) for the robotic snap or Natural for a fix that keeps your vibrato. Live mode answers in 2.7 ms for recording; Studio mode reports its 62 ms to the host, which compensates.",
         ],
       },
     ],
@@ -397,7 +397,7 @@ export const guides: Guide[] = [
       {
         heading: "Recording through it",
         paragraphs: [
-          "Arm the track, turn on record monitoring and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Reaper compensates its 46 ms on its own.",
+          "Arm the track, turn on record monitoring and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Reaper compensates its 62 ms on its own.",
         ],
       },
       {
@@ -443,7 +443,7 @@ export const guides: Guide[] = [
       {
         heading: "Recording through it",
         paragraphs: [
-          "Set the track’s Monitor to In or Auto and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Live compensates its 46 ms.",
+          "Set the track’s Monitor to In or Auto and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Live compensates its 62 ms.",
         ],
       },
       {
@@ -526,7 +526,7 @@ export const guides: Guide[] = [
       },
       {
         heading: "Recording through it",
-        paragraphs: ["Turn on monitoring for the vocal track and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Bitwig compensates its 46 ms."],
+        paragraphs: ["Turn on monitoring for the vocal track and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Bitwig compensates its 62 ms."],
       },
     ],
     faqs: [
@@ -579,7 +579,7 @@ export const guides: Guide[] = [
       {
         heading: "Escúchalo mientras grabas",
         paragraphs: [
-          "El modo Live responde en 2,7 ms, lo bastante rápido para cantar a través de él y oírte afinado. El modo Studio usa 46 ms para el resultado más limpio y se lo informa al DAW, que alinea todo.",
+          "El modo Live responde en 2,7 ms, lo bastante rápido para cantar a través de él y oírte afinado. El modo Studio usa 62 ms para el resultado más limpio y se lo informa al DAW, que alinea todo.",
         ],
       },
       {

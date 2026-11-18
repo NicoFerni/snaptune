@@ -3,6 +3,8 @@
 #include "../PluginProcessor.h"
 #include "../Feedback.h"
 #include "../UpdateCheck.h"
+#include "../dsp/KeyFinder.h"
+#include "DetectBanner.h"
 #include "ModeSwitch.h"
 #include "NotePills.h"
 #include "PitchGraph.h"
@@ -29,6 +31,10 @@ public:
     /** Feeds pitch frames straight to the display (used by the offline snapshot test). */
     void injectFrames (const PitchFrame* frames, int count);
 
+    /** Detect: listens to the voice and suggests the key. Starting it forgets what it heard before;
+        stopping it leaves Key and Scale alone. */
+    void setDetecting (bool shouldListen);
+
 private:
     using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
     using ComboBoxAttachment = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
@@ -48,11 +54,14 @@ private:
         }
     };
 
-    /** The A/B switch in the header: lit gold while the original voice is playing. */
-    struct CompareButton final : public juce::Button
+    /** A switch that is lit gold, with other words on it, while it's on: Compare says Original while
+        the untuned voice plays, Detect says Listening. */
+    struct LitButton final : public juce::Button
     {
-        CompareButton() : juce::Button ("Compare") {}
+        LitButton (const juce::String& name, const juce::String& textWhenOn) : juce::Button (name), onText (textWhenOn) {}
         void paintButton (juce::Graphics&, bool highlighted, bool down) override;
+
+        const juce::String onText;
     };
 
     /** The header's link to the website, one at a time: a newer version ("SnapTune 2.1 is out"), the
@@ -87,6 +96,9 @@ private:
     void pillClicked();
     void consumeFrames (const PitchFrame* frames, int count);
     void refreshState();
+    void refreshDetection();
+    void chooseKey (int key, Scale scale);
+    uint16_t scaleMask() const;
     void toggleNote (int pitchClass);
     void applyPreset (int index);
     int matchingPreset() const;
@@ -126,12 +138,20 @@ private:
     HeaderPill headerPill;
     PillRole pillRole = PillRole::none;
     juce::String noticeUrl;
-    CompareButton compareButton;
+    LitButton compareButton { "Compare", "Original" };
     int pillCountdown = 0;
 
     TunerGauge gauge;
     PitchGraph graph;
     NotePills pills;
+
+    // Detect: the key, from what is being sung. It lives in the window, on the pitch frames the
+    // display already gets; the audio is never touched.
+    LitButton detectButton { "Detect", "Listening" };
+    DetectBanner detectBanner;
+    KeyFinder keyFinder;
+    bool detecting = false;
+    int detectionCountdown = 0;
 
     std::vector<PitchFrame> scratch;
     PitchFrame lastVoiced;
