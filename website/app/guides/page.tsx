@@ -10,8 +10,9 @@ import "@/app/guide.css";
 // Every guide on one page, grouped: the hub that links them all, so each is one click from here and
 // two from home.
 
-const title = "SnapTune Guides: Free Autotune in FL Studio, Reaper, Ableton and More";
-const description = "Guides to free autotune with SnapTune: the hard-tune sound, the free plugins compared, and setup in FL Studio, Reaper, Ableton, GarageBand, Bitwig and on Linux.";
+const title = "SnapTune Guides: Free Autotune in FL Studio, Logic, Ableton and More";
+const description =
+  "Guides to free autotune with SnapTune: the hard-tune sound, the free plugins compared, and setup in FL Studio, Logic Pro, Reaper, Ableton, GarageBand, Bitwig, Audacity and on Linux.";
 
 export const metadata: Metadata = {
   title,
@@ -21,8 +22,11 @@ export const metadata: Metadata = {
 };
 
 const groups = [
-  { heading: "Start here", slugs: ["free-autotune", "free-autotune-plugins", "hard-tune"] },
-  { heading: "In your DAW", slugs: ["autotune-fl-studio", "autotune-reaper", "autotune-ableton", "autotune-garageband", "autotune-bitwig", "autotune-linux"] },
+  { heading: "Start here", slugs: ["free-autotune-plugins", "hard-tune"] },
+  {
+    heading: "In your DAW",
+    slugs: ["autotune-fl-studio", "autotune-logic-pro", "autotune-reaper", "autotune-ableton", "autotune-garageband", "autotune-bitwig", "autotune-audacity", "autotune-linux"],
+  },
   { heading: "En español", slugs: guidesIn("es").map((g) => g.slug) },
 ];
 

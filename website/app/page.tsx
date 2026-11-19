@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -15,8 +16,26 @@ import shots from "@/lib/shots.json";
 import { hasPublicFile, kofi, links } from "@/lib/site";
 import "./landing.css";
 
-// The guides the postcard has room for; /guides lists them all.
-const footerGuides = ["free-autotune", "free-autotune-plugins", "autotune-fl-studio", "es/autotune-gratis"];
+// The guides the postcard has room for; /guides lists them all, and the questions link each DAW's.
+const footerGuides = ["free-autotune-plugins", "hard-tune", "autotune-fl-studio", "es/autotune-gratis"];
+
+// The setup guide for each DAW, linked from the question about DAWs: Google finds new pages through
+// the home page's links long before it reads the guides hub.
+const dawGuides = [
+  ["FL Studio", "autotune-fl-studio"],
+  ["Logic Pro", "autotune-logic-pro"],
+  ["Ableton Live", "autotune-ableton"],
+  ["Reaper", "autotune-reaper"],
+  ["GarageBand", "autotune-garageband"],
+  ["Bitwig Studio", "autotune-bitwig"],
+  ["Audacity", "autotune-audacity"],
+  ["Linux", "autotune-linux"],
+] as const;
+
+// The Spanish guide is this page in Spanish.
+export const metadata: Metadata = {
+  alternates: { canonical: "/", languages: { en: "/", es: "/es/autotune-gratis", "x-default": "/" } },
+};
 
 // The page is set like the manual that ships with a precision instrument: a gold cover, a playable
 // plate, a sheet per feature, a receipt, the method with its 19th-century ancestors, a letter from the
@@ -142,7 +161,14 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
   },
   {
     q: "Does it run on Linux?",
-    a: "Yes, as a VST3, an LV2 and a standalone app, on 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04 and later). Unpack the download and run install.sh. The Linux builds are new and I haven’t tried them in a Linux DAW yet, so if yours has trouble, open an issue and say which DAW and distribution.",
+    a: (
+      <>
+        Yes, as a VST3, an LV2 and a standalone app, on 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04 and later). Unpack the download and
+        run install.sh; <Link href="/autotune-linux">the Linux guide</Link> has the details. The Linux builds are new and I haven’t tried them in a
+        Linux DAW yet, so if yours has trouble, open an issue and say which DAW and distribution.
+      </>
+    ),
+    text: "Yes, as a VST3, an LV2 and a standalone app, on 64-bit Linux with glibc 2.35 or newer (Ubuntu 22.04 and later). Unpack the download and run install.sh. The Linux builds are new and I haven’t tried them in a Linux DAW yet, so if yours has trouble, open an issue and say which DAW and distribution.",
   },
   {
     q: "Does it work in Ableton, Logic, Reaper…?",
@@ -150,7 +176,13 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
       <>
         I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I
         haven’t tried each one. If yours gives you trouble, <a href={links.issues}>open an issue</a> or write to{" "}
-        <a href={links.support}>support@getsnaptune.com</a>, and say which DAW and version.
+        <a href={links.support}>support@getsnaptune.com</a>, and say which DAW and version. Setup guides:{" "}
+        {dawGuides.map(([name, slug], i) => (
+          <span key={slug}>
+            <Link href={`/${slug}`}>{name}</Link>
+            {i < dawGuides.length - 1 ? ", " : "."}
+          </span>
+        ))}
       </>
     ),
     text: "I test it in FL Studio, and every build passes Apple’s Audio Unit validation. Other DAWs that load VST3, AU or LV2 should work, but I haven’t tried each one. If yours gives you trouble, write to support@getsnaptune.com and say which DAW and version.",
@@ -165,7 +197,13 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
   },
   {
     q: "Why does it sound robotic?",
-    a: "Retune Speed is at 0 ms, the Hard Tune preset, which is on purpose for that sound. For a natural result, pick Natural or Subtle Polish, or turn Retune Speed up.",
+    a: (
+      <>
+        Retune Speed is at 0 ms, the Hard Tune preset, which is on purpose for that sound (<Link href="/hard-tune">the hard-tune guide</Link> has
+        the settings and fixes). For a natural result, pick Natural or Subtle Polish, or turn Retune Speed up.
+      </>
+    ),
+    text: "Retune Speed is at 0 ms, the Hard Tune preset, which is on purpose for that sound. For a natural result, pick Natural or Subtle Polish, or turn Retune Speed up.",
   },
   {
     q: "An update doesn’t show up.",

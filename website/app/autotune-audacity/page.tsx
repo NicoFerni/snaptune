@@ -1,7 +1,7 @@
 import { GuidePage, guideMetadata } from "@/components/GuidePage";
 import { guideBySlug } from "@/lib/guides";
 
-const guide = guideBySlug("free-autotune");
+const guide = guideBySlug("autotune-audacity");
 
 export const metadata = guideMetadata(guide);
 

@@ -6,18 +6,21 @@ import { homeUpdated, siteUrl } from "@/lib/seo";
 // that a site stamps every build as new.
 const latestGuide = guides.map((g) => g.updated).sort().at(-1);
 
+const url = (slug: string) => (slug ? `${siteUrl}/${slug}` : siteUrl);
+
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    { url: siteUrl, lastModified: homeUpdated },
+    // The Spanish guide is the home page's other language.
+    { url: siteUrl, lastModified: homeUpdated, alternates: { languages: { en: siteUrl, es: url("es/autotune-gratis") } } },
     { url: `${siteUrl}/privacy`, lastModified: "2026-11-10" },
     { url: `${siteUrl}/terms`, lastModified: "2026-11-12" },
     { url: `${siteUrl}/guides`, lastModified: latestGuide },
     ...guides.map((g) => ({
-      url: `${siteUrl}/${g.slug}`,
+      url: url(g.slug),
       lastModified: g.updated,
       // The English and Spanish versions of a page point at each other.
-      ...(g.translation && {
-        alternates: { languages: { [g.lang ?? "en"]: `${siteUrl}/${g.slug}`, [g.lang === "es" ? "en" : "es"]: `${siteUrl}/${g.translation}` } },
+      ...(g.translation !== undefined && {
+        alternates: { languages: { [g.lang ?? "en"]: url(g.slug), [g.lang === "es" ? "en" : "es"]: url(g.translation) } },
       }),
     })),
   ];
