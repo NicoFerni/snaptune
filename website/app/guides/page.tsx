@@ -22,7 +22,7 @@ export const metadata: Metadata = {
 };
 
 const groups = [
-  { heading: "Start here", slugs: ["free-autotune-plugins", "hard-tune"] },
+  { heading: "Start here", slugs: ["free-autotune-plugins", "hard-tune", "autotune-go-alternative"] },
   {
     heading: "In your DAW",
     slugs: ["autotune-fl-studio", "autotune-logic-pro", "autotune-reaper", "autotune-ableton", "autotune-garageband", "autotune-bitwig", "autotune-audacity", "autotune-linux"],

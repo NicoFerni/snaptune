@@ -142,10 +142,11 @@ const faqs: { q: string; a: ReactNode; text?: string }[] = [
     a: (
       <>
         Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins. FL Studio now also gives you AutoTune Go for
-        free; <Link href="/autotune-fl-studio">the FL Studio guide</Link> says how the two compare and shows the setup.
+        free, but its Retune Speed stops at 3 ms; SnapTune goes to 0 ms, the full hard tune (<Link href="/autotune-go-alternative">SnapTune vs AutoTune Go</Link>).{" "}
+        <Link href="/autotune-fl-studio">The FL Studio guide</Link> shows the setup.
       </>
     ),
-    text: "Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins. FL Studio now also gives you AutoTune Go for free; SnapTune adds 13 scales, MIDI target notes, a Formant knob, a 2.7 ms live mode and works in other DAWs too.",
+    text: "Yes, and FL Studio is where I test it. It loads in any edition that takes VST3 plugins. FL Studio now also gives you AutoTune Go for free, but its Retune Speed stops at 3 ms; SnapTune goes to 0 ms and adds 13 scales, MIDI target notes, a Formant knob, a 2.7 ms live mode and works in other DAWs too.",
   },
   {
     q: "It isn’t doing anything to my vocal.",
