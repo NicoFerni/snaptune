@@ -43,7 +43,7 @@ export const guides: Guide[] = [
   {
     slug: "autotune-fl-studio",
     published: "2026-10-20",
-    updated: "2026-11-12",
+    updated: "2026-11-19",
     title: "Free Autotune for FL Studio: SnapTune vs AutoTune Go and Pitcher",
     description:
       "Free autotune in FL Studio: how SnapTune compares with AutoTune Go and Pitcher, how to install it, and how to set up hard tune or natural correction.",
@@ -66,7 +66,7 @@ export const guides: Guide[] = [
       {
         heading: "SnapTune, AutoTune Go or Pitcher?",
         paragraphs: [
-          "AutoTune Go comes with FL Cloud Free (Tools, Manage Cloud Plugins) and runs only inside FL Studio. Image-Line lists Major, Minor and Chromatic scales, four Retune Speed settings and automatic vocal range detection: a quick way to tune to the key of your beat.",
+          "AutoTune Go comes with FL Cloud Free (Tools, Manage Cloud Plugins) and runs only inside FL Studio. It has Major, Minor and Chromatic scales, four Retune Speed settings (3, 20, 100 and 400 ms) and automatic vocal range detection: a quick way to tune to the key of your beat. 0 ms, which Antares says the classic hard-tune effect needs, is locked to the paid AutoTune 2026; the AutoTune Go page goes through what else is.",
           "Pitcher is FL Studio’s own real-time pitch corrector, in the editions that include it, and Newtone is its note-by-note editor.",
           "SnapTune is a separate VST3 (and an Audio Unit on a Mac) for when you want more: 13 scales or notes picked by hand, a Retune Speed knob that runs from 0 ms up, Humanize, MIDI target notes, a Formant knob and a 2.7 ms Live mode to record through. It’s open source, and the same plugin loads in other DAWs if you ever move.",
         ],
@@ -109,6 +109,105 @@ export const guides: Guide[] = [
       },
       { q: "Is it a replacement for Pitcher?", a: "For real-time tuning, yes: key and scale, retune speed from robotic to natural, MIDI target notes and a live mode. It isn’t a note-by-note editor like Newtone." },
       { q: "An update doesn’t show up in FL Studio.", a: "FL Studio keeps the old plugin loaded until it restarts. Quit it completely and open it again." },
+      trademark,
+    ],
+  },
+  {
+    slug: "autotune-go-alternative",
+    published: "2026-11-19",
+    updated: "2026-11-19",
+    title: "AutoTune Go Alternative: Free 0 ms Hard Tune in FL Studio",
+    description:
+      "AutoTune Go’s Retune Speed stops at 3 ms, and Antares says the classic hard-tune effect needs 0 ms. SnapTune is a free plugin that goes to 0 ms in FL Studio.",
+    keywords: [
+      "autotune go alternative",
+      "autotune go 0 ms",
+      "autotune go retune speed",
+      "autotune go hard tune",
+      "autotune go vs autotune pro",
+      "free hard tune fl studio",
+      "fl studio autotune 0 retune speed",
+      "autotune go locked controls",
+      "autotune go other daws",
+    ],
+    heading: "AutoTune Go can’t do 0 ms. Here’s a free plugin that can",
+    lead: "AutoTune Go, the free AutoTune that FL Studio gives every user, has four Retune Speed settings: 3, 20, 100 and 400 ms. Antares says the classic hard-tune “Auto-Tune Effect” needs 0 ms, and in AutoTune Go that’s locked until you pay for AutoTune 2026. SnapTune is a free, open-source plugin I make whose Retune Speed knob runs from 0 ms up, in FL Studio and in other DAWs.",
+    sections: [
+      {
+        heading: "What AutoTune Go locks",
+        paragraphs: [
+          "Antares’ own FAQ for AutoTune Go lists what the free edition leaves out: Retune Speed below 3 ms, Humanize and Flex Tune, every preset, scales other than Major, Minor and Chromatic, custom scales, AutoKey, and the extra latency modes. All of those come with the paid AutoTune 2026.",
+          "It also runs only in FL Studio 2025 or later, signed in to an Image-Line account through FL Cloud. Antares says it isn’t available in other DAWs.",
+        ],
+      },
+      {
+        heading: "Side by side",
+        table: {
+          caption: "AutoTune Go and SnapTune, both free in FL Studio",
+          head: ["", "AutoTune Go", "SnapTune"],
+          rows: [
+            ["Retune Speed", "Four fixed settings: 3, 20, 100, 400 ms", "A knob from 0 ms up"],
+            ["Scales", "Major, Minor, Chromatic", "13 scales, or notes picked by hand"],
+            ["Find the key", "AutoKey is in the paid version", "Detect suggests the key from the singing"],
+            ["Natural correction", "Humanize and Flex Tune are in the paid version", "Humanize, Transition, keep or add vibrato"],
+            ["Presets", "None", "Eight, from Hard Tune to Natural"],
+            ["Tune to a melody (MIDI)", "Not in the free version", "MIDI target notes"],
+            ["Formant", "Not in the free version", "Formant knob, ±5 semitones (Studio mode)"],
+            ["Latency modes", "Extra modes are in the paid version", "Studio (62 ms, compensated) and Live (2.7 ms)"],
+            ["Where it runs", "FL Studio 2025 or later only", "FL Studio and any DAW that loads VST3, AU or LV2"],
+            ["Systems", "Windows 10 and 11, macOS 10.15 or later", "Windows, Mac, Linux"],
+            ["Account", "Image-Line account (FL Cloud)", "None"],
+            ["Source code", "Closed", "Open (AGPL-3.0)"],
+          ],
+        },
+      },
+      {
+        heading: "Is 3 ms not enough?",
+        paragraphs: [
+          "3 ms is already tight, and on a lot of vocals it sounds close to hard tune. The difference shows on held notes and quick slides between notes: at 0 ms the voice jumps from one note to the next with nothing in between, the stair-step sound from trap and pop records. Antares draws the same line: its FAQ says the iconic effect “specifically requires a Retune Speed of 0 ms”.",
+          "If 3 ms gives you the sound you want, keep AutoTune Go. It’s already in FL Studio and it sounds good. Try SnapTune when you want the full snap, another scale, a melody from MIDI or the same plugin in another DAW.",
+        ],
+      },
+      {
+        heading: "0 ms in FL Studio with SnapTune",
+        steps: [
+          "Download SnapTune for your system and run the installer.",
+          "Quit FL Studio completely and open it again, then run Options, Manage plugins, scan for installed plugins.",
+          "On the Mixer, select the vocal’s insert track and add SnapTune to an empty slot.",
+          "Set Key and Scale to the beat. If you don’t know the key, click Detect and sing a few seconds.",
+          "Pick the Hard Tune preset: Retune Speed 0 ms, Humanize 0.",
+          "To record through it, switch to Live (2.7 ms). Switch back to Studio for the mix; FL Studio compensates its 62 ms.",
+        ],
+      },
+      {
+        heading: "Sources",
+        paragraphs: [
+          "AutoTune Go’s settings and limits come from Antares’ FAQ and Image-Line’s announcement, read on 19 November 2026. Check them for changes before you choose. I make SnapTune, so read this page with that in mind.",
+        ],
+        sources: [
+          { name: "AutoTune Go FAQ (Antares)", href: "https://help.antarestech.com/hc/en-us/articles/51865737389332" },
+          { name: "AutoTune Go joins FL Cloud (Image-Line)", href: "https://www.image-line.com/news/autotune-go-joins-fl-cloud" },
+          { name: "SnapTune source code and method (GitHub)", href: "https://github.com/NicoFerni/snaptune" },
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Can AutoTune Go do the hard autotune effect?",
+        a: "Not fully. Its fastest Retune Speed is 3 ms, which is tight, but Antares says the classic effect needs 0 ms, and that’s only in the paid AutoTune 2026. SnapTune goes to 0 ms for free.",
+      },
+      {
+        q: "Can I use AutoTune Go and SnapTune together?",
+        a: "Yes, but not on the same vocal at once: two pitch correctors in a row fight each other. Try them one at a time on the same take and keep the one you like.",
+      },
+      {
+        q: "Does SnapTune need FL Cloud or an account?",
+        a: "No. It’s a regular VST3 plugin (and an Audio Unit on a Mac), installed from this site, with no sign-in. It loads in any FL Studio edition that takes third-party VST3 plugins.",
+      },
+      {
+        q: "Can I use AutoTune Go outside FL Studio?",
+        a: "No, Antares says it’s only for FL Studio. SnapTune loads in any DAW that takes VST3, AU or LV2, on Windows, Mac and Linux.",
+      },
       trademark,
     ],
   },
