@@ -14,11 +14,11 @@ export type GuideSection = {
 };
 
 export type Guide = {
-  /** The path without its leading slash ("free-autotune", "es/autotune-gratis"). */
+  /** The path without its leading slash ("hard-tune", "es/autotune-gratis"). */
   slug: string;
   /** The page's language; English unless set. */
   lang?: "en" | "es";
-  /** The same page in the other language, by slug, for hreflang. */
+  /** The same page in the other language, by slug, for hreflang; "" is the home page. */
   translation?: string;
   /** When the page went up, and when its text last changed (for the sitemap and the page itself). */
   published: string;
@@ -40,72 +40,6 @@ const trademark = {
 };
 
 export const guides: Guide[] = [
-  {
-    slug: "free-autotune",
-    translation: "es/autotune-gratis",
-    published: "2026-10-20",
-    updated: "2026-11-12",
-    title: "Free Autotune Plugin (VST3, AU, LV2) for Mac, Windows, Linux",
-    description:
-      "SnapTune is a free autotune plugin: hard-tune or natural pitch correction for vocals, VST3, AU and LV2, open source, no trial and no account.",
-    keywords: [
-      "free autotune",
-      "free autotune plugin",
-      "free autotune vst",
-      "autotune vst free download",
-      "free pitch correction plugin",
-      "free vocal tuner plugin",
-      "hard tune effect free",
-      "autotune for mac free",
-      "autotune for windows free",
-    ],
-    heading: "A free autotune plugin",
-    lead: "SnapTune is a free, open-source autotune plugin (VST3, AU and LV2) for Mac, Windows and Linux. It tunes your vocal to the key while it plays: the hard, robotic snap at one end of a knob, a natural fix nobody hears at the other. No trial, no watermark and no account.",
-    sections: [
-      {
-        heading: "What you get",
-        paragraphs: [
-          "A VST3 and an Audio Unit for Mac, a VST3 for 64-bit Windows, and a VST3 and an LV2 for Linux, plus a standalone app on all three. It loads in any DAW that loads those formats.",
-          "Set the key and one of 13 scales, or switch notes on and off by hand. Hold notes on a MIDI track and the voice follows those instead. Eight factory presets cover the usual sounds, from Hard Tune to Smooth Glide.",
-        ],
-      },
-      {
-        heading: "The hard-tune sound",
-        paragraphs: [
-          "Set Retune Speed to 0 ms, or pick the Hard Tune preset. The voice jumps straight onto each note with no glide between them: the stair-step effect from rap, trap and pop records. It works best when the key is set to the song’s key. For a vibrato on top of the snap, pick Hard Tune Vibrato, which adds one to every held note; to keep your own instead, turn on Keep my vibrato on the Vibrato page.",
-        ],
-      },
-      {
-        heading: "Natural pitch correction",
-        paragraphs: [
-          "Turn Retune Speed up, or pick Natural or Subtle Polish. Slides and vibrato come through and only the drift off the note is corrected. Humanize relaxes long notes so they don’t sound locked. In Studio mode the formants stay put, so the voice keeps its character.",
-        ],
-      },
-      {
-        heading: "Hear it while you record",
-        paragraphs: [
-          "Live mode answers in 2.7 ms, quick enough to sing through and hear yourself tuned. Studio mode takes 62 ms for the cleanest result and reports it to your DAW, which lines everything up.",
-        ],
-      },
-      {
-        heading: "Install it",
-        steps: [
-          "Download the installer for your system from this page.",
-          "On a Mac, open the .pkg. On Windows, run the setup. On Linux, unpack the archive and run install.sh.",
-          "Restart your DAW and rescan plugins, then put SnapTune on the vocal track.",
-        ],
-      },
-    ],
-    faqs: [
-      { q: "Is it really free?", a: "Yes. It’s open source under the AGPL-3.0 licence: no trial, no watermark, no account, and the source code is on GitHub." },
-      {
-        q: "Which DAWs does it work in?",
-        a: "Any DAW that loads VST3, Audio Unit or LV2 plugins. I test it in FL Studio, and every build passes Apple’s Audio Unit validation; I haven’t tried every other DAW, so if yours has trouble, open an issue on GitHub or write to support@getsnaptune.com.",
-      },
-      { q: "Why does it do nothing to my vocal?", a: "It needs the vocal on its own track: a beat or a full mix has no single pitch to follow." },
-      trademark,
-    ],
-  },
   {
     slug: "autotune-fl-studio",
     published: "2026-10-20",
@@ -536,9 +470,130 @@ export const guides: Guide[] = [
     ],
   },
   {
+    slug: "autotune-logic-pro",
+    published: "2026-11-18",
+    updated: "2026-11-18",
+    title: "Free Autotune for Logic Pro: SnapTune vs Pitch Correction",
+    description:
+      "A free autotune Audio Unit for Logic Pro: how SnapTune compares with Logic’s Pitch Correction and Flex Pitch, how to install it, and hard tune or natural settings.",
+    keywords: [
+      "autotune logic pro free",
+      "free autotune for logic pro",
+      "logic pro autotune plugin",
+      "logic pro pitch correction alternative",
+      "hard autotune logic pro",
+      "logic pro x autotune free",
+    ],
+    heading: "Free autotune in Logic Pro",
+    lead: "SnapTune is a free, open-source autotune plugin for Mac, and its Audio Unit loads in Logic Pro. Logic already comes with Pitch Correction and Flex Pitch; SnapTune adds a Retune Speed knob from hard tune to natural, presets, vibrato controls, a Formant knob and a 2.7 ms Live mode. Every build passes Apple’s Audio Unit validation, the same check Logic runs on new plugins, but I haven’t tried SnapTune in Logic myself yet; if something is off, tell me.",
+    sections: [
+      {
+        heading: "SnapTune, Pitch Correction or Flex Pitch?",
+        paragraphs: [
+          "Pitch Correction is Logic’s own real-time tuner: a key and scale, a Response knob for how fast the voice reaches the note, a Tolerance zone and notes you can bypass. For a light, transparent fix it is often all you need.",
+          "Flex Pitch is Logic’s note-by-note editor: you see each sung note in the track editor and drag it where you want. It is for fixing single notes by hand, not for an effect.",
+          "SnapTune is for when you want the effect itself or more control: Retune Speed from 0 ms (the hard, stair-step sound) up, Humanize and Transition for how notes change, Keep my vibrato or Add vibrato, a Formant knob, eight presets, 13 scales and a Live mode you can record through. It is open source, and the same plugin loads in other DAWs if you move.",
+        ],
+        sources: [{ name: "Pitch Correction parameters (Logic Pro User Guide)", href: "https://support.apple.com/guide/logicpro/pitch-correction-parameters-lgcef2835c07/mac" }],
+      },
+      {
+        heading: "Install and find it",
+        steps: [
+          "Download SnapTune for Mac and open the .pkg. The first time, macOS asks: open System Settings, Privacy & Security, and click Open Anyway.",
+          "Open Logic Pro. It checks new Audio Units when it starts; if SnapTune doesn’t show up, open Logic Pro, Settings, Plug-in Manager, select SnapTune and click Reset & Rescan Selection.",
+          "On the vocal’s audio track, click an empty Audio FX slot and choose Audio Units, Nico Fernandez, SnapTune.",
+        ],
+      },
+      {
+        heading: "Hard tune or natural",
+        steps: [
+          "Set Key and Scale to the song.",
+          "Pick Hard Tune for the robotic snap, Natural or Subtle Polish for a correction nobody hears.",
+          "For deep voices set Voice to Low Male; if breaths make it jump, raise Tracking.",
+        ],
+      },
+      {
+        heading: "Recording through it",
+        paragraphs: [
+          "Turn on input monitoring for the track and switch SnapTune to Live: 2.7 ms, so you hear yourself tuned. Switch back to Studio for the mix; Logic compensates its 62 ms. If Low Latency Mode is on, Logic may bypass plugins that add more delay than its limit, which is one more reason to record in Live.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Isn’t Logic’s Pitch Correction enough?",
+        a: "For a nudge, often yes. SnapTune is for the hard-tune effect with more control, vibrato and formant, a Live mode to sing through, or the same plugin outside Logic. Both are free with Logic, so try them side by side.",
+      },
+      { q: "Does Logic load the VST3?", a: "No. Logic Pro only loads Audio Units; the Mac installer puts the Audio Unit in place for it." },
+      {
+        q: "Can it follow a MIDI melody in Logic?",
+        a: "SnapTune takes MIDI notes as targets. Logic sends MIDI only to effects loaded on a Software Instrument track, where SnapTune is listed under AU MIDI-controlled Effects and the vocal comes in through the plugin’s Side Chain menu; I haven’t tried that setup yet.",
+      },
+      { q: "Does it work in Logic Pro for iPad?", a: "No. SnapTune is a Mac Audio Unit; there’s no iPad version." },
+      trademark,
+    ],
+  },
+  {
+    slug: "autotune-audacity",
+    published: "2026-11-18",
+    updated: "2026-11-18",
+    title: "Free Autotune for Audacity: SnapTune as a Realtime Effect",
+    description:
+      "A free autotune plugin for Audacity on Windows, Mac and Linux: install SnapTune, add it as a realtime effect or apply it to a clip, and set hard tune or natural.",
+    keywords: [
+      "autotune audacity",
+      "free autotune for audacity",
+      "audacity autotune plugin",
+      "how to autotune in audacity",
+      "audacity pitch correction",
+      "audacity vst3 autotune",
+    ],
+    heading: "Free autotune in Audacity",
+    lead: "SnapTune is a free, open-source autotune plugin that loads in Audacity 3.2 and later: as a VST3 on Windows, Mac and Linux, as an Audio Unit on a Mac and as an LV2 on Linux. Audacity has no pitch correction of its own, so this is how to add it. I haven’t tried SnapTune in Audacity myself yet; if something is off, tell me.",
+    sections: [
+      {
+        heading: "Install and find it",
+        steps: [
+          "Download SnapTune for your system and run the installer (on Linux, unpack the archive and run install.sh).",
+          "Open Audacity. It scans new plugins when it starts; if SnapTune is missing, open Effect, Plugin Manager and click Rescan.",
+          "Record or import the vocal on its own track, not mixed with the beat.",
+        ],
+      },
+      {
+        heading: "Two ways to use it",
+        paragraphs: [
+          "As a realtime effect: click Effects on the vocal track, add SnapTune, and press play. The clip itself doesn’t change, so you can keep adjusting, and the effect is printed when you export.",
+          "Applied to the clip: select the audio, open the Effect menu, choose SnapTune and click Apply. The tuning is written into the audio, which you can undo but not adjust afterwards.",
+        ],
+        sources: [{ name: "Audacity 3.2.0 release notes: realtime VST3, LV2 and Audio Unit effects", href: "https://github.com/audacity/audacity/releases/tag/Audacity-3.2.0" }],
+      },
+      {
+        heading: "Hard tune or natural",
+        steps: [
+          "Set Key and Scale to the song. If you don’t know the key, the Detect button suggests one from the singing.",
+          "Pick Hard Tune for the robotic snap, Natural or Subtle Polish for a correction nobody hears.",
+          "For deep voices set Voice to Low Male; if breaths make it jump, raise Tracking.",
+        ],
+      },
+    ],
+    faqs: [
+      {
+        q: "Does Audacity have autotune built in?",
+        a: "No. Its Change Pitch effect moves the whole clip up or down by the same amount; it doesn’t pull each note to a key. For that you need a pitch correction plugin such as SnapTune.",
+      },
+      { q: "Which version of Audacity do I need?", a: "3.2 or later: that is where VST3 support and realtime effects arrived." },
+      {
+        q: "Can I hear myself tuned while I record?",
+        a: "Not through Audacity. SnapTune’s standalone app, installed with the plugin, tunes your microphone straight to your headphones in its 2.7 ms Live mode; a DAW like Reaper does the same with the plugin.",
+      },
+      { q: "Can it follow a MIDI melody in Audacity?", a: "No. Audacity doesn’t send MIDI to effects, so use a key and scale, or switch notes on and off by hand in SnapTune." },
+      trademark,
+    ],
+  },
+  {
     slug: "es/autotune-gratis",
     lang: "es",
-    translation: "free-autotune",
+    translation: "",
     published: "2026-11-12",
     updated: "2026-11-12",
     title: "Autotune gratis: plugin VST3, AU y LV2 para Mac, Windows y Linux",

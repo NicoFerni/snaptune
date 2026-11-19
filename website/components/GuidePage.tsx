@@ -3,7 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Downloads } from "@/components/Downloads";
 import { LogoMark } from "@/components/Logo";
-import { guideBySlug, guidesIn, type Guide } from "@/lib/guides";
+import { guidesIn, type Guide } from "@/lib/guides";
 import { latestRelease } from "@/lib/release";
 import { JsonLd, breadcrumbs, faqPage, shareImage, softwareApplication, techArticle } from "@/lib/seo";
 import { links } from "@/lib/site";
@@ -68,7 +68,8 @@ export function guideMetadata(guide: Guide): Metadata {
   const path = `/${guide.slug}`;
   const lang = langOf(guide);
   // hreflang: each language version names itself and the other; English is the default.
-  const languages = guide.translation
+  const languages =
+    guide.translation !== undefined
     ? lang === "en"
       ? { en: path, es: `/${guide.translation}`, "x-default": path }
       : { en: `/${guide.translation}`, es: path, "x-default": `/${guide.translation}` }
@@ -99,7 +100,8 @@ export async function GuidePage({ guide }: { guide: Guide }) {
   const lang = langOf(guide);
   const t = words[lang];
   const others = guidesIn(lang).filter((g) => g.slug !== guide.slug);
-  const translation = guide.translation ? guideBySlug(guide.translation) : null;
+  // The other language's page: another guide, or the home page ("").
+  const translation = guide.translation === undefined ? null : `/${guide.translation}`;
 
   return (
     <>
@@ -138,7 +140,7 @@ export async function GuidePage({ guide }: { guide: Guide }) {
             {translation && (
               <>
                 {" · "}
-                <Link href={`/${translation.slug}`} hrefLang={translation.lang ?? "en"}>
+                <Link href={translation} hrefLang={lang === "es" ? "en" : "es"}>
                   {t.other}
                 </Link>
               </>

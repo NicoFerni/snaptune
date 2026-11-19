@@ -8,7 +8,7 @@ import { links } from "@/lib/site";
 export const siteUrl = process.env.SITE_URL ?? "https://getsnaptune.com";
 
 /** When the home page's text last changed, for the sitemap. */
-export const homeUpdated = "2026-11-11";
+export const homeUpdated = "2026-11-18";
 
 export const keywords = [
   "free autotune",

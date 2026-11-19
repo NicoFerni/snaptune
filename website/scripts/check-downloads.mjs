@@ -6,7 +6,7 @@
 //   node website/scripts/check-downloads.mjs [https://getsnaptune.com]
 
 const site = (process.argv[2] ?? "https://getsnaptune.com").replace(/\/$/, "");
-const pages = ["/", "/free-autotune", "/autotune-fl-studio", "/autotune-linux"];
+const pages = ["/", "/autotune-fl-studio", "/autotune-linux"];
 const failures = [];
 
 // Vercel or GitHub's file host now and then answers 5xx for a minute; only a failure that outlasts a
