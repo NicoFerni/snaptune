@@ -172,7 +172,8 @@ export const getMetrics = cache(async () => {
     events,
     downloads,
     history,
-    siteDownloads: { "7": unique?.last7 ?? null, "30": unique?.last30 ?? null },
+    siteDownloads: { "7": unique?.last7 ?? null, "30": unique?.last30 ?? null, all: unique?.all ?? null },
+    siteSince: unique?.since ?? null,
     assets,
     search: searchReport ? { clicks: searchClicks, impressions: searchImpressions } : null,
   });

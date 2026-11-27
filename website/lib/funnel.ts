@@ -17,7 +17,8 @@ export type SegmentRow = { label: string; installs: number; base: number; twice:
 export type FunnelWindow = {
   key: string;
   label: string;
-  /** The window's first day (Argentina time, lib/days.ts); it runs to today. */
+  /** The window's first day (Argentina time, lib/days.ts); it runs to today. All time starts on
+      the first install. */
   since: string;
   /** How many days it covers, today included: shorter than asked while the saved totals are newer. */
   days: number;
@@ -156,34 +157,48 @@ type Input = {
   /** GitHub's download total now and the totals the panel saved per day (YYYY-MM-DD, total). */
   downloads: number;
   history: [string, number][] | null;
-  /** Downloads through the site's buttons, one per IP, per window key. */
+  /** Downloads through the site's buttons, one per IP, per window key, and when that count began. */
   siteDownloads: Record<string, number | null>;
+  siteSince: string | null;
   /** Every release file with its download count. */
   assets: { name: string; version: string; os: string; download_count: number }[];
   search: { clicks: number; impressions: number } | null;
 };
 
-export function buildFunnel({ now, installs, events, downloads, history, siteDownloads, assets, search }: Input): FunnelData {
+export function buildFunnel({ now, installs, events, downloads, history, siteDownloads, siteSince, assets, search }: Input): FunnelData {
   const used = usage(installs, events);
   const changes = updates(events);
+
+  // Downloads to installs, all time, count only the releases that send pings: the oldest version any
+  // install has reported, and every release since.
+  const versions = [...new Set(events.map((e) => e.version).filter(Boolean))].sort(compareVersions);
+  const oldest = versions[0];
+  const pinging = oldest ? assets.filter((a) => compareVersions(a.version.replace(/^v/, ""), oldest) >= 0) : [];
+  const firstInstall = installs.length ? Math.min(...installs.map((i) => i.first)) : now;
 
   const windows = [
     { key: "7", days: 7, label: "Last 7 days" },
     { key: "30", days: 30, label: "Last 30 days" },
+    { key: "all", days: null, label: "All time" },
   ].map(({ key, days, label }): FunnelWindow => {
     // Downloads are counted from a saved daily total: the one on the day before the window, or the
     // first the panel ever saved when it doesn't go back that far. That total is GitHub's count at
     // the panel's last look that day, so the downloads after it are the days after it, and installs
     // and updates are counted from the next day on too, so both sides cover the same days.
-    const from = day(now - days * DAY);
-    const baseline = history?.filter(([d]) => d <= from).at(-1) ?? history?.[0] ?? null;
-    const start = dayStart(baseline?.[0] ?? from) + DAY;
-    const since = day(start);
-    const span = Math.max(1, Math.round((dayStart(day(now)) - start) / DAY) + 1);
+    // All time needs no saved total: every download of the releases that send pings, against every
+    // install since the first.
+    const lifetime = days === null;
+    const from = day(now - (days ?? 0) * DAY);
+    const baseline = lifetime ? null : (history?.filter(([d]) => d <= from).at(-1) ?? history?.[0] ?? null);
+    const start = lifetime ? 0 : dayStart(baseline?.[0] ?? from) + DAY;
+    const since = day(lifetime ? firstInstall : start);
+    const span = Math.max(1, Math.round((dayStart(day(now)) - dayStart(since)) / DAY) + 1);
 
     const cohort = used.filter((u) => u.install.first >= start);
     const updated = changes.filter((c) => c.t >= start).length;
-    const downloaded = baseline ? Math.max(0, downloads - baseline[1] - updated) : null;
+    const downloaded = lifetime
+      ? oldest ? Math.max(0, pinging.reduce((sum, a) => sum + a.download_count, 0) - updated) : null
+      : baseline ? Math.max(0, downloads - baseline[1] - updated) : null;
 
     const old = cohort.filter((u) => now - u.first >= SPAN);
     const twice = old.filter((u) => twiceWithin(u, SPAN));
@@ -199,7 +214,7 @@ export function buildFunnel({ now, installs, events, downloads, history, siteDow
             label: "Downloaded",
             count: downloaded,
             base: null,
-            note: `GitHub's count, ${updated} updates left out${site != null ? ` · ${site} through the site's buttons, one per IP` : ""}. Bots and retried downloads are in it, so every rate after this is a floor.`,
+            note: `GitHub's count${lifetime ? ` for the releases that send pings (${oldest} on)` : ""}, ${updated} updates left out${site != null ? ` · ${site} through the site's buttons, one per IP${lifetime && siteSince ? ` since ${siteSince}` : ""}` : ""}. Bots and retried downloads are in it, so every rate after this is a floor.`,
           }]),
       { label: "Installed", count: cohort.length, base: downloaded, note: "First ping from a DAW: the plugin loaded on a new device. A DAW's own plugin scan counts too." },
       {
@@ -215,7 +230,7 @@ export function buildFunnel({ now, installs, events, downloads, history, siteDow
         note: "A session a full day or more after the first, at any time since.",
       },
       // Installs from the last seven days can't have a session a week after their first yet.
-      ...(days > 7
+      ...(days === null || days > 7
         ? [{
             label: "Still using it a week later",
             count: stayed.length,
@@ -228,7 +243,7 @@ export function buildFunnel({ now, installs, events, downloads, history, siteDow
     const sessions = cohort.map((u) => u.install.launches).sort((a, b) => a - b);
     return {
       key,
-      label: span === days ? label : `Since ${since.slice(5)}`,
+      label: lifetime || span === days ? label : `Since ${since.slice(5)}`,
       since,
       days: span,
       installed: cohort.length,
@@ -248,11 +263,7 @@ export function buildFunnel({ now, installs, events, downloads, history, siteDow
     };
   });
 
-  // Downloads to installs by OS, all time, over the releases that send pings: the oldest version any
-  // install has reported, and every release since.
-  const versions = [...new Set(events.map((e) => e.version).filter(Boolean))].sort(compareVersions);
-  const oldest = versions[0];
-  const pinging = oldest ? assets.filter((a) => compareVersions(a.version.replace(/^v/, ""), oldest) >= 0) : [];
+  // Downloads to installs by OS, all time, over the same releases.
   const byOs = ["Windows", "macOS", "Linux"].map((os) => ({
     os,
     downloads: pinging.filter((a) => a.os === os).reduce((sum, a) => sum + a.download_count, 0),
