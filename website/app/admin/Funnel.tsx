@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FunnelData, FunnelStep, SegmentRow } from "@/lib/funnel";
 
 // The activation funnel, in a dialog that any card marked data-funnel opens (on the window its
-// value is "7" or "30"). The numbers are worked out on the server; this only shows them.
+// value is "7" or "30"; the dialog's tabs also have all time). The numbers are worked out on the server; this only shows them.
 
 function rate(part: number, whole: number | null): number | null {
   return whole ? part / whole : null;
@@ -53,7 +53,8 @@ export default function Funnel({ data }: { data: FunnelData }) {
             <p className="caption">Activation</p>
             <h2 className="headline text-2xl">From download to using it a week later</h2>
             <p className="mt-1 text-sm text-faint">
-              Installs first seen from {view.since} to today ({view.days} {view.days === 1 ? "day" : "days"}), and what each of them did after. The cards that open this show the same numbers.
+              Installs first seen from {view.since} to today ({view.days} {view.days === 1 ? "day" : "days"}), and what each of them did after.{" "}
+              {view.key === "all" ? "Every install so far." : "The cards that open this show the same numbers."}
             </p>
           </div>
           <div className="flex items-center gap-2">
